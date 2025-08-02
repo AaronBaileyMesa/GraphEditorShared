@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "BC9256D1-5B09-47C2-8BCE-5A53A8CE07BE",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "GraphEditorSharedTests",
+        "name" : "GraphEditorSharedTests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -17,7 +17,7 @@ let package = Package(
             path: "Sources/GraphEditorShared"  // Explicitly set path if needed
         ),
         .testTarget(
-            name: "GraphEditorSharedTßests",
+            name: "GraphEditorSharedTests",
             dependencies: ["GraphEditorShared"],
             path: "Tests/GraphEditorSharedTests"  // Explicitly set path if needed
         ),
