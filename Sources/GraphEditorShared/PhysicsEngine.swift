@@ -26,6 +26,8 @@ public class PhysicsEngine {
         simulationSteps = 0
     }
     
+    public var useAsymmetricAttraction: Bool = false  // New: Toggle for directed physics (default false for stability)
+    
     @discardableResult
     public func simulationStep(nodes: inout [Node], edges: [GraphEdge]) -> Bool {
         if simulationSteps >= PhysicsConstants.maxSimulationSteps {
@@ -62,21 +64,29 @@ public class PhysicsEngine {
         
         // Attraction on edges
         for edge in edges {
-            guard let fromIdx = nodes.firstIndex(where: { $0.id == edge.from }),
-                  let toIdx = nodes.firstIndex(where: { $0.id == edge.to }) else { continue }
-            let deltaX = nodes[toIdx].position.x - nodes[fromIdx].position.x
-            let deltaY = nodes[toIdx].position.y - nodes[fromIdx].position.y
-            let dist = max(hypot(deltaX, deltaY), PhysicsConstants.distanceEpsilon)
-            let forceMagnitude = PhysicsConstants.stiffness * (dist - PhysicsConstants.idealLength)
-            let forceDirectionX = deltaX / dist
-            let forceDirectionY = deltaY / dist
-            let forceX = forceDirectionX * forceMagnitude
-            let forceY = forceDirectionY * forceMagnitude
-            let currentForceFrom = forces[nodes[fromIdx].id] ?? .zero
-            forces[nodes[fromIdx].id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
-            let currentForceTo = forces[nodes[toIdx].id] ?? .zero
-            forces[nodes[toIdx].id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
-        }
+                    guard let fromIdx = nodes.firstIndex(where: { $0.id == edge.from }),
+                          let toIdx = nodes.firstIndex(where: { $0.id == edge.to }) else { continue }
+                    let deltaX = nodes[toIdx].position.x - nodes[fromIdx].position.x
+                    let deltaY = nodes[toIdx].position.y - nodes[fromIdx].position.y
+                    let dist = max(hypot(deltaX, deltaY), PhysicsConstants.distanceEpsilon)
+                    let forceMagnitude = PhysicsConstants.stiffness * (dist - PhysicsConstants.idealLength)
+                    let forceDirectionX = deltaX / dist
+                    let forceDirectionY = deltaY / dist
+                    let forceX = forceDirectionX * forceMagnitude
+                    let forceY = forceDirectionY * forceMagnitude
+
+                    if useAsymmetricAttraction {
+                        // Asymmetric: Only pull 'to' towards 'from' (stronger influence on 'to')
+                        let currentForceTo = forces[nodes[toIdx].id] ?? .zero
+                        forces[nodes[toIdx].id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
+                    } else {
+                        // Symmetric (original)
+                        let currentForceFrom = forces[nodes[fromIdx].id] ?? .zero
+                        forces[nodes[fromIdx].id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
+                        let currentForceTo = forces[nodes[toIdx].id] ?? .zero
+                        forces[nodes[toIdx].id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
+                    }
+                }
         
         // Weak centering force
         for i in 0..<nodes.count {
