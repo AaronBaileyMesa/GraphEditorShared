@@ -6,27 +6,32 @@ public typealias NodeID = UUID
 // Represents a node in the graph with position, velocity, and permanent label.
 public struct Node: Identifiable, Equatable, Codable {
     public let id: NodeID
-    public let label: Int  // Permanent label, assigned on creation
+    public let label: Int
     public var position: CGPoint
     public var velocity: CGPoint = .zero
-    
-    enum CodingKeys: String, CodingKey {
-        case id, label
-        case positionX, positionY
-        case velocityX, velocityY
-    }
-    
-    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero) {
+    public var radius: CGFloat = 10.0  // New: Per-node radius (default matches AppConstants.nodeModelRadius)
+
+    // Update init to include radius
+    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0) {
         self.id = id
         self.label = label
         self.position = position
         self.velocity = velocity
+        self.radius = radius
     }
-    
+
+    // Update CodingKeys and decoder/encoder for radius
+    enum CodingKeys: String, CodingKey {
+        case id, label, radius  // Add radius
+        case positionX, positionY
+        case velocityX, velocityY
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(NodeID.self, forKey: .id)
         label = try container.decode(Int.self, forKey: .label)
+        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? 10.0  // Decode or default
         let posX = try container.decode(CGFloat.self, forKey: .positionX)
         let posY = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: posX, y: posY)
@@ -34,11 +39,12 @@ public struct Node: Identifiable, Equatable, Codable {
         let velY = try container.decode(CGFloat.self, forKey: .velocityY)
         velocity = CGPoint(x: velX, y: velY)
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(label, forKey: .label)
+        try container.encode(radius, forKey: .radius)  // Encode radius
         try container.encode(position.x, forKey: .positionX)
         try container.encode(position.y, forKey: .positionY)
         try container.encode(velocity.x, forKey: .velocityX)

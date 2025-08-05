@@ -4,7 +4,7 @@ import CoreGraphics  // For CGPoint
 import GraphEditorShared
 
 struct GraphEditorSharedTests {
-
+    
     @Test func testNodeInitializationAndEquality() {
         let id = UUID()
         let node1 = Node(id: id, label: 1, position: CGPoint(x: 10, y: 20))
@@ -226,26 +226,41 @@ struct GraphEditorSharedTests {
         let origin = CGPoint.zero
         #expect(distance(negativePoints, origin) == 5, "Distance with negatives is positive")
     }
+    
+    @Test func testDirectedEdgeCreation() {
+        let edge = GraphEdge(from: UUID(), to: UUID())
+        #expect(edge.from != edge.to, "Directed edge has distinct from/to")
+    }
+    
+    @Test func testAsymmetricAttraction() throws {
+        let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+        engine.useAsymmetricAttraction = true
+        var nodes = [Node(id: UUID(), label: 1, position: CGPoint(x: 0, y: 0)),
+                     Node(id: UUID(), label: 2, position: CGPoint(x: 200, y: 0))]
+        let edges = [GraphEdge(from: nodes[0].id, to: nodes[1].id)]
+        _ = engine.simulationStep(nodes: &nodes, edges: edges)
+        #expect(abs(nodes[0].position.x - 0) < 1, "From node position unchanged in asymmetric")
+        #expect(nodes[1].position.x < 200, "To node pulled towards from")
+    }
 }
 
 struct PerformanceTests {
 
+    @available(watchOS 9.0, *)  // Guard for availability
     @Test func testSimulationPerformance() {
         let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
         var nodes: [Node] = (1...100).map { Node(label: $0, position: CGPoint(x: CGFloat.random(in: 0...300), y: CGFloat.random(in: 0...300))) }
         let edges: [GraphEdge] = []
-        
-        let clock = ContinuousClock()
-        let duration = clock.measure {
-            for _ in 0..<10 {
-                _ = engine.simulationStep(nodes: &nodes, edges: edges)
-            }
+
+        let start = Date()
+        for _ in 0..<10 {
+            _ = engine.simulationStep(nodes: &nodes, edges: edges)
         }
-        
-        print("Duration for 10 simulation steps with 100 nodes: \(duration)")
-        
-        // Optional: Add a loose expectation (adjust threshold based on your machine/device)
-        #expect(duration < .seconds(0.5), "Simulation should be performant")
+        let duration = Date().timeIntervalSince(start)
+
+        print("Duration for 10 simulation steps with 100 nodes: \(duration) seconds")
+
+        #expect(duration < 0.5, "Simulation should be performant")
     }
     
 }
