@@ -1,7 +1,7 @@
 import Testing
 import Foundation  // For UUID, JSONEncoder, JSONDecoder
 import CoreGraphics  // For CGPoint
-@testable import GraphEditorShared
+import GraphEditorShared
 
 struct GraphEditorSharedTests {
 
@@ -225,6 +225,27 @@ struct GraphEditorSharedTests {
         let negativePoints = CGPoint(x: -3, y: -4)
         let origin = CGPoint.zero
         #expect(distance(negativePoints, origin) == 5, "Distance with negatives is positive")
+    }
+}
+
+struct PerformanceTests {
+
+    @Test func testSimulationPerformance() {
+        let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+        var nodes: [Node] = (1...100).map { Node(label: $0, position: CGPoint(x: CGFloat.random(in: 0...300), y: CGFloat.random(in: 0...300))) }
+        let edges: [GraphEdge] = []
+        
+        let clock = ContinuousClock()
+        let duration = clock.measure {
+            for _ in 0..<10 {
+                _ = engine.simulationStep(nodes: &nodes, edges: edges)
+            }
+        }
+        
+        print("Duration for 10 simulation steps with 100 nodes: \(duration)")
+        
+        // Optional: Add a loose expectation (adjust threshold based on your machine/device)
+        #expect(duration < .seconds(0.5), "Simulation should be performant")
     }
     
 }
