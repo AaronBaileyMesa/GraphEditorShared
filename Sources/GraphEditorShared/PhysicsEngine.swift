@@ -14,7 +14,7 @@ import CoreGraphics
 public class PhysicsEngine {
     let simulationBounds: CGSize
     
-    private let maxNodesForQuadtree = 100  // Added constant for node cap fallback
+    private let maxNodesForQuadtree = 200  // Added constant for node cap fallback
     
     public init(simulationBounds: CGSize) {
         self.simulationBounds = simulationBounds
@@ -51,7 +51,7 @@ public class PhysicsEngine {
         for i in 0..<nodes.count {
             var repulsion: CGPoint = .zero
             if useQuadtree {
-                let dynamicTheta: CGFloat = nodes.count > 50 ? 1.2 : (nodes.count > 20 ? 1.0 : 0.5)
+                let dynamicTheta: CGFloat = nodes.count > 100 ? 1.5 : (nodes.count > 50 ? 1.2 : 0.8)
                 repulsion = quadtree!.computeForce(on: nodes[i], theta: dynamicTheta)
             } else {
                 // Naive repulsion

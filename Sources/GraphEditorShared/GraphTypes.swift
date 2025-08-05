@@ -4,7 +4,7 @@ import Foundation
 public typealias NodeID = UUID
 
 // Represents a node in the graph with position, velocity, and permanent label.
-public struct Node: Identifiable, Equatable, Codable {
+public struct Node: NodeProtocol {
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
