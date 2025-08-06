@@ -28,8 +28,12 @@ public class PhysicsEngine {
     
     public var useAsymmetricAttraction: Bool = false  // New: Toggle for directed physics (default false for stability)
     
+    public var isPaused: Bool = false  // New: Flag to pause simulation steps
+    
     @discardableResult
     public func simulationStep(nodes: inout [Node], edges: [GraphEdge]) -> Bool {
+        if isPaused { return false }  // New: Skip if paused (no updates, signals stable)
+        
         if simulationSteps >= PhysicsConstants.maxSimulationSteps {
             return false
         }
