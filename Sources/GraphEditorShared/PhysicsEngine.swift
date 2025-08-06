@@ -126,7 +126,7 @@ public class PhysicsEngine {
         return totalVelocity >= PhysicsConstants.velocityThreshold * CGFloat(nodes.count)
     }
     
-    public func boundingBox(nodes: [Node]) -> CGRect {
+    public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
         if nodes.isEmpty { return .zero }
         let xs = nodes.map { $0.position.x }
         let ys = nodes.map { $0.position.y }
