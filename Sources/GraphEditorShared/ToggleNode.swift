@@ -90,4 +90,25 @@ public struct ToggleNode: NodeProtocol {
     public func shouldHideChildren() -> Bool {
         !isExpanded
     }
+    
+    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
+        let color = isExpanded ? Color.green : Color.red
+        let scaledRadius = radius * zoomScale
+        let borderWidth: CGFloat = isSelected ? 4 * zoomScale : 0
+        let borderRadius = scaledRadius + borderWidth / 2
+        
+        // Draw filled circle with custom color
+        context.fill(Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius)), with: .color(color))
+        
+        // Draw border if selected
+        if isSelected {
+            context.stroke(Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius)), with: .color(.white), lineWidth: borderWidth)
+        }
+        
+        // Draw label (with resolve for GraphicsContext compatibility)
+        let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
+        let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
+        let resolved = context.resolve(text)
+        context.draw(resolved, at: position, anchor: .center)
+    }
 }
