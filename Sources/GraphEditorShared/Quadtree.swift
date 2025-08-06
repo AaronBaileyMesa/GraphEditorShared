@@ -9,7 +9,8 @@
 import Foundation
 import CoreGraphics
 
-
+@available(iOS 13.0, *)
+@available(watchOS 9.0, *)
 public class Quadtree {  // Made public for consistency/test access
     let bounds: CGRect
     public var centerOfMass: CGPoint = .zero
@@ -22,7 +23,7 @@ public class Quadtree {  // Made public for consistency/test access
     }
     
     public func insert(_ node: Node, depth: Int = 0) {
-        if depth > PhysicsConstants.maxQuadtreeDepth {  // Updated reference (line ~26)
+        if depth > Constants.Physics.maxQuadtreeDepth {  // Updated reference (line ~26)
             nodes.append(node)
             updateCenterOfMass(with: node)
             return
@@ -76,7 +77,7 @@ public class Quadtree {  // Made public for consistency/test access
     private func subdivide() {
         let halfWidth = bounds.width / 2
         let halfHeight = bounds.height / 2
-        if halfWidth < PhysicsConstants.distanceEpsilon || halfHeight < PhysicsConstants.distanceEpsilon {  // Updated (line ~80)
+        if halfWidth < Constants.Physics.distanceEpsilon || halfHeight < Constants.Physics.distanceEpsilon {  // Updated (line ~80)
             return  // Too small
         }
         children = [
@@ -117,7 +118,7 @@ public class Quadtree {  // Made public for consistency/test access
         }
         // Internal: Approximation
         let delta = centerOfMass - queryNode.position
-        let dist = max(delta.magnitude, PhysicsConstants.distanceEpsilon)  // Updated (line ~121)
+        let dist = max(delta.magnitude, Constants.Physics.distanceEpsilon)  // Updated (line ~121)
         if bounds.width / dist < theta || children == nil {
             return repulsionForce(from: centerOfMass, to: queryNode.position, mass: totalMass)
         } else {
@@ -135,12 +136,12 @@ public class Quadtree {  // Made public for consistency/test access
         let deltaX = to.x - from.x
         let deltaY = to.y - from.y
         let distSquared = deltaX * deltaX + deltaY * deltaY
-        if distSquared < PhysicsConstants.distanceEpsilon * PhysicsConstants.distanceEpsilon {  // Updated (line ~139)
+        if distSquared < Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon {  // Updated (line ~139)
             // Jitter slightly to avoid zero
-            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * PhysicsConstants.repulsion  // Updated (line ~141)
+            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion  // Updated (line ~141)
         }
         let dist = sqrt(distSquared)
-        let forceMagnitude = PhysicsConstants.repulsion * mass / distSquared  // Updated (line ~144)
+        let forceMagnitude = Constants.Physics.repulsion * mass / distSquared  // Updated (line ~144)
         return CGPoint(x: deltaX / dist * forceMagnitude, y: deltaY / dist * forceMagnitude)
     }
 }

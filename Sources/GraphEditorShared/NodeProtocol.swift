@@ -1,39 +1,45 @@
-//
-//  NodeProtocol.swift
-//  GraphEditorShared
-//
-//  Created by handcart on 8/5/25.
-//
-
+// Sources/GraphEditorShared/NodeProtocol.swift
 
 import SwiftUI
 import Foundation
 
+@available(iOS 13.0, *)
+@available(watchOS 9.0, *)
 public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeID {
     var id: NodeID { get }
-    var label: Int { get }  // Non-mutating for now; mutations handled via model updates
+    var label: Int { get }
     var position: CGPoint { get set }
     var velocity: CGPoint { get set }
     var radius: CGFloat { get set }
     
-    // Hook for custom rendering (returns a View; passed context like zoomScale and selection state)
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
     func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView
     
-    // Hook for handling interactions (e.g., tap); returns a mutated version of self
     func handlingTap() -> Self
     
-    // Hook for visibility (determines if this node should be rendered)
     var isVisible: Bool { get }
     
-    // Hook for child-hiding logic (true if descendants via outgoing edges should be hidden)
     func shouldHideChildren() -> Bool
     
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
     func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool)
 }
 
-extension NodeProtocol {
-    // Default draw implementation (mirrors renderView logic)
-    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
+// Keep your existing extensions (iOS 15.0 for draw/renderView defaults, iOS 13.0 for others if separated)
+@available(iOS 13.0, *)
+@available(watchOS 9.0, *)
+public extension NodeProtocol {
+    func handlingTap() -> Self { self }
+    var isVisible: Bool { true }
+    func shouldHideChildren() -> Bool { false }
+}
+
+@available(iOS 15.0, *)
+@available(watchOS 9.0, *)
+public extension NodeProtocol {
+    func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
         let scaledRadius = radius * zoomScale
         let borderWidth: CGFloat = isSelected ? 4 * zoomScale : 0
         let borderRadius = scaledRadius + borderWidth / 2
@@ -53,22 +59,9 @@ extension NodeProtocol {
         context.draw(resolved, at: position, anchor: .center)
     }
 
-    // Optional: Keep renderView as a wrapper if needed elsewhere
-    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
+    func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         AnyView(Canvas { context, _ in
             self.draw(in: context, at: .zero, zoomScale: zoomScale, isSelected: isSelected)  // Draws centered at zero for standalone use
         })
-    }
-    
-    public func handlingTap() -> Self {
-        return self  // Default: No change
-    }
-    
-    public var isVisible: Bool {
-        true
-    }
-    
-    public func shouldHideChildren() -> Bool {
-        false
     }
 }

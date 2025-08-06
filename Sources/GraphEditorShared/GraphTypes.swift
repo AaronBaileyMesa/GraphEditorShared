@@ -3,13 +3,14 @@ import Foundation
 
 public typealias NodeID = UUID
 
-// Represents a node in the graph with position, velocity, and permanent label.
+@available(iOS 13.0, *)
+@available(watchOS 9.0, *)
 public struct Node: NodeProtocol {
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
     public var velocity: CGPoint = .zero
-    public var radius: CGFloat = 10.0  // New: Per-node radius (default matches AppConstants.nodeModelRadius)
+    public var radius: CGFloat = 10.0
 
     // Update init to include radius
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0) {
@@ -84,6 +85,8 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 }
 
 // Snapshot of the graph state for undo/redo.
+@available(iOS 13.0, *)
+@available(watchOS 9.0, *)
 public struct GraphState: Codable {
     public let nodes: [Node]
     public let edges: [GraphEdge]

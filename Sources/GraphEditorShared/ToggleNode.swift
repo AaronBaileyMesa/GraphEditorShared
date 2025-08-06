@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 
+@available(iOS 13.0, *)
+@available(watchOS 9.0, *)
 public struct ToggleNode: NodeProtocol {
     public let id: NodeID
     public var label: Int
@@ -58,6 +60,8 @@ public struct ToggleNode: NodeProtocol {
     }
     
     // Overrides
+    @available(iOS 13.0, *)
+    @available(watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         let color = isExpanded ? Color.green : Color.red
         let scaledRadius = radius * zoomScale
@@ -81,16 +85,22 @@ public struct ToggleNode: NodeProtocol {
         )
     }
     
+    @available(iOS 13.0, *)
+    @available(watchOS 9.0, *)
     public func handlingTap() -> Self {
         var mutated = self
         mutated.isExpanded.toggle()
         return mutated
     }
     
+    @available(iOS 13.0, *)
+    @available(watchOS 9.0, *)
     public func shouldHideChildren() -> Bool {
         !isExpanded
     }
     
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
     public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
         let color = isExpanded ? Color.green : Color.red
         let scaledRadius = radius * zoomScale
