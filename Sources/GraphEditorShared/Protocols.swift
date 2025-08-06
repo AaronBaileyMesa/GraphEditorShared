@@ -8,6 +8,8 @@
 
 @available(iOS 13.0, *)
 public protocol GraphStorage {
-    func save(nodes: [Node], edges: [GraphEdge]) throws  
-    func load() -> (nodes: [Node], edges: [GraphEdge])
+/// Saves the graph nodes and edges, throwing on failure (e.g., encoding or writing errors).
+func save(nodes: [Node], edges: [GraphEdge]) throws
+/// Loads the graph nodes and edges, throwing on failure (e.g., file not found or decoding errors).
+func load() throws -> (nodes: [Node], edges: [GraphEdge])
 }
