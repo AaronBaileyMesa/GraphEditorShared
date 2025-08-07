@@ -17,15 +17,18 @@ class GraphSimulator {
     private let getNodes: () -> [Node]
     private let setNodes: ([Node]) -> Void
     private let getEdges: () -> [GraphEdge]
+    private let onStable: (() -> Void)?  // New: Optional callback
     
     init(getNodes: @escaping () -> [Node],
          setNodes: @escaping ([Node]) -> Void,
          getEdges: @escaping () -> [GraphEdge],
-         physicsEngine: PhysicsEngine) {
+         physicsEngine: PhysicsEngine,
+         onStable: (() -> Void)? = nil) {  // New parameter
         self.getNodes = getNodes
         self.setNodes = setNodes
         self.getEdges = getEdges
         self.physicsEngine = physicsEngine
+        self.onStable = onStable
     }
     
     func startSimulation(onUpdate: @escaping () -> Void) {
@@ -62,9 +65,9 @@ class GraphSimulator {
                     // Early stop if already stable
                     if !shouldContinue || totalVelocity < Constants.Physics.velocityThreshold * CGFloat(nodes.count) {
                         self.stopSimulation()
+                        self.onStable?()  // New: Call when stable
                         return
                     }
-                    
                     self.recentVelocities.append(totalVelocity)
                     if self.recentVelocities.count > self.velocityHistoryCount {
                         self.recentVelocities.removeFirst()
@@ -74,11 +77,14 @@ class GraphSimulator {
                         let maxVel = self.recentVelocities.max() ?? 1.0
                         let minVel = self.recentVelocities.min() ?? 0.0
                         let relativeChange = (maxVel - minVel) / maxVel
+                        // In the relativeChange check, also call onStable on stop
                         if relativeChange < self.velocityChangeThreshold {
                             self.stopSimulation()
+                            self.onStable?()  // New
                             return
                         }
                     }
+                    
                 }
             }
         }
