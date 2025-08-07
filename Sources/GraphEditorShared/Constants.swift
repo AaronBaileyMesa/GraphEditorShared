@@ -20,7 +20,7 @@ public enum Constants {
         public static let distanceEpsilon: CGFloat = 1e-3
         public static let timeStep: CGFloat = 0.05
         public static let velocityThreshold: CGFloat = 0.2
-        public static let maxSimulationSteps = 500
+        public static let maxSimulationSteps = 3000
         public static let minQuadSize: CGFloat = 1e-6
         public static let maxQuadtreeDepth = 64
         public static let maxNodesForQuadtree = 200

@@ -41,6 +41,10 @@ public struct ToggleNode: NodeProtocol {
         self.init(id: decodedID, label: decodedLabel, position: decodedPosition, velocity: decodedVelocity, radius: decodedRadius, isExpanded: decodedIsExpanded)
     }
     
+    public func with(position: CGPoint, velocity: CGPoint) -> Self {
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded)
+    }
+    
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)

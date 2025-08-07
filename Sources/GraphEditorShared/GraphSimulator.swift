@@ -15,13 +15,13 @@ class GraphSimulator {
     private let velocityHistoryCount = 5
     
     let physicsEngine: PhysicsEngine
-    private let getNodes: () -> [Node]
-    private let setNodes: ([Node]) -> Void
+    private let getNodes: () -> [any NodeProtocol]  // Updated: Polymorphic
+    private let setNodes: ([any NodeProtocol]) -> Void  // Updated: Polymorphic
     private let getEdges: () -> [GraphEdge]
     private let onStable: (() -> Void)?  // New: Optional callback
     
-    init(getNodes: @escaping () -> [Node],
-         setNodes: @escaping ([Node]) -> Void,
+    init(getNodes: @escaping () -> [any NodeProtocol],
+         setNodes: @escaping ([any NodeProtocol]) -> Void,
          getEdges: @escaping () -> [GraphEdge],
          physicsEngine: PhysicsEngine,
          onStable: (() -> Void)? = nil) {  // New parameter
@@ -46,18 +46,18 @@ class GraphSimulator {
             guard let self = self else { return }
             
             DispatchQueue.global(qos: .userInitiated).async {
-                var nodes = self.getNodes()
+                var nodes = self.getNodes()  // [any NodeProtocol]
                 let edges = self.getEdges()
                 var shouldContinue = false
                 let subSteps = nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1)
                 
                 for _ in 0..<subSteps {
-                    if self.physicsEngine.simulationStep(nodes: &nodes, edges: edges) {
-                        shouldContinue = true
-                    }
+                    let (updatedNodes, stepActive) = self.physicsEngine.simulationStep(nodes: nodes, edges: edges)  // Updated: Non-inout
+                    nodes = updatedNodes  // Assign updated
+                    shouldContinue = shouldContinue || stepActive  // Accumulate
                 }
                 
-                let totalVelocity = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+                let totalVelocity = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }  // Uses protocol velocity
                 
                 DispatchQueue.main.async {
                     self.setNodes(nodes)
@@ -85,7 +85,6 @@ class GraphSimulator {
                             return
                         }
                     }
-                    
                 }
             }
         }

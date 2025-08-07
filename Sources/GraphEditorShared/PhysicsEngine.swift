@@ -1,12 +1,9 @@
 //
-//  Constants.swift
-//  GraphEditor
+//  PhysicsEngine.swift
+//  GraphEditorShared
 //
 //  Created by handcart on 8/1/25.
 //
-
-
-// Sources/GraphEditorShared/PhysicsEngine.swift
 
 import SwiftUI
 import Foundation
@@ -17,11 +14,10 @@ import CoreGraphics
 public class PhysicsEngine {
     let simulationBounds: CGSize
     
-    private let maxNodesForQuadtree = 200  // Added constant for node cap fallback
+    private let maxNodesForQuadtree = 200
     
     public init(simulationBounds: CGSize) {
         self.simulationBounds = simulationBounds
-        self.useAsymmetricAttraction = true  // Enable for directed graphs (creates hierarchy)
     }
     
     private var simulationSteps = 0
@@ -30,23 +26,25 @@ public class PhysicsEngine {
         simulationSteps = 0
     }
     
-    public var useAsymmetricAttraction: Bool = false  // New: Toggle for directed physics (default false for stability)
+    public var useAsymmetricAttraction: Bool = false
     
-    public var isPaused: Bool = false  // New: Flag to pause simulation steps
+    public var isPaused: Bool = false
     
     @discardableResult
-    public func simulationStep(nodes: inout [Node], edges: [GraphEdge]) -> Bool {
-        if isPaused { return false }
+    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
+        // Early exit if simulation is paused
+        if isPaused { return (nodes, false) }
         
+        // Early exit if maximum simulation steps reached
         if simulationSteps >= Constants.Physics.maxSimulationSteps {
-            return false
+            return (nodes, false)
         }
         simulationSteps += 1
         
         var forces: [NodeID: CGPoint] = [:]
         let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
         
-        // Build Quadtree for repulsion (Barnes-Hut) only if under cap
+        // Build Quadtree for repulsion (Barnes-Hut) only if under node cap
         let useQuadtree = nodes.count <= maxNodesForQuadtree
         let quadtree: Quadtree? = useQuadtree ? Quadtree(bounds: CGRect(origin: .zero, size: simulationBounds)) : nil
         if useQuadtree {
@@ -55,26 +53,26 @@ public class PhysicsEngine {
             }
         }
         
-        // Repulsion (Quadtree or naive fallback)
-        for i in 0..<nodes.count {
+        // Calculate repulsion forces
+        for node in nodes {
             var repulsion: CGPoint = .zero
             if useQuadtree {
                 let dynamicTheta: CGFloat = nodes.count > 100 ? 1.5 : (nodes.count > 50 ? 1.2 : 0.8)
-                repulsion = quadtree!.computeForce(on: nodes[i], theta: dynamicTheta)
+                repulsion = quadtree!.computeForce(on: node, theta: dynamicTheta)
             } else {
-                for j in 0..<nodes.count where i != j {
-                    repulsion += repulsionForce(from: nodes[j].position, to: nodes[i].position)
+                for otherNode in nodes where otherNode.id != node.id {
+                    repulsion += repulsionForce(from: otherNode.position, to: node.position)
                 }
             }
-            forces[nodes[i].id] = (forces[nodes[i].id] ?? .zero) + repulsion
+            forces[node.id] = (forces[node.id] ?? .zero) + repulsion
         }
         
-        // Attraction on edges
+        // Calculate attraction forces on edges
         for edge in edges {
-            guard let fromIdx = nodes.firstIndex(where: { $0.id == edge.from }),
-                  let toIdx = nodes.firstIndex(where: { $0.id == edge.to }) else { continue }
-            let deltaX = nodes[toIdx].position.x - nodes[fromIdx].position.x
-            let deltaY = nodes[toIdx].position.y - nodes[fromIdx].position.y
+            guard let fromNode = nodes.first(where: { $0.id == edge.from }),
+                  let toNode = nodes.first(where: { $0.id == edge.to }) else { continue }
+            let deltaX = toNode.position.x - fromNode.position.x
+            let deltaY = toNode.position.y - fromNode.position.y
             let dist = max(hypot(deltaX, deltaY), Constants.Physics.distanceEpsilon)
             let forceMagnitude = Constants.Physics.stiffness * (dist - Constants.Physics.idealLength)
             let forceDirectionX = deltaX / dist
@@ -84,60 +82,78 @@ public class PhysicsEngine {
             
             if useAsymmetricAttraction {
                 // Asymmetric: Stronger pull on 'to' node
-                let currentForceFrom = forces[nodes[fromIdx].id] ?? .zero
-                forces[nodes[fromIdx].id] = CGPoint(x: currentForceFrom.x + forceX * 0.5, y: currentForceFrom.y + forceY * 0.5)
-                let currentForceTo = forces[nodes[toIdx].id] ?? .zero
-                forces[nodes[toIdx].id] = CGPoint(x: currentForceTo.x - forceX * 1.5, y: currentForceTo.y - forceY * 1.5)
+                let currentForceFrom = forces[fromNode.id] ?? .zero
+                forces[fromNode.id] = CGPoint(x: currentForceFrom.x + forceX * 0.5, y: currentForceFrom.y + forceY * 0.5)
+                let currentForceTo = forces[toNode.id] ?? .zero
+                forces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * 1.5, y: currentForceTo.y - forceY * 1.5)
             } else {
-                let currentForceFrom = forces[nodes[fromIdx].id] ?? .zero
-                forces[nodes[fromIdx].id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
-                let currentForceTo = forces[nodes[toIdx].id] ?? .zero
-                forces[nodes[toIdx].id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
+                let currentForceFrom = forces[fromNode.id] ?? .zero
+                forces[fromNode.id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
+                let currentForceTo = forces[toNode.id] ?? .zero
+                forces[toNode.id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
             }
         }
         
-        // Enhanced centering: Stronger if far from center
-            for i in 0..<nodes.count {
-                let deltaX = center.x - nodes[i].position.x
-                let deltaY = center.y - nodes[i].position.y
-                let distToCenter = hypot(deltaX, deltaY)
-                let dynamicCentering = Constants.Physics.centeringForce * (1 + distToCenter / max(simulationBounds.width, simulationBounds.height))
-                let forceX = deltaX * dynamicCentering
-                let forceY = deltaY * dynamicCentering
-                let currentForce = forces[nodes[i].id] ?? .zero
-                forces[nodes[i].id] = CGPoint(x: currentForce.x + forceX, y: currentForce.y + forceY)
-            }
-        
-        // Apply forces
-        for i in 0..<nodes.count {
-            let id = nodes[i].id
-            var node = nodes[i]
-            let force = forces[id] ?? .zero
-            node.velocity = CGPoint(x: node.velocity.x + force.x * Constants.Physics.timeStep, y: node.velocity.y + force.y * Constants.Physics.timeStep)
-            node.velocity = CGPoint(x: node.velocity.x * Constants.Physics.damping, y: node.velocity.y * Constants.Physics.damping)
-            node.position = CGPoint(x: node.position.x + node.velocity.x * Constants.Physics.timeStep, y: node.position.y + node.velocity.y * Constants.Physics.timeStep)
-            
-            // Clamp position and bounce on bounds hit
-            let oldPosition = node.position
-            node.position.x = max(0, min(simulationBounds.width, node.position.x))
-            node.position.y = max(0, min(simulationBounds.height, node.position.y))
-            if node.position.x != oldPosition.x {
-                node.velocity.x = -node.velocity.x * Constants.Physics.damping
-            }
-            if node.position.y != oldPosition.y {
-                node.velocity.y = -node.velocity.y * Constants.Physics.damping
-            }
-            
-            nodes[i] = node
+        // Apply centering force to each node
+        for node in nodes {
+            let deltaX = center.x - node.position.x
+            let deltaY = center.y - node.position.y
+            let distToCenter = hypot(deltaX, deltaY)
+            let forceX = deltaX * Constants.Physics.centeringForce * (1 + distToCenter / max(simulationBounds.width, simulationBounds.height))
+            let forceY = deltaY * Constants.Physics.centeringForce * (1 + distToCenter / max(simulationBounds.width, simulationBounds.height))
+            let currentForce = forces[node.id] ?? .zero
+            forces[node.id] = CGPoint(x: currentForce.x + forceX, y: currentForce.y + forceY)
         }
         
-        // Check if stable (velocity only)
-        let totalVelocity = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
-        return totalVelocity >= Constants.Physics.velocityThreshold * CGFloat(nodes.count)
+        // First pass: Compute tentative position and velocity for all nodes
+        var tentativeUpdates: [NodeID: (position: CGPoint, velocity: CGPoint)] = [:]
+        for node in nodes {
+            let force = forces[node.id] ?? .zero
+            var newVelocity = CGPoint(x: node.velocity.x + force.x * Constants.Physics.timeStep, y: node.velocity.y + force.y * Constants.Physics.timeStep)
+            newVelocity = CGPoint(x: newVelocity.x * Constants.Physics.damping, y: newVelocity.y * Constants.Physics.damping)
+            var newPosition = CGPoint(x: node.position.x + newVelocity.x * Constants.Physics.timeStep, y: node.position.y + newVelocity.y * Constants.Physics.timeStep)
+            
+            // Tentative bounds clamp and bounce
+            let oldPosition = newPosition
+            newPosition.x = max(0, min(simulationBounds.width, newPosition.x))
+            newPosition.y = max(0, min(simulationBounds.height, newPosition.y))
+            if newPosition.x != oldPosition.x {
+                newVelocity.x = -newVelocity.x * Constants.Physics.damping
+            }
+            if newPosition.y != oldPosition.y {
+                newVelocity.y = -newVelocity.y * Constants.Physics.damping
+            }
+            
+            tentativeUpdates[node.id] = (newPosition, newVelocity)
+        }
+        
+        // Second pass: Apply clamping using tentative parent updates and create final updated nodes
+        var updatedNodes: [any NodeProtocol] = []
+        let parentMap = edges.reduce(into: [NodeID: NodeID]()) { $0[$1.to] = $1.from }  // Child to parent (assume single parent)
+        var totalVelocity: CGFloat = 0.0
+        for node in nodes {
+            var newPosition = tentativeUpdates[node.id]!.position
+            var newVelocity = tentativeUpdates[node.id]!.velocity
+            
+            if let parentID = parentMap[node.id],
+               let parent = nodes.first(where: { $0.id == parentID }),
+               !parent.isExpanded {
+                // Clamp to parent's tentative new position
+                newPosition = tentativeUpdates[parentID]!.position
+                newVelocity = .zero
+            }
+            
+            let updatedNode = node.with(position: newPosition, velocity: newVelocity)
+            updatedNodes.append(updatedNode)
+            totalVelocity += hypot(newVelocity.x, newVelocity.y)
+        }
+        
+        // Check if stable based on total velocity
+        let isActive = totalVelocity >= Constants.Physics.velocityThreshold * CGFloat(nodes.count)
+        
+        return (updatedNodes, isActive)
     }
     
-    @available(iOS 13.0, *)
-    @available(watchOS 9.0, *)
     public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
         if nodes.isEmpty { return .zero }
         let xs = nodes.map { $0.position.x }
@@ -149,19 +165,8 @@ public class PhysicsEngine {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
     
-    private func repulsionForce(from: CGPoint, to: CGPoint) -> CGPoint {
-        let delta = to - from
-        let distSquared = delta.x * delta.x + delta.y * delta.y  // Manual calculation instead of magnitudeSquared
-        if distSquared < Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon {
-            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion
-        }
-        let dist = sqrt(distSquared)
-        let forceMagnitude = Constants.Physics.repulsion / distSquared
-        return delta / dist * forceMagnitude
-    }
-    
-    public func centerNodes(_ nodes: inout [Node], around center: CGPoint? = nil) {
-        guard !nodes.isEmpty else { return }
+    public func centerNodes(nodes: [any NodeProtocol], around center: CGPoint? = nil) -> [any NodeProtocol] {
+        guard !nodes.isEmpty else { return [] }
         let targetCenter = center ?? CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
         
         // Compute current centroid
@@ -169,12 +174,23 @@ public class PhysicsEngine {
         let totalY = nodes.reduce(0.0) { $0 + $1.position.y }
         let centroid = CGPoint(x: totalX / CGFloat(nodes.count), y: totalY / CGFloat(nodes.count))
         
-        // Translate all nodes
+        // Create updated nodes with translation
         let dx = targetCenter.x - centroid.x
         let dy = targetCenter.y - centroid.y
-        for i in 0..<nodes.count {
-            nodes[i].position.x += dx
-            nodes[i].position.y += dy
+        return nodes.map { node in
+            let newPosition = CGPoint(x: node.position.x + dx, y: node.position.y + dy)
+            return node.with(position: newPosition, velocity: node.velocity)
         }
+    }
+    
+    private func repulsionForce(from: CGPoint, to: CGPoint) -> CGPoint {
+        let delta = to - from
+        let distSquared = delta.x * delta.x + delta.y * delta.y
+        if distSquared < Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon {
+            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion
+        }
+        let dist = sqrt(distSquared)
+        let forceMagnitude = Constants.Physics.repulsion / distSquared
+        return delta / dist * forceMagnitude
     }
 }

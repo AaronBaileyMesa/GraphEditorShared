@@ -26,15 +26,14 @@ public class GraphModel: ObservableObject {
     
     private lazy var simulator: GraphSimulator = {
         GraphSimulator(
-            getNodes: { [weak self] in (self?.nodes as? [Node]) ?? [] },
-            setNodes: { [weak self] nodes in self?.nodes = nodes as [any NodeProtocol] },
+            getNodes: { [weak self] in self?.nodes ?? [] },  // [any NodeProtocol]
+            setNodes: { [weak self] nodes in self?.nodes = nodes },  // [any NodeProtocol]
             getEdges: { [weak self] in self?.edges ?? [] },
             physicsEngine: self.physicsEngine,
-            onStable: { [weak self] in  // Use onStable to center when stable
+            onStable: { [weak self] in
                 guard let self = self else { return }
-                var mutableNodes = self.nodes as! [Node]
-                self.physicsEngine.centerNodes(&mutableNodes)
-                self.nodes = mutableNodes as [any NodeProtocol]
+                let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes)
+                self.nodes = centeredNodes
                 self.objectWillChange.send()
             }
         )
@@ -229,15 +228,16 @@ public class GraphModel: ObservableObject {
         self.physicsEngine.resetSimulation()
         startSimulation()
     }
+    
     public func addNode(at position: CGPoint) {
-        nodes.append(Node(label: nextNodeLabel, position: position, radius: 10.0))
-        nextNodeLabel += 1
         if nodes.count >= 100 {
             return
         }
-        var mutableNodes = nodes as! [Node]
-        physicsEngine.centerNodes(&mutableNodes)
-        nodes = mutableNodes as [any NodeProtocol]
+        let newNode = Node(label: nextNodeLabel, position: position, radius: 10.0)
+        nodes.append(newNode)
+        nextNodeLabel += 1
+        let centeredNodes = physicsEngine.centerNodes(nodes: nodes)
+        nodes = centeredNodes
         self.physicsEngine.resetSimulation()
     }
     
@@ -258,21 +258,23 @@ public class GraphModel: ObservableObject {
     
     // Visibility methods
     public func visibleNodes() -> [any NodeProtocol] {
-        var visible = [any NodeProtocol]()
-        var visited = Set<NodeID>()
-        let adjacency = buildAdjacencyList()
-        for node in nodes {
-            if node.isVisible && !visited.contains(node.id) {
-                dfsVisible(node: node, adjacency: adjacency, visited: &visited, visible: &visible)
+        var visible: [any NodeProtocol] = []
+            let adjacency = buildAdjacencyList()  // from -> [to]
+            let incoming = Set(edges.map { $0.to })
+            let roots = nodes.filter { !incoming.contains($0.id) }
+            var visited = Set<NodeID>()
+            for root in roots {
+                if root.isVisible {
+                    dfsVisible(node: root, adjacency: adjacency, visited: &visited, visible: &visible)
+                }
             }
-        }
         return visible
     }
     
     private func dfsVisible(node: any NodeProtocol, adjacency: [NodeID: [NodeID]], visited: inout Set<NodeID>, visible: inout [any NodeProtocol]) {
         visited.insert(node.id)
         visible.append(node)
-        if let toggle = node as? ToggleNode, !toggle.isExpanded { return }  // Skip children if collapsed (cast to check type)
+        if !node.isExpanded { return }  // Updated: Use protocol property (no cast)
         if let children = adjacency[node.id] {
             for childID in children {
                 if !visited.contains(childID), let child = nodes.first(where: { $0.id == childID }), child.isVisible {
@@ -300,6 +302,17 @@ public class GraphModel: ObservableObject {
         nextNodeLabel += 1
         if nodes.count >= 100 { return }
         physicsEngine.resetSimulation()
+    }
+    
+    public func addChild(to parentID: NodeID, at position: CGPoint? = nil) {
+        guard let parent = nodes.first(where: { $0.id == parentID }) else { return }
+        let childPosition = position ?? CGPoint(x: parent.position.x + 50, y: parent.position.y + 50)  // Default near parent
+        let child = Node(label: nextNodeLabel, position: childPosition)  // Or ToggleNode if desired
+        nextNodeLabel += 1
+        nodes.append(child)
+        edges.append(GraphEdge(from: parentID, to: child.id))
+        physicsEngine.resetSimulation()
+        startSimulation()
     }
 }
 

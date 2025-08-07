@@ -1,10 +1,9 @@
 //
 //  Quadtree.swift
-//  GraphEditor
+//  GraphEditorShared
 //
 //  Created by handcart on 8/4/25.
 //
-
 
 import Foundation
 import CoreGraphics
@@ -16,14 +15,14 @@ public class Quadtree {  // Made public for consistency/test access
     public var centerOfMass: CGPoint = .zero
     public var totalMass: CGFloat = 0
     public var children: [Quadtree]? = nil
-    var nodes: [Node] = []  // Replaces old single 'node'; allows multiple in leaves
+    var nodes: [any NodeProtocol] = []  // Updated: Existential array
     
     public init(bounds: CGRect) {
         self.bounds = bounds
     }
     
-    public func insert(_ node: Node, depth: Int = 0) {
-        if depth > Constants.Physics.maxQuadtreeDepth {  // Updated reference (line ~26)
+    public func insert(_ node: any NodeProtocol, depth: Int = 0) {
+        if depth > Constants.Physics.maxQuadtreeDepth {  // Updated reference
             nodes.append(node)
             updateCenterOfMass(with: node)
             return
@@ -77,7 +76,7 @@ public class Quadtree {  // Made public for consistency/test access
     private func subdivide() {
         let halfWidth = bounds.width / 2
         let halfHeight = bounds.height / 2
-        if halfWidth < Constants.Physics.distanceEpsilon || halfHeight < Constants.Physics.distanceEpsilon {  // Updated (line ~80)
+        if halfWidth < Constants.Physics.distanceEpsilon || halfHeight < Constants.Physics.distanceEpsilon {  // Updated
             return  // Too small
         }
         children = [
@@ -100,13 +99,13 @@ public class Quadtree {  // Made public for consistency/test access
         }
     }
     
-    private func updateCenterOfMass(with node: Node) {
-        // Incremental update (works for both leaves and internals)
+    private func updateCenterOfMass(with node: any NodeProtocol) {
+        // Incremental update (works for both leaves and internals); assume mass=1 per node
         centerOfMass = (centerOfMass * totalMass + node.position) / (totalMass + 1)
         totalMass += 1
     }
     
-    public func computeForce(on queryNode: Node, theta: CGFloat = 0.5) -> CGPoint {
+    public func computeForce(on queryNode: any NodeProtocol, theta: CGFloat = 0.5) -> CGPoint {
         guard totalMass > 0 else { return .zero }
         if !nodes.isEmpty {
             // Leaf: Exact repulsion for each node in array
@@ -118,7 +117,7 @@ public class Quadtree {  // Made public for consistency/test access
         }
         // Internal: Approximation
         let delta = centerOfMass - queryNode.position
-        let dist = max(delta.magnitude, Constants.Physics.distanceEpsilon)  // Updated (line ~121)
+        let dist = max(delta.magnitude, Constants.Physics.distanceEpsilon)  // Updated
         if bounds.width / dist < theta || children == nil {
             return repulsionForce(from: centerOfMass, to: queryNode.position, mass: totalMass)
         } else {
@@ -136,12 +135,12 @@ public class Quadtree {  // Made public for consistency/test access
         let deltaX = to.x - from.x
         let deltaY = to.y - from.y
         let distSquared = deltaX * deltaX + deltaY * deltaY
-        if distSquared < Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon {  // Updated (line ~139)
+        if distSquared < Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon {  // Updated
             // Jitter slightly to avoid zero
-            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion  // Updated (line ~141)
+            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion  // Updated
         }
         let dist = sqrt(distSquared)
-        let forceMagnitude = Constants.Physics.repulsion * mass / distSquared  // Updated (line ~144)
+        let forceMagnitude = Constants.Physics.repulsion * mass / distSquared  // Updated
         return CGPoint(x: deltaX / dist * forceMagnitude, y: deltaY / dist * forceMagnitude)
     }
 }

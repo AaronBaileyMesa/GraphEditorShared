@@ -12,7 +12,7 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     var id: NodeID { get }
     
     /// Permanent label for the node (e.g., for display and accessibility).
-    var label: Int { get } 
+    var label: Int { get }
     
     /// Current position in the graph canvas.
     var position: CGPoint { get set }
@@ -22,6 +22,12 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     
     /// Radius for rendering and hit detection.
     var radius: CGFloat { get set }
+    
+    /// Expansion state for hierarchical nodes (e.g., true shows children).
+    var isExpanded: Bool { get set }
+    
+    /// Creates a copy with updated position and velocity.
+    func with(position: CGPoint, velocity: CGPoint) -> Self
     
     /// Renders the node as a SwiftUI view, customizable by zoom and selection.
     /// - Parameters:
@@ -65,8 +71,14 @@ public extension NodeProtocol {
     /// Default: Node is always visible.
     var isVisible: Bool { true }
     
-    /// Default: Do not hide children.
-    func shouldHideChildren() -> Bool { false }
+    var isExpanded: Bool {
+        get { true }  // Default: Always expanded (non-toggle nodes ignore)
+        set { }  // No-op setter for non-mutating types
+    }
+    
+    func shouldHideChildren() -> Bool {
+        !isExpanded  // Default: Hide if not expanded
+    }
 }
 
 /// Extension providing default rendering implementations using GraphicsContext.

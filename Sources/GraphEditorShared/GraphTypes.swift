@@ -11,6 +11,7 @@ public struct Node: NodeProtocol {
     public var position: CGPoint
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
+    public var isExpanded: Bool = true  // Add: Satisfy protocol (always true for basic Node)
 
     // Update init to include radius
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0) {
@@ -19,6 +20,10 @@ public struct Node: NodeProtocol {
         self.position = position
         self.velocity = velocity
         self.radius = radius
+    }
+    
+    public func with(position: CGPoint, velocity: CGPoint) -> Self {
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius)
     }
 
     // Update CodingKeys and decoder/encoder for radius
