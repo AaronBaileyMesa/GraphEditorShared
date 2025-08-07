@@ -96,15 +96,17 @@ public class PhysicsEngine {
             }
         }
         
-        // Weak centering force
-        for i in 0..<nodes.count {
-            let deltaX = center.x - nodes[i].position.x
-            let deltaY = center.y - nodes[i].position.y
-            let forceX = deltaX * Constants.Physics.centeringForce
-            let forceY = deltaY * Constants.Physics.centeringForce
-            let currentForce = forces[nodes[i].id] ?? .zero
-            forces[nodes[i].id] = CGPoint(x: currentForce.x + forceX, y: currentForce.y + forceY)
-        }
+        // Enhanced centering: Stronger if far from center
+            for i in 0..<nodes.count {
+                let deltaX = center.x - nodes[i].position.x
+                let deltaY = center.y - nodes[i].position.y
+                let distToCenter = hypot(deltaX, deltaY)
+                let dynamicCentering = Constants.Physics.centeringForce * (1 + distToCenter / max(simulationBounds.width, simulationBounds.height))
+                let forceX = deltaX * dynamicCentering
+                let forceY = deltaY * dynamicCentering
+                let currentForce = forces[nodes[i].id] ?? .zero
+                forces[nodes[i].id] = CGPoint(x: currentForce.x + forceX, y: currentForce.y + forceY)
+            }
         
         // Apply forces
         for i in 0..<nodes.count {
@@ -133,6 +135,7 @@ public class PhysicsEngine {
         let totalVelocity = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
         return totalVelocity >= Constants.Physics.velocityThreshold * CGFloat(nodes.count)
     }
+    
     @available(iOS 13.0, *)
     @available(watchOS 9.0, *)
     public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
@@ -155,5 +158,23 @@ public class PhysicsEngine {
         let dist = sqrt(distSquared)
         let forceMagnitude = Constants.Physics.repulsion / distSquared
         return delta / dist * forceMagnitude
+    }
+    
+    public func centerNodes(_ nodes: inout [Node], around center: CGPoint? = nil) {
+        guard !nodes.isEmpty else { return }
+        let targetCenter = center ?? CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
+        
+        // Compute current centroid
+        let totalX = nodes.reduce(0.0) { $0 + $1.position.x }
+        let totalY = nodes.reduce(0.0) { $0 + $1.position.y }
+        let centroid = CGPoint(x: totalX / CGFloat(nodes.count), y: totalY / CGFloat(nodes.count))
+        
+        // Translate all nodes
+        let dx = targetCenter.x - centroid.x
+        let dy = targetCenter.y - centroid.y
+        for i in 0..<nodes.count {
+            nodes[i].position.x += dx
+            nodes[i].position.y += dy
+        }
     }
 }

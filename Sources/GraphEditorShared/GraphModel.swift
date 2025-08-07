@@ -25,10 +25,17 @@ public class GraphModel: ObservableObject {
     
     private lazy var simulator: GraphSimulator = {
         GraphSimulator(
-            getNodes: { [weak self] in (self?.nodes as? [Node]) ?? [] },  // Cast to [Node] for simulator
-            setNodes: { [weak self] nodes in self?.nodes = nodes as [any NodeProtocol] },  // Cast back to existential
+            getNodes: { [weak self] in (self?.nodes as? [Node]) ?? [] },
+            setNodes: { [weak self] nodes in self?.nodes = nodes as [any NodeProtocol] },
             getEdges: { [weak self] in self?.edges ?? [] },
-            physicsEngine: self.physicsEngine
+            physicsEngine: self.physicsEngine,
+            onStable: { [weak self] in  // Use onStable to center when stable
+                guard let self = self else { return }
+                var mutableNodes = self.nodes as! [Node]
+                self.physicsEngine.centerNodes(&mutableNodes)
+                self.nodes = mutableNodes as [any NodeProtocol]
+                self.objectWillChange.send()
+            }
         )
     }()
     
@@ -221,21 +228,24 @@ public class GraphModel: ObservableObject {
     }
     
     public func addNode(at position: CGPoint) {
-        nodes.append(Node(label: nextNodeLabel, position: position, radius: 10.0))  // Explicit radius; vary later if needed
+        nodes.append(Node(label: nextNodeLabel, position: position, radius: 10.0))
         nextNodeLabel += 1
         if nodes.count >= 100 {
-            // Trigger alert via view (e.g., publish @Published var showNodeLimitAlert = true)
             return
         }
+        var mutableNodes = nodes as! [Node]
+        physicsEngine.centerNodes(&mutableNodes)
+        nodes = mutableNodes as [any NodeProtocol]
         self.physicsEngine.resetSimulation()
     }
-    
+
     public func startSimulation() {
         simulator.startSimulation(onUpdate: { [weak self] in
             self?.objectWillChange.send()
-        })
+        })  // No onComplete; onStable handles it
     }
-    
+
+    // Add this extension if not present (modify GraphSimulator accordingly to support onComplete)
     public func stopSimulation() {
         simulator.stopSimulation()
     }
