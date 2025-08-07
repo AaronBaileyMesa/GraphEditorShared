@@ -97,9 +97,9 @@ public class GraphModel: ObservableObject {
         self.edges = tempEdges
         self.nextNodeLabel = tempNextLabel
     }
-
+    
     // Test-only initializer
-    #if DEBUG
+#if DEBUG
     public init(storage: GraphStorage = PersistenceManager(), physicsEngine: PhysicsEngine, nextNodeLabel: Int) {
         self.storage = storage
         self.physicsEngine = physicsEngine
@@ -143,7 +143,7 @@ public class GraphModel: ObservableObject {
         self.edges = tempEdges
         self.nextNodeLabel = tempNextLabel
     }
-    #endif
+#endif
     
     // Creates a snapshot of the current state for undo/redo and saves.
     public func snapshot() {
@@ -163,9 +163,9 @@ public class GraphModel: ObservableObject {
     // Undoes the last action if possible, with haptic feedback.
     public func undo() {
         guard !undoStack.isEmpty else {
-            #if os(watchOS)
+#if os(watchOS)
             WKInterfaceDevice.current().play(.failure)
-            #endif
+#endif
             return
         }
         let current = GraphState(nodes: nodes as! [Node], edges: edges)
@@ -174,9 +174,9 @@ public class GraphModel: ObservableObject {
         nodes = previous.nodes as [any NodeProtocol]  // Conversion from [Node]
         edges = previous.edges
         self.physicsEngine.resetSimulation()  // Ready for new simulation
-        #if os(watchOS)
+#if os(watchOS)
         WKInterfaceDevice.current().play(.success)
-        #endif
+#endif
         do {
             try storage.save(nodes: nodes as! [Node], edges: edges)
         } catch {
@@ -186,9 +186,9 @@ public class GraphModel: ObservableObject {
     
     public func redo() {
         guard !redoStack.isEmpty else {
-            #if os(watchOS)
+#if os(watchOS)
             WKInterfaceDevice.current().play(.failure)
-            #endif
+#endif
             return
         }
         let current = GraphState(nodes: nodes as! [Node], edges: edges)
@@ -197,9 +197,9 @@ public class GraphModel: ObservableObject {
         nodes = next.nodes as [any NodeProtocol]
         edges = next.edges
         self.physicsEngine.resetSimulation()  // Ready for new simulation
-        #if os(watchOS)
+#if os(watchOS)
         WKInterfaceDevice.current().play(.success)
-        #endif
+#endif
         do {
             try storage.save(nodes: nodes as! [Node], edges: edges)
         } catch {
@@ -222,12 +222,13 @@ public class GraphModel: ObservableObject {
         self.physicsEngine.resetSimulation()
     }
     
-    public func deleteEdge(withID id: NodeID) {
+    public func deleteSelectedEdge(id: UUID?) {
+        guard let id = id else { return }
         snapshot()
         edges.removeAll { $0.id == id }
         self.physicsEngine.resetSimulation()
+        startSimulation()
     }
-    
     public func addNode(at position: CGPoint) {
         nodes.append(Node(label: nextNodeLabel, position: position, radius: 10.0))
         nextNodeLabel += 1
@@ -239,13 +240,13 @@ public class GraphModel: ObservableObject {
         nodes = mutableNodes as [any NodeProtocol]
         self.physicsEngine.resetSimulation()
     }
-
+    
     public func startSimulation() {
         simulator.startSimulation(onUpdate: { [weak self] in
             self?.objectWillChange.send()
         })  // No onComplete; onStable handles it
     }
-
+    
     // Add this extension if not present (modify GraphSimulator accordingly to support onComplete)
     public func stopSimulation() {
         simulator.stopSimulation()
@@ -267,7 +268,7 @@ public class GraphModel: ObservableObject {
         }
         return visible
     }
-
+    
     private func dfsVisible(node: any NodeProtocol, adjacency: [NodeID: [NodeID]], visited: inout Set<NodeID>, visible: inout [any NodeProtocol]) {
         visited.insert(node.id)
         visible.append(node)
@@ -280,12 +281,12 @@ public class GraphModel: ObservableObject {
             }
         }
     }
-
+    
     public func visibleEdges() -> [GraphEdge] {
         let visibleIDs = Set(visibleNodes().map { $0.id })
         return edges.filter { visibleIDs.contains($0.from) && visibleIDs.contains($0.to) }
     }
-
+    
     private func buildAdjacencyList() -> [NodeID: [NodeID]] {
         var adj = [NodeID: [NodeID]]()
         for edge in edges {
@@ -293,7 +294,7 @@ public class GraphModel: ObservableObject {
         }
         return adj
     }
-
+    
     public func addToggleNode(at position: CGPoint) {
         nodes.append(ToggleNode(label: nextNodeLabel, position: position))
         nextNodeLabel += 1
@@ -304,9 +305,16 @@ public class GraphModel: ObservableObject {
 
 @available(iOS 13.0, watchOS 6.0, *)
 extension GraphModel {
-    public func graphDescription(selectedID: NodeID?) -> String {
-        var desc = "Graph with \(nodes.count) nodes and \(edges.count) directed edges."
-        if let selectedID, let selectedNode = nodes.first(where: { $0.id == selectedID }) {
+    
+    public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
+        let edgeCount = edges.count
+        let edgeWord = edgeCount == 1 ? "edge" : "edges"  // New: Handle plural
+        var desc = "Graph with \(nodes.count) nodes and \(edgeCount) directed \(edgeWord)."
+        if let selectedEdgeID = selectedEdgeID, let selectedEdge = edges.first(where: { $0.id == selectedEdgeID }),
+           let fromNode = nodes.first(where: { $0.id == selectedEdge.from }),
+           let toNode = nodes.first(where: { $0.id == selectedEdge.to }) {
+            desc += " Directed edge from node \(fromNode.label) to node \(toNode.label) selected."
+        } else if let selectedID = selectedID, let selectedNode = nodes.first(where: { $0.id == selectedID }) {
             let outgoingLabels = edges
                 .filter { $0.from == selectedID }
                 .compactMap { edge in
@@ -329,8 +337,9 @@ extension GraphModel {
             let incomingText = incomingLabels.isEmpty ? "none" : incomingLabels
             desc += " Node \(selectedNode.label) selected, outgoing to: \(outgoingText); incoming from: \(incomingText)."
         } else {
-            desc += " No node selected."
+            desc += " No node or edge selected."
         }
         return desc
     }
+    
 }
