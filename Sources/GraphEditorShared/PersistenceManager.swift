@@ -3,8 +3,9 @@
 import Foundation
 import os.log
 
-private let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "storage")
+private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "storage")
 
+@available(iOS 13.0, watchOS 6.0, *)
 /// Error types for graph storage operations.
 public enum GraphStorageError: Error {
     case encodingFailed(Error)
@@ -15,6 +16,7 @@ public enum GraphStorageError: Error {
 }
 
 /// File-based JSON persistence conforming to GraphStorage.
+@available(iOS 13.0, watchOS 6.0, *)
 public class PersistenceManager: GraphStorage {
     private let baseURL: URL
     private let nodesFileName = "graphNodes.json"
@@ -41,10 +43,10 @@ public class PersistenceManager: GraphStorage {
             let edgeURL = baseURL.appendingPathComponent(edgesFileName)
             try edgeData.write(to: edgeURL)
         } catch let error as EncodingError {
-            logger.error("Encoding failed: \(error.localizedDescription)")
+            os_log("Encoding failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.encodingFailed(error)
         } catch {
-            logger.error("Writing failed: \(error.localizedDescription)")
+            os_log("Writing failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.writingFailed(error)
         }
     }
@@ -65,7 +67,7 @@ public class PersistenceManager: GraphStorage {
         // If only one exists, throw as inconsistent
         if nodesExist != edgesExist {
             let message = nodesExist ? "Edges file missing but nodes exist" : "Nodes file missing but edges exist"
-            logger.error("\(message)")
+            os_log("%{public}s", log: logger, type: .error, message)
             throw GraphStorageError.inconsistentFiles(message)
         }
         
@@ -76,14 +78,14 @@ public class PersistenceManager: GraphStorage {
         do {
             nodeData = try Data(contentsOf: nodeURL)
         } catch {
-            logger.error("Loading nodes failed: \(error.localizedDescription)")
+            os_log("Loading nodes failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.loadingFailed(error)
         }
         let loadedNodes: [Node]
         do {
             loadedNodes = try decoder.decode([Node].self, from: nodeData)
         } catch {
-            logger.error("Decoding nodes failed: \(error.localizedDescription)")
+            os_log("Decoding nodes failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.decodingFailed(error)
         }
         
@@ -91,14 +93,14 @@ public class PersistenceManager: GraphStorage {
         do {
             edgeData = try Data(contentsOf: edgeURL)
         } catch {
-            logger.error("Loading edges failed: \(error.localizedDescription)")
+            os_log("Loading edges failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.loadingFailed(error)
         }
         let loadedEdges: [GraphEdge]
         do {
             loadedEdges = try decoder.decode([GraphEdge].self, from: edgeData)
         } catch {
-            logger.error("Decoding edges failed: \(error.localizedDescription)")
+            os_log("Decoding edges failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.decodingFailed(error)
         }
         

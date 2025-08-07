@@ -9,8 +9,9 @@ import Foundation
 import WatchKit
 #endif
 
-private let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "storage")
+private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "storage")
 
+@available(iOS 13.0, watchOS 6.0, *)
 public class GraphModel: ObservableObject {
     @Published public var nodes: [any NodeProtocol] = []
     @Published public var edges: [GraphEdge] = []
@@ -64,7 +65,7 @@ public class GraphModel: ObservableObject {
             tempEdges = loaded.edges
             tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
         } catch {
-            logger.error("Load failed: \(error.localizedDescription)")
+            os_log("Load failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             // Proceed with defaults below
         }
         
@@ -84,7 +85,7 @@ public class GraphModel: ObservableObject {
             do {
                 try storage.save(nodes: defaultNodes, edges: tempEdges)
             } catch {
-                logger.error("Save defaults failed: \(error.localizedDescription)")
+                os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             }
         } else {
             // Update nextLabel based on loaded nodes
@@ -113,7 +114,7 @@ public class GraphModel: ObservableObject {
             tempEdges = loaded.edges
             tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
         } catch {
-            logger.error("Load failed: \(error.localizedDescription)")
+            os_log("Load failed: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
         
         if tempNodes.isEmpty && tempEdges.isEmpty {
@@ -132,7 +133,7 @@ public class GraphModel: ObservableObject {
             do {
                 try storage.save(nodes: defaultNodes, edges: tempEdges)
             } catch {
-                logger.error("Failed to save default graph: \(error.localizedDescription)")
+                os_log("Failed to save default graph: %{public}s", log: logger, type: .error, error.localizedDescription)
             }
         } else {
             tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
@@ -155,7 +156,7 @@ public class GraphModel: ObservableObject {
         do {
             try storage.save(nodes: nodes as! [Node], edges: edges)  // Cast for save
         } catch {
-            logger.error("Failed to save snapshot: \(error.localizedDescription)")
+            os_log("Failed to save snapshot: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
@@ -179,7 +180,7 @@ public class GraphModel: ObservableObject {
         do {
             try storage.save(nodes: nodes as! [Node], edges: edges)
         } catch {
-            logger.error("Failed to save after undo: \(error.localizedDescription)")
+            os_log("Failed to save after undo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
@@ -202,7 +203,7 @@ public class GraphModel: ObservableObject {
         do {
             try storage.save(nodes: nodes as! [Node], edges: edges)
         } catch {
-            logger.error("Failed to save after redo: \(error.localizedDescription)")
+            os_log("Failed to save after redo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
@@ -210,7 +211,7 @@ public class GraphModel: ObservableObject {
         do {
             try storage.save(nodes: nodes as! [Node], edges: edges)
         } catch {
-            logger.error("Failed to save graph: \(error.localizedDescription)")
+            os_log("Failed to save graph: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
@@ -301,6 +302,7 @@ public class GraphModel: ObservableObject {
     }
 }
 
+@available(iOS 13.0, watchOS 6.0, *)
 extension GraphModel {
     public func graphDescription(selectedID: NodeID?) -> String {
         var desc = "Graph with \(nodes.count) nodes and \(edges.count) directed edges."

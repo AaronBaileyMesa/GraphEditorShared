@@ -12,7 +12,7 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     var id: NodeID { get }
     
     /// Permanent label for the node (e.g., for display and accessibility).
-    var label: Int { get }
+    var label: Int { get } 
     
     /// Current position in the graph canvas.
     var position: CGPoint { get set }

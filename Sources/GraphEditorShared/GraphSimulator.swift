@@ -6,6 +6,7 @@ import Foundation
 import WatchKit  // Only if using haptics; otherwise remove
 #endif
 
+@available(iOS 13.0, watchOS 6.0, *)
 /// Manages physics simulation loops for graph updates.
 class GraphSimulator {
     private var timer: Timer? = nil  // Ensure this declaration is here
