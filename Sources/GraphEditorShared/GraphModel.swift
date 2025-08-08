@@ -16,6 +16,9 @@ public class GraphModel: ObservableObject {
     @Published public var nodes: [any NodeProtocol] = []
     @Published public var edges: [GraphEdge] = []
     
+    @Published var isSimulating: Bool = false
+    private var simulationTimer: Timer? = nil
+    
     private var undoStack: [GraphState] = []
     private var redoStack: [GraphState] = []
     private let maxUndo = 10
@@ -242,14 +245,32 @@ public class GraphModel: ObservableObject {
     }
     
     public func startSimulation() {
-        simulator.startSimulation(onUpdate: { [weak self] in
-            self?.objectWillChange.send()
-        })  // No onComplete; onStable handles it
+        simulationTimer?.invalidate()
+        isSimulating = true
+        simulationTimer = Timer.scheduledTimer(withTimeInterval: Constants.Physics.timeStep, repeats: true) { _ in
+            let (updatedNodes, isActive) = self.physicsEngine.simulationStep(nodes: self.nodes, edges: self.edges)
+            self.nodes = updatedNodes
+            if !isActive {
+                self.stopSimulation()
+            }
+            self.objectWillChange.send()  // Notify observers of changes
+        }
     }
-    
-    // Add this extension if not present (modify GraphSimulator accordingly to support onComplete)
+
+    public func pauseSimulation() {
+        simulationTimer?.invalidate()
+        isSimulating = false
+    }
+
+    public func resumeSimulation() {
+        if !isSimulating {
+            startSimulation()
+        }
+    }
+
     public func stopSimulation() {
-        simulator.stopSimulation()
+        simulationTimer?.invalidate()
+        isSimulating = false
     }
     
     public func boundingBox() -> CGRect {
