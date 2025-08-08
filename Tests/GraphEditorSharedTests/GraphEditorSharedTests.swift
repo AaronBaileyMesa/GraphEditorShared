@@ -234,11 +234,12 @@ struct GraphEditorSharedTests {
     
     @Test func testAsymmetricAttraction() throws {
         let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
-        engine.useAsymmetricAttraction = true
+        engine.useAsymmetricAttraction = true  // Assumes this property is added (see implementation below)
         var nodes = [Node(id: UUID(), label: 1, position: CGPoint(x: 0, y: 0)),
                      Node(id: UUID(), label: 2, position: CGPoint(x: 200, y: 0))]
         let edges = [GraphEdge(from: nodes[0].id, to: nodes[1].id)]
-        _ = engine.simulationStep(nodes: &nodes, edges: edges)
+        let (updatedNodes, _) = engine.simulationStep(nodes: nodes as [any NodeProtocol], edges: edges)
+        nodes = updatedNodes as! [Node]
         #expect(abs(nodes[0].position.x - 0) < 1, "From node position unchanged in asymmetric")
         #expect(nodes[1].position.x < 200, "To node pulled towards from")
     }
@@ -254,7 +255,8 @@ struct PerformanceTests {
 
         let start = Date()
         for _ in 0..<10 {
-            _ = engine.simulationStep(nodes: &nodes, edges: edges)
+            let (updatedNodes, _) = engine.simulationStep(nodes: nodes as [any NodeProtocol], edges: edges)
+            nodes = updatedNodes as! [Node]
         }
         let duration = Date().timeIntervalSince(start)
 

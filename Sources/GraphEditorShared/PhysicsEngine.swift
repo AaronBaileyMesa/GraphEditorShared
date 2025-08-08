@@ -81,12 +81,11 @@ public class PhysicsEngine {
             let forceY = forceDirectionY * forceMagnitude
             
             if useAsymmetricAttraction {
-                // Asymmetric: Stronger pull on 'to' node
-                let currentForceFrom = forces[fromNode.id] ?? .zero
-                forces[fromNode.id] = CGPoint(x: currentForceFrom.x + forceX * 0.5, y: currentForceFrom.y + forceY * 0.5)
+                // Asymmetric: No force on 'from' (source), doubled pull on 'to' (target) toward 'from'
                 let currentForceTo = forces[toNode.id] ?? .zero
-                forces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * 1.5, y: currentForceTo.y - forceY * 1.5)
+                forces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * 2, y: currentForceTo.y - forceY * 2)
             } else {
+                // Symmetric: Split force between 'from' and 'to'
                 let currentForceFrom = forces[fromNode.id] ?? .zero
                 forces[fromNode.id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
                 let currentForceTo = forces[toNode.id] ?? .zero
