@@ -16,13 +16,13 @@ public class GraphModel: ObservableObject {
     @Published public var nodes: [any NodeProtocol] = []
     @Published public var edges: [GraphEdge] = []
     
-    @Published var isSimulating: Bool = false
+    @Published public var isSimulating: Bool = false
     private var simulationTimer: Timer? = nil
     
     private var undoStack: [GraphState] = []
     private var redoStack: [GraphState] = []
     private let maxUndo = 10
-    internal var nextNodeLabel = 1  // Internal for testability; auto-increments node labels
+    public var nextNodeLabel = 1  // Internal for testability; auto-increments node labels
     
     private let storage: GraphStorage
     public let physicsEngine: PhysicsEngine  // Changed to public
@@ -332,6 +332,15 @@ public class GraphModel: ObservableObject {
         nextNodeLabel += 1
         nodes.append(child)
         edges.append(GraphEdge(from: parentID, to: child.id))
+        physicsEngine.resetSimulation()
+        startSimulation()
+    }
+    
+    public func clearGraph() {
+        snapshot()
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
         physicsEngine.resetSimulation()
         startSimulation()
     }
