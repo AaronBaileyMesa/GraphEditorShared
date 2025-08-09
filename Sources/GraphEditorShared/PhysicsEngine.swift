@@ -26,8 +26,7 @@ public class PhysicsEngine {
         simulationSteps = 0
     }
     
-    public var useAsymmetricAttraction: Bool = true
-    
+    public var useAsymmetricAttraction: Bool = false  // Default to false for stability
     public var isPaused: Bool = false
     
     @discardableResult
@@ -82,14 +81,18 @@ public class PhysicsEngine {
             let forceX = forceDirectionX * forceMagnitude
             let forceY = forceDirectionY * forceMagnitude
             
+            let symmetricFactor: CGFloat = 0.2  // Small symmetric pull for damping
+            let symForceX = forceX * symmetricFactor
+            let symForceY = forceY * symmetricFactor
+            
+            let currentForceFrom = updatedForces[fromNode.id] ?? .zero
+            updatedForces[fromNode.id] = CGPoint(x: currentForceFrom.x + symForceX, y: currentForceFrom.y + symForceY)
+            
+            let currentForceTo = updatedForces[toNode.id] ?? .zero
             if useAsymmetricAttraction {
-                let currentForceTo = updatedForces[toNode.id] ?? .zero
-                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * 2, y: currentForceTo.y - forceY * 2)
+                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * (1 + symmetricFactor), y: currentForceTo.y - forceY * (1 + symmetricFactor))
             } else {
-                let currentForceFrom = updatedForces[fromNode.id] ?? .zero
-                updatedForces[fromNode.id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
-                let currentForceTo = updatedForces[toNode.id] ?? .zero
-                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
+                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX + symForceX, y: currentForceTo.y - forceY + symForceY)  // Symmetric with damping
             }
         }
         return updatedForces
@@ -119,34 +122,47 @@ public class PhysicsEngine {
             newVelocity = CGPoint(x: newVelocity.x * Constants.Physics.damping, y: newVelocity.y * Constants.Physics.damping)
             var newPosition = CGPoint(x: node.position.x + newVelocity.x * Constants.Physics.timeStep, y: node.position.y + newVelocity.y * Constants.Physics.timeStep)
             
-            // Tentative bounds clamp and bounce
+            // Tentative bounds clamp and softer bounce
             let oldPosition = newPosition
             newPosition.x = max(0, min(simulationBounds.width, newPosition.x))
             newPosition.y = max(0, min(simulationBounds.height, newPosition.y))
             if newPosition.x != oldPosition.x {
-                newVelocity.x = -newVelocity.x * Constants.Physics.damping
+                newVelocity.x = -newVelocity.x * 0.8  // Softer: 0.8 instead of full damping
             }
             if newPosition.y != oldPosition.y {
-                newVelocity.y = -newVelocity.y * Constants.Physics.damping
+                newVelocity.y = -newVelocity.y * 0.8
             }
             
             tentativeUpdates[node.id] = (newPosition, newVelocity)
         }
         
+        // Build multi-parent map: child -> [parents]
+        var parentMap = [NodeID: [NodeID]]()
+        for edge in edges {
+            parentMap[edge.to, default: []].append(edge.from)
+        }
+        
         // Second pass: Apply clamping using tentative parent updates and create final updated nodes
         var updatedNodes: [any NodeProtocol] = []
-        let parentMap = edges.reduce(into: [NodeID: NodeID]()) { $0[$1.to] = $1.from }  // Child to parent (assume single parent)
         var totalVelocity: CGFloat = 0.0
         for node in nodes {
             var newPosition = tentativeUpdates[node.id]!.position
             var newVelocity = tentativeUpdates[node.id]!.velocity
             
-            if let parentID = parentMap[node.id],
-               let parent = nodes.first(where: { $0.id == parentID }),
-               !parent.isExpanded {
-                // Clamp to parent's tentative new position
-                newPosition = tentativeUpdates[parentID]!.position
-                newVelocity = .zero
+            if let parents = parentMap[node.id], !parents.isEmpty {
+                let collapsedParents = parents.filter { parentID in
+                    nodes.first(where: { $0.id == parentID })?.isExpanded == false
+                }
+                if !collapsedParents.isEmpty {
+                    // Average tentative positions of collapsed parents
+                    var avgPos = CGPoint.zero
+                    for parentID in collapsedParents {
+                        avgPos = avgPos + tentativeUpdates[parentID]!.position
+                    }
+                    avgPos = avgPos / CGFloat(collapsedParents.count)
+                    newPosition = avgPos
+                    newVelocity = .zero
+                }
             }
             
             let updatedNode = node.with(position: newPosition, velocity: newVelocity)
@@ -159,6 +175,7 @@ public class PhysicsEngine {
         
         return (updatedNodes, isActive)
     }
+    
     public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
         if nodes.isEmpty { return .zero }
         let xs = nodes.map { $0.position.x }
