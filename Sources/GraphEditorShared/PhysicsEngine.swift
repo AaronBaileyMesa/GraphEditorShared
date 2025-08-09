@@ -26,7 +26,7 @@ public class PhysicsEngine {
         simulationSteps = 0
     }
     
-    public var useAsymmetricAttraction: Bool = false
+    public var useAsymmetricAttraction: Bool = true
     
     public var isPaused: Bool = false
     
