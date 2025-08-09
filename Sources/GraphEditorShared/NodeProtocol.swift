@@ -3,6 +3,9 @@
 import SwiftUI
 import Foundation
 
+private var nodeTextCache: [String: GraphicsContext.ResolvedText] = [:]
+private let nodeCacheQueue = DispatchQueue(label: "nodeTextCache", attributes: .concurrent)
+
 /// Protocol for graph nodes, enabling polymorphism for types like standard or toggleable nodes.
 /// Conformers must provide core properties; defaults are available for common behaviors.
 @available(iOS 13.0, *)
@@ -86,14 +89,12 @@ public extension NodeProtocol {
 @available(iOS 15.0, *)
 @available(watchOS 9.0, *)
 public extension NodeProtocol {
-    /// Default: Wraps `draw` in a Canvas for standalone SwiftUI use.
     func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         AnyView(Canvas { context, _ in
             self.draw(in: context, at: .zero, zoomScale: zoomScale, isSelected: isSelected)
         })
     }
     
-    /// Default: Draws a red circle with label; adds white border if selected.
     func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
         let scaledRadius = radius * zoomScale
         let borderWidth: CGFloat = isSelected ? 4 * zoomScale : 0
@@ -106,8 +107,18 @@ public extension NodeProtocol {
         }
         
         let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
-        let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
-        let resolved = context.resolve(text)
+        let labelKey = "\(label)-\(fontSize)"  // Unique key per label and size
+        let resolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
+            if let cached = nodeTextCache[labelKey] {
+                return cached
+            }
+            let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
+            let resolved = context.resolve(text)
+            nodeCacheQueue.async(flags: .barrier) {
+                nodeTextCache[labelKey] = resolved
+            }
+            return resolved
+        }
         context.draw(resolved, at: position, anchor: .center)
     }
 }

@@ -32,19 +32,19 @@ public class PhysicsEngine {
     
     @discardableResult
     public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
-        // Early exit if simulation is paused
-        if isPaused { return (nodes, false) }
-        
-        // Early exit if maximum simulation steps reached
-        if simulationSteps >= Constants.Physics.maxSimulationSteps {
-            return (nodes, false)
-        }
+        if isPaused || simulationSteps >= Constants.Physics.maxSimulationSteps { return (nodes, false) }
         simulationSteps += 1
         
-        var forces: [NodeID: CGPoint] = [:]
-        let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
+        var forces = computeRepulsions(nodes: nodes)
+        forces = applyAttractions(forces: forces, edges: edges, nodes: nodes)
+        forces = applyCentering(forces: forces, nodes: nodes)
         
-        // Build Quadtree for repulsion (Barnes-Hut) only if under node cap
+        return updatePositionsAndVelocities(nodes: nodes, forces: forces, edges: edges)
+    }
+    
+    private func computeRepulsions(nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
+        var forces: [NodeID: CGPoint] = [:]
+        
         let useQuadtree = nodes.count <= maxNodesForQuadtree
         let quadtree: Quadtree? = useQuadtree ? Quadtree(bounds: CGRect(origin: .zero, size: simulationBounds)) : nil
         if useQuadtree {
@@ -53,7 +53,6 @@ public class PhysicsEngine {
             }
         }
         
-        // Calculate repulsion forces
         for node in nodes {
             var repulsion: CGPoint = .zero
             if useQuadtree {
@@ -66,8 +65,11 @@ public class PhysicsEngine {
             }
             forces[node.id] = (forces[node.id] ?? .zero) + repulsion
         }
-        
-        // Calculate attraction forces on edges
+        return forces
+    }
+    
+    private func applyAttractions(forces: [NodeID: CGPoint], edges: [GraphEdge], nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
+        var updatedForces = forces
         for edge in edges {
             guard let fromNode = nodes.first(where: { $0.id == edge.from }),
                   let toNode = nodes.first(where: { $0.id == edge.to }) else { continue }
@@ -81,29 +83,34 @@ public class PhysicsEngine {
             let forceY = forceDirectionY * forceMagnitude
             
             if useAsymmetricAttraction {
-                // Asymmetric: No force on 'from' (source), doubled pull on 'to' (target) toward 'from'
-                let currentForceTo = forces[toNode.id] ?? .zero
-                forces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * 2, y: currentForceTo.y - forceY * 2)
+                let currentForceTo = updatedForces[toNode.id] ?? .zero
+                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * 2, y: currentForceTo.y - forceY * 2)
             } else {
-                // Symmetric: Split force between 'from' and 'to'
-                let currentForceFrom = forces[fromNode.id] ?? .zero
-                forces[fromNode.id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
-                let currentForceTo = forces[toNode.id] ?? .zero
-                forces[toNode.id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
+                let currentForceFrom = updatedForces[fromNode.id] ?? .zero
+                updatedForces[fromNode.id] = CGPoint(x: currentForceFrom.x + forceX, y: currentForceFrom.y + forceY)
+                let currentForceTo = updatedForces[toNode.id] ?? .zero
+                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX, y: currentForceTo.y - forceY)
             }
         }
-        
-        // Apply centering force to each node
+        return updatedForces
+    }
+    
+    private func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
+        var updatedForces = forces
+        let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
         for node in nodes {
             let deltaX = center.x - node.position.x
             let deltaY = center.y - node.position.y
             let distToCenter = hypot(deltaX, deltaY)
             let forceX = deltaX * Constants.Physics.centeringForce * (1 + distToCenter / max(simulationBounds.width, simulationBounds.height))
             let forceY = deltaY * Constants.Physics.centeringForce * (1 + distToCenter / max(simulationBounds.width, simulationBounds.height))
-            let currentForce = forces[node.id] ?? .zero
-            forces[node.id] = CGPoint(x: currentForce.x + forceX, y: currentForce.y + forceY)
+            let currentForce = updatedForces[node.id] ?? .zero
+            updatedForces[node.id] = CGPoint(x: currentForce.x + forceX, y: currentForce.y + forceY)
         }
-        
+        return updatedForces
+    }
+    
+    private func updatePositionsAndVelocities(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
         // First pass: Compute tentative position and velocity for all nodes
         var tentativeUpdates: [NodeID: (position: CGPoint, velocity: CGPoint)] = [:]
         for node in nodes {
@@ -152,7 +159,6 @@ public class PhysicsEngine {
         
         return (updatedNodes, isActive)
     }
-    
     public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
         if nodes.isEmpty { return .zero }
         let xs = nodes.map { $0.position.x }

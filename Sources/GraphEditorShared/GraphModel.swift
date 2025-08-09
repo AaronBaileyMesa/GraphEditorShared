@@ -298,6 +298,7 @@ public class GraphModel: ObservableObject {
         nextNodeLabel = 1
         physicsEngine.resetSimulation()
         startSimulation()
+        try? storage.clear()  // New: Reset persistence
     }
 }
 

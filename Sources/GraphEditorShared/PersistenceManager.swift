@@ -106,4 +106,17 @@ public class PersistenceManager: GraphStorage {
         
         return (loadedNodes, loadedEdges)
     }
+    
+    public func clear() throws {
+        let fm = FileManager.default
+        let nodeURL = baseURL.appendingPathComponent(nodesFileName)
+        let edgeURL = baseURL.appendingPathComponent(edgesFileName)
+        
+        if fm.fileExists(atPath: nodeURL.path) {
+            try fm.removeItem(at: nodeURL)
+        }
+        if fm.fileExists(atPath: edgeURL.path) {
+            try fm.removeItem(at: edgeURL)
+        }
+    }
 }
