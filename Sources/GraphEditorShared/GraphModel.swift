@@ -52,14 +52,14 @@ public class GraphModel: ObservableObject {
         !redoStack.isEmpty
     }
     
-    // Initializes the graph model, loading from persistence if available.
-    public init(storage: GraphStorage = PersistenceManager(), physicsEngine: PhysicsEngine) {
+    // Single initializer with optional nextNodeLabel for testing.
+    public init(storage: GraphStorage = PersistenceManager(), physicsEngine: PhysicsEngine, nextNodeLabel: Int? = nil) {
         self.storage = storage
         self.physicsEngine = physicsEngine
         
         var tempNodes: [any NodeProtocol] = []
         var tempEdges: [GraphEdge] = []
-        var tempNextLabel = 1
+        var tempNextLabel = nextNodeLabel ?? 1
         
         do {
             let loaded = try storage.load()
@@ -72,26 +72,13 @@ public class GraphModel: ObservableObject {
         }
         
         if tempNodes.isEmpty && tempEdges.isEmpty {
-            let defaultNodes: [Node] = [
-                Node(label: tempNextLabel, position: CGPoint(x: 100, y: 100)),
-                Node(label: tempNextLabel + 1, position: CGPoint(x: 200, y: 200)),
-                Node(label: tempNextLabel + 2, position: CGPoint(x: 150, y: 300))
-            ]
-            tempNodes = defaultNodes
-            tempNextLabel += 3
-            tempEdges = [
-                GraphEdge(from: defaultNodes[0].id, to: defaultNodes[1].id),
-                GraphEdge(from: defaultNodes[1].id, to: defaultNodes[2].id),
-                GraphEdge(from: defaultNodes[2].id, to: defaultNodes[0].id)
-            ]
+            (tempNodes, tempEdges, tempNextLabel) = Self.createDefaultGraph(startingLabel: tempNextLabel)
             do {
-                try storage.save(nodes: defaultNodes, edges: tempEdges)
+                try storage.save(nodes: tempNodes as! [Node], edges: tempEdges)
             } catch {
                 os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             }
         } else {
-            // Update nextLabel based on loaded nodes
-            tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
             // NO save here; loaded data doesn't need immediate save
         }
         
@@ -100,52 +87,20 @@ public class GraphModel: ObservableObject {
         self.nextNodeLabel = tempNextLabel
     }
     
-    // Test-only initializer
-#if DEBUG
-    public init(storage: GraphStorage = PersistenceManager(), physicsEngine: PhysicsEngine, nextNodeLabel: Int) {
-        self.storage = storage
-        self.physicsEngine = physicsEngine
-        
-        var tempNodes: [any NodeProtocol] = []
-        var tempEdges: [GraphEdge] = []
-        var tempNextLabel = nextNodeLabel
-        
-        do {
-            let loaded = try storage.load()
-            tempNodes = loaded.nodes
-            tempEdges = loaded.edges
-            tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
-        } catch {
-            os_log("Load failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-        }
-        
-        if tempNodes.isEmpty && tempEdges.isEmpty {
-            let defaultNodes: [Node] = [
-                Node(label: tempNextLabel, position: CGPoint(x: 100, y: 100)),
-                Node(label: tempNextLabel + 1, position: CGPoint(x: 200, y: 200)),
-                Node(label: tempNextLabel + 2, position: CGPoint(x: 150, y: 300))
-            ]
-            tempNodes = defaultNodes
-            tempNextLabel += 3
-            tempEdges = [
-                GraphEdge(from: defaultNodes[0].id, to: defaultNodes[1].id),
-                GraphEdge(from: defaultNodes[1].id, to: defaultNodes[2].id),
-                GraphEdge(from: defaultNodes[2].id, to: defaultNodes[0].id)
-            ]
-            do {
-                try storage.save(nodes: defaultNodes, edges: tempEdges)
-            } catch {
-                os_log("Failed to save default graph: %{public}s", log: logger, type: .error, error.localizedDescription)
-            }
-        } else {
-            tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
-        }
-        
-        self.nodes = tempNodes
-        self.edges = tempEdges
-        self.nextNodeLabel = tempNextLabel
+    // Static factory for default graph creation.
+    private static func createDefaultGraph(startingLabel: Int) -> ([any NodeProtocol], [GraphEdge], Int) {
+        let defaultNodes: [Node] = [
+            Node(label: startingLabel, position: CGPoint(x: 100, y: 100)),
+            Node(label: startingLabel + 1, position: CGPoint(x: 200, y: 200)),
+            Node(label: startingLabel + 2, position: CGPoint(x: 150, y: 300))
+        ]
+        let defaultEdges: [GraphEdge] = [
+            GraphEdge(from: defaultNodes[0].id, to: defaultNodes[1].id),
+            GraphEdge(from: defaultNodes[1].id, to: defaultNodes[2].id),
+            GraphEdge(from: defaultNodes[2].id, to: defaultNodes[0].id)
+        ]
+        return (defaultNodes, defaultEdges, startingLabel + 3)
     }
-#endif
     
     // Creates a snapshot of the current state for undo/redo and saves.
     public func snapshot() {
