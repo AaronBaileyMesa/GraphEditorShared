@@ -1,6 +1,7 @@
 // Sources/GraphEditorShared/GraphSimulator.swift
 
 import Foundation
+import os.log  // For logging if needed
 
 #if os(watchOS)
 import WatchKit  // Only if using haptics; otherwise remove
@@ -33,17 +34,21 @@ class GraphSimulator {
     }
     
     func startSimulation(onUpdate: @escaping () -> Void) {
-        timer?.invalidate()
-        physicsEngine.resetSimulation()
-        recentVelocities.removeAll()
-        
-        let nodeCount = getNodes().count
-        if nodeCount < 5 { return }
-        
-        // Dynamic interval: Slower for larger graphs to save battery
-        let baseInterval: TimeInterval = nodeCount < 20 ? 1.0 / 30.0 : (nodeCount < 50 ? 1.0 / 15.0 : 1.0 / 10.0)
-        timer = Timer.scheduledTimer(withTimeInterval: baseInterval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            timer?.invalidate()
+            physicsEngine.resetSimulation()
+            recentVelocities.removeAll()
+            
+            let nodeCount = getNodes().count
+            if nodeCount < 5 { return }
+            
+            // Dynamic interval: Slower for larger graphs; further slow in low power mode
+            var baseInterval: TimeInterval = nodeCount < 20 ? 1.0 / 30.0 : (nodeCount < 50 ? 1.0 / 15.0 : 1.0 / 10.0)
+            if ProcessInfo.processInfo.isLowPowerModeEnabled {
+                baseInterval *= 2.0  // Double interval to save battery
+            }
+            
+            timer = Timer.scheduledTimer(withTimeInterval: baseInterval, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
             
             DispatchQueue.global(qos: .userInitiated).async {
                 var nodes = self.getNodes()  // [any NodeProtocol]
