@@ -104,14 +104,18 @@ public class GraphModel: ObservableObject {
     
     // Creates a snapshot of the current state for undo/redo and saves.
     public func snapshot() {
-        let state = GraphState(nodes: nodes as! [Node], edges: edges)  // Cast for GraphState (assumes all are Node)
+        guard let concreteNodes = nodes as? [Node] else {
+            os_log("Snapshot failed: Nodes not all concrete Node type", log: logger, type: .error)
+            return
+        }
+        let state = GraphState(nodes: concreteNodes, edges: edges)
         undoStack.append(state)
         if undoStack.count > maxUndo {
             undoStack.removeFirst()
         }
         redoStack.removeAll()
         do {
-            try storage.save(nodes: nodes as! [Node], edges: edges)  // Cast for save
+            try storage.save(nodes: concreteNodes, edges: edges)
         } catch {
             os_log("Failed to save snapshot: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
