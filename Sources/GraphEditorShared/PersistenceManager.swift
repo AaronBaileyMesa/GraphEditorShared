@@ -72,15 +72,16 @@ public class PersistenceManager: GraphStorage {
             return ([], [])
         }
         
+        // Handle inconsistency: Delete orphan and return empty
         if nodesExist != edgesExist {
-            let message = nodesExist ? "Edges file missing; deleting orphan nodes file" : "Nodes file missing; deleting orphan edges file"
+            let message = nodesExist ? "Edges file missing but nodes exist; deleting orphan nodes file" : "Nodes file missing but edges exist; deleting orphan edges file"
             os_log("%{public}s", log: logger, type: .error, message)
             if nodesExist {
-                try? fm.removeItem(at: nodeURL)  // Delete orphan
+                try? fm.removeItem(at: nodeURL)
             } else {
                 try? fm.removeItem(at: edgeURL)
             }
-            return ([], [])  // Return empty instead of throw
+            return ([], [])  // Graceful empty return
         }
         
         // Both exist: Load and decode
@@ -119,7 +120,6 @@ public class PersistenceManager: GraphStorage {
         
         return (loadedNodes, loadedEdges)
     }
-    
     public func clear() throws {
         let fm = FileManager.default
         let nodeURL = baseURL.appendingPathComponent(nodesFileName)

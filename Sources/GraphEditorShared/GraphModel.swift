@@ -59,29 +59,41 @@ public class GraphModel: ObservableObject {
         
         var tempNodes: [any NodeProtocol] = []
         var tempEdges: [GraphEdge] = []
+        var tempNextLabel = nextNodeLabel ?? 1
         
         do {
             let loaded = try storage.load()
             tempNodes = loaded.nodes
             tempEdges = loaded.edges
+            tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
         } catch {
             os_log("Load failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             // Proceed with defaults below
         }
         
         if tempNodes.isEmpty && tempEdges.isEmpty {
-                (tempNodes, tempEdges, _) = Self.createDefaultGraph(startingLabel: 1)  // Start from 1
-                do {
-                    try storage.save(nodes: tempNodes, edges: tempEdges)
-                } catch {
-                    os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-                }
+            (tempNodes, tempEdges, tempNextLabel) = Self.createDefaultGraph(startingLabel: tempNextLabel)
+            do {
+                try storage.save(nodes: tempNodes, edges: tempEdges)
+            } catch {
+                os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             }
-            
-            self.nodes = tempNodes
-            self.edges = tempEdges
-            self.nextNodeLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1  // Always compute
         }
+        
+        self.nodes = tempNodes
+        self.edges = tempEdges
+        self.nextNodeLabel = tempNextLabel  // Always set (computed above)
+    }
+
+    public func clearGraph() {
+        snapshot()
+        nodes = []
+        edges = []
+        nextNodeLabel = 1  // Explicit reset
+        physicsEngine.resetSimulation()
+        startSimulation()
+        try? storage.clear()
+    }
     
     // Static factory for default graph creation.
     private static func createDefaultGraph(startingLabel: Int) -> ([any NodeProtocol], [GraphEdge], Int) {
@@ -275,16 +287,6 @@ public class GraphModel: ObservableObject {
         edges.append(GraphEdge(from: parentID, to: child.id))
         physicsEngine.resetSimulation()
         startSimulation()
-    }
-    
-    public func clearGraph() {
-        snapshot()
-        nodes = []
-        edges = []
-        nextNodeLabel = 1  // Reset explicitly
-        physicsEngine.resetSimulation()
-        startSimulation()
-        try? storage.clear()
     }
 }
 
