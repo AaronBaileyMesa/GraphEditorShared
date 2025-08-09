@@ -217,14 +217,13 @@ public class GraphModel: ObservableObject {
     }
 
     public func pauseSimulation() {
-        simulationTimer?.invalidate()
-        isSimulating = false
+        stopSimulation()  // UPDATED: Use existing stop
+        physicsEngine.isPaused = true  // If you add isPaused to PhysicsEngine
     }
 
     public func resumeSimulation() {
-        if !isSimulating {
-            startSimulation()
-        }
+        physicsEngine.isPaused = false
+        startSimulation()
     }
 
     public func stopSimulation() {
