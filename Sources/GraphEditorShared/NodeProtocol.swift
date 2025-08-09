@@ -102,23 +102,18 @@ public extension NodeProtocol {
         
         context.fill(Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius)), with: .color(.red))
         
-        if isSelected {
-            context.stroke(Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius)), with: .color(.white), lineWidth: borderWidth)
-        }
-        
-        let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
-        let labelKey = "\(label)-\(fontSize)"  // Unique key per label and size
-        let resolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
-            if let cached = nodeTextCache[labelKey] {
-                return cached
+        if isSelected {  // NEW: Only draw label if selected
+            let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
+            let labelKey = "\(label)-\(fontSize)"
+            let resolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
+                if let cached = nodeTextCache[labelKey] { return cached }
+                let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
+                let resolved = context.resolve(text)
+                nodeCacheQueue.async(flags: .barrier) { nodeTextCache[labelKey] = resolved }
+                return resolved
             }
-            let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
-            let resolved = context.resolve(text)
-            nodeCacheQueue.async(flags: .barrier) {
-                nodeTextCache[labelKey] = resolved
-            }
-            return resolved
+            let labelPosition = CGPoint(x: position.x, y: position.y - (radius * zoomScale + 10 * zoomScale))  // NEW: Offset above node for "overlay" feel
+            context.draw(resolved, at: labelPosition, anchor: .center)
         }
-        context.draw(resolved, at: position, anchor: .center)
     }
 }
