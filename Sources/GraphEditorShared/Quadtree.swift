@@ -17,46 +17,45 @@ public class Quadtree {  // Made public for consistency/test access
     }
     
     public func insert(_ node: any NodeProtocol, depth: Int = 0) {
-        if depth > 20 || bounds.width < Constants.Physics.minQuadSize || bounds.height < Constants.Physics.minQuadSize {  // Stricter depth (20) and size check
+        guard depth <= Constants.Physics.maxQuadtreeDepth,
+              bounds.width >= Constants.Physics.minQuadSize,
+              bounds.height >= Constants.Physics.minQuadSize else {
             nodes.append(node)
             updateCenterOfMass(with: node)
             return
         }
         
         if let children = children {
+            // Existing subdivided quad: Insert into child
             let quadrant = getQuadrant(for: node.position)
             children[quadrant].insert(node, depth: depth + 1)
-            aggregateFromChildren()
-        } else {
-            if !nodes.isEmpty && nodes.allSatisfy({ $0.position == node.position }) {
+            aggregateFromChildren()  // Update aggregates post-insert
+        } else if !nodes.isEmpty {
+            // Leaf with nodes: Subdivide and redistribute
+            subdivide()
+            guard let children = children else {
+                // Failed to subdivide (too small); append to leaf
                 nodes.append(node)
                 updateCenterOfMass(with: node)
                 return
             }
-            
-            if !nodes.isEmpty {
-                subdivide()
-                if let children = children {
-                    for existing in nodes {
-                        let quadrant = getQuadrant(for: existing.position)
-                        children[quadrant].insert(existing, depth: depth + 1)
-                    }
-                    nodes = []
-                    let quadrant = getQuadrant(for: node.position)
-                    children[quadrant].insert(node, depth: depth + 1)
-                    aggregateFromChildren()
-                } else {
-                    nodes.append(node)
-                    updateCenterOfMass(with: node)
-                }
-            } else {
-                nodes.append(node)
-                updateCenterOfMass(with: node)
+            for existing in nodes {
+                let quadrant = getQuadrant(for: existing.position)
+                children[quadrant].insert(existing, depth: depth + 1)
             }
+            nodes = []
+            let quadrant = getQuadrant(for: node.position)
+            children[quadrant].insert(node, depth: depth + 1)
+            aggregateFromChildren()
+        } else {
+            // Empty leaf: Append
+            nodes.append(node)
+            updateCenterOfMass(with: node)
         }
     }
-    
+
     private func aggregateFromChildren() {
+        // Recompute totalMass and centerOfMass from children (bottom-up)
         centerOfMass = .zero
         totalMass = 0
         guard let children = children else { return }
