@@ -100,7 +100,13 @@ public extension NodeProtocol {
         let borderWidth: CGFloat = isSelected ? 4 * zoomScale : 0
         let borderRadius = scaledRadius + borderWidth / 2
         
-        context.fill(Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius)), with: .color(.red))
+        if borderWidth > 0 {
+            let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
+            context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
+        }
+        
+        let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
+        context.fill(innerPath, with: .color(.red))
         
         if isSelected {  // NEW: Only draw label if selected
             let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
