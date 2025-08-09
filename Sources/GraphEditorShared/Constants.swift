@@ -28,7 +28,7 @@ public enum Constants {
     
     public enum App {
         public static let nodeModelRadius: CGFloat = 10.0
-        public static let hitScreenRadius: CGFloat = 20.0  // Buffer for hit detection
+        public static let hitScreenRadius: CGFloat = 40.0  // Larger for watchOS tap targets
         public static let tapThreshold: CGFloat = 10.0  // Pixels for tap vs. drag distinction
         public static let numZoomLevels: Int = 20  // For crown mapping
     }

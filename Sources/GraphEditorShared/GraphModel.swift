@@ -208,6 +208,11 @@ public class GraphModel: ObservableObject {
     }
     
     public func startSimulation() {
+        #if os(watchOS)
+        guard WKApplication.shared().applicationState == .active else {
+            return  // Don't simulate if backgrounded
+        }
+        #endif
         simulator.startSimulation { [weak self] in
             self?.objectWillChange.send()
         }
@@ -218,8 +223,8 @@ public class GraphModel: ObservableObject {
     }
 
     public func pauseSimulation() {
-        stopSimulation()  // UPDATED: Use existing stop
-        physicsEngine.isPaused = true  // If you add isPaused to PhysicsEngine
+        stopSimulation()
+        physicsEngine.isPaused = true  // Assumes isPaused var in PhysicsEngine
     }
 
     public func resumeSimulation() {

@@ -34,6 +34,11 @@ class GraphSimulator {
     }
     
     func startSimulation(onUpdate: @escaping () -> Void) {
+        #if os(watchOS)
+        guard WKApplication.shared().applicationState == .active else {
+            return  // Don't simulate if backgrounded
+        }
+        #endif
             timer?.invalidate()
             physicsEngine.resetSimulation()
             recentVelocities.removeAll()
@@ -54,7 +59,7 @@ class GraphSimulator {
                 var nodes = self.getNodes()  // [any NodeProtocol]
                 let edges = self.getEdges()
                 var shouldContinue = false
-                let subSteps = nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1)
+                let subSteps = nodes.count < 5 ? 2 : (nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1))
                 
                 for _ in 0..<subSteps {
                     let (updatedNodes, stepActive) = self.physicsEngine.simulationStep(nodes: nodes, edges: edges)  // Updated: Non-inout
