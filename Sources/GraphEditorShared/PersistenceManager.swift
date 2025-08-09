@@ -32,10 +32,19 @@ public class PersistenceManager: GraphStorage {
         self.init(baseURL: documents.appendingPathComponent("GraphEditor"))
     }
     
-    public func save(nodes: [Node], edges: [GraphEdge]) throws {
+    public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) throws {
+        let wrappedNodes = nodes.map { node in
+            if let n = node as? Node {
+                return NodeWrapper.node(n)
+            } else if let tn = node as? ToggleNode {
+                return NodeWrapper.toggleNode(tn)
+            } else {
+                fatalError("Unsupported node type: \(type(of: node))")
+            }
+        }
         let encoder = JSONEncoder()
         do {
-            let nodeData = try encoder.encode(nodes)
+            let nodeData = try encoder.encode(wrappedNodes)
             let nodeURL = baseURL.appendingPathComponent(nodesFileName)
             try nodeData.write(to: nodeURL)
             
@@ -50,8 +59,8 @@ public class PersistenceManager: GraphStorage {
             throw GraphStorageError.writingFailed(error)
         }
     }
-    
-    public func load() throws -> (nodes: [Node], edges: [GraphEdge]) {
+
+    public func load() throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let fm = FileManager.default
         let nodeURL = baseURL.appendingPathComponent(nodesFileName)
         let edgeURL = baseURL.appendingPathComponent(edgesFileName)
@@ -81,13 +90,14 @@ public class PersistenceManager: GraphStorage {
             os_log("Loading nodes failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.loadingFailed(error)
         }
-        let loadedNodes: [Node]
+        let loadedWrapped: [NodeWrapper]
         do {
-            loadedNodes = try decoder.decode([Node].self, from: nodeData)
+            loadedWrapped = try decoder.decode([NodeWrapper].self, from: nodeData)
         } catch {
             os_log("Decoding nodes failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.decodingFailed(error)
         }
+        let loadedNodes = loadedWrapped.map { $0.value }
         
         let edgeData: Data
         do {

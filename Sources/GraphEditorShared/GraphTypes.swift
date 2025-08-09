@@ -92,12 +92,55 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 // Snapshot of the graph state for undo/redo.
 @available(iOS 13.0, *)
 @available(watchOS 9.0, *)
-public struct GraphState: Codable {
-    public let nodes: [Node]
+public struct GraphState {
+    public let nodes: [any NodeProtocol]
     public let edges: [GraphEdge]
     
-    public init(nodes: [Node], edges: [GraphEdge]) {
+    public init(nodes: [any NodeProtocol], edges: [GraphEdge]) {
         self.nodes = nodes
         self.edges = edges
+    }
+}
+
+public enum NodeWrapper: Codable {
+    case node(Node)
+    case toggleNode(ToggleNode)
+    
+    enum CodingKeys: String, CodingKey {
+        case type, data
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        switch type {
+        case "node":
+            let data = try container.decode(Node.self, forKey: .data)
+            self = .node(data)
+        case "toggleNode":
+            let data = try container.decode(ToggleNode.self, forKey: .data)
+            self = .toggleNode(data)
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown node type")
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .node(let node):
+            try container.encode("node", forKey: .type)
+            try container.encode(node, forKey: .data)
+        case .toggleNode(let toggleNode):
+            try container.encode("toggleNode", forKey: .type)
+            try container.encode(toggleNode, forKey: .data)
+        }
+    }
+    
+    public var value: any NodeProtocol {
+        switch self {
+        case .node(let node): return node
+        case .toggleNode(let toggleNode): return toggleNode
+        }
     }
 }

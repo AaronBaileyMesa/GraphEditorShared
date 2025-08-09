@@ -74,7 +74,7 @@ public class GraphModel: ObservableObject {
         if tempNodes.isEmpty && tempEdges.isEmpty {
             (tempNodes, tempEdges, tempNextLabel) = Self.createDefaultGraph(startingLabel: tempNextLabel)
             do {
-                try storage.save(nodes: tempNodes as! [Node], edges: tempEdges)
+                try storage.save(nodes: tempNodes, edges: tempEdges)
             } catch {
                 os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             }
@@ -104,18 +104,14 @@ public class GraphModel: ObservableObject {
     
     // Creates a snapshot of the current state for undo/redo and saves.
     public func snapshot() {
-        guard let concreteNodes = nodes as? [Node] else {
-            os_log("Snapshot failed: Nodes not all concrete Node type", log: logger, type: .error)
-            return
-        }
-        let state = GraphState(nodes: concreteNodes, edges: edges)
+        let state = GraphState(nodes: nodes, edges: edges)
         undoStack.append(state)
         if undoStack.count > maxUndo {
             undoStack.removeFirst()
         }
         redoStack.removeAll()
         do {
-            try storage.save(nodes: concreteNodes, edges: edges)
+            try storage.save(nodes: nodes, edges: edges)
         } catch {
             os_log("Failed to save snapshot: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
@@ -129,17 +125,17 @@ public class GraphModel: ObservableObject {
 #endif
             return
         }
-        let current = GraphState(nodes: nodes as! [Node], edges: edges)
+        let current = GraphState(nodes: nodes, edges: edges)
         redoStack.append(current)
         let previous = undoStack.removeLast()
-        nodes = previous.nodes as [any NodeProtocol]  // Conversion from [Node]
+        nodes = previous.nodes
         edges = previous.edges
         self.physicsEngine.resetSimulation()  // Ready for new simulation
 #if os(watchOS)
         WKInterfaceDevice.current().play(.success)
 #endif
         do {
-            try storage.save(nodes: nodes as! [Node], edges: edges)
+            try storage.save(nodes: nodes, edges: edges)
         } catch {
             os_log("Failed to save after undo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
@@ -152,17 +148,17 @@ public class GraphModel: ObservableObject {
 #endif
             return
         }
-        let current = GraphState(nodes: nodes as! [Node], edges: edges)
+        let current = GraphState(nodes: nodes, edges: edges)
         undoStack.append(current)
         let next = redoStack.removeLast()
-        nodes = next.nodes as [any NodeProtocol]
+        nodes = next.nodes
         edges = next.edges
         self.physicsEngine.resetSimulation()  // Ready for new simulation
 #if os(watchOS)
         WKInterfaceDevice.current().play(.success)
 #endif
         do {
-            try storage.save(nodes: nodes as! [Node], edges: edges)
+            try storage.save(nodes: nodes, edges: edges)
         } catch {
             os_log("Failed to save after redo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
@@ -170,7 +166,7 @@ public class GraphModel: ObservableObject {
     
     public func saveGraph() {
         do {
-            try storage.save(nodes: nodes as! [Node], edges: edges)
+            try storage.save(nodes: nodes, edges: edges)
         } catch {
             os_log("Failed to save graph: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
@@ -232,7 +228,7 @@ public class GraphModel: ObservableObject {
     }
     
     public func boundingBox() -> CGRect {
-        self.physicsEngine.boundingBox(nodes: nodes as! [Node])  // Cast for physicsEngine
+        self.physicsEngine.boundingBox(nodes: nodes)
     }
     
     // Visibility methods
