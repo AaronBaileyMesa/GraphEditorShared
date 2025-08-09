@@ -29,8 +29,8 @@ public class GraphModel: ObservableObject {
     
     private lazy var simulator: GraphSimulator = {
         GraphSimulator(
-            getNodes: { [weak self] in self?.nodes ?? [] },  // [any NodeProtocol]
-            setNodes: { [weak self] nodes in self?.nodes = nodes },  // [any NodeProtocol]
+            getNodes: { [weak self] in self?.nodes ?? [] },
+            setNodes: { [weak self] nodes in self?.nodes = nodes },
             getEdges: { [weak self] in self?.edges ?? [] },
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
@@ -132,7 +132,7 @@ public class GraphModel: ObservableObject {
         edges = previous.edges
         self.physicsEngine.resetSimulation()  // Ready for new simulation
 #if os(watchOS)
-        WKInterfaceDevice.current().play(.success)
+        WKInterfaceDevice.current().play(.click)
 #endif
         do {
             try storage.save(nodes: nodes, edges: edges)
@@ -155,7 +155,7 @@ public class GraphModel: ObservableObject {
         edges = next.edges
         self.physicsEngine.resetSimulation()  // Ready for new simulation
 #if os(watchOS)
-        WKInterfaceDevice.current().play(.success)
+        WKInterfaceDevice.current().play(.click)
 #endif
         do {
             try storage.save(nodes: nodes, edges: edges)
@@ -200,16 +200,13 @@ public class GraphModel: ObservableObject {
     }
     
     public func startSimulation() {
-        simulationTimer?.invalidate()
-        isSimulating = true
-        simulationTimer = Timer.scheduledTimer(withTimeInterval: Constants.Physics.timeStep, repeats: true) { _ in
-            let (updatedNodes, isActive) = self.physicsEngine.simulationStep(nodes: self.nodes, edges: self.edges)
-            self.nodes = updatedNodes
-            if !isActive {
-                self.stopSimulation()
-            }
-            self.objectWillChange.send()  // Notify observers of changes
+        simulator.startSimulation { [weak self] in
+            self?.objectWillChange.send()
         }
+    }
+
+    public func stopSimulation() {
+        simulator.stopSimulation()
     }
 
     public func pauseSimulation() {
@@ -222,10 +219,6 @@ public class GraphModel: ObservableObject {
         startSimulation()
     }
 
-    public func stopSimulation() {
-        simulationTimer?.invalidate()
-        isSimulating = false
-    }
     
     public func boundingBox() -> CGRect {
         self.physicsEngine.boundingBox(nodes: nodes)
