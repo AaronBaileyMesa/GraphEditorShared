@@ -108,18 +108,17 @@ public extension NodeProtocol {
         let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
         context.fill(innerPath, with: .color(.red))
         
-        if isSelected {  // NEW: Only draw label if selected
-            let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
-            let labelKey = "\(label)-\(fontSize)"
-            let resolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
-                if let cached = nodeTextCache[labelKey] { return cached }
-                let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
-                let resolved = context.resolve(text)
-                nodeCacheQueue.async(flags: .barrier) { nodeTextCache[labelKey] = resolved }
-                return resolved
-            }
-            let labelPosition = CGPoint(x: position.x, y: position.y - (radius * zoomScale + 10 * zoomScale))  // NEW: Offset above node for "overlay" feel
-            context.draw(resolved, at: labelPosition, anchor: .center)
+        // Always draw label (removed if isSelected)
+        let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
+        let labelKey = "\(label)-\(fontSize)"
+        let resolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
+            if let cached = nodeTextCache[labelKey] { return cached }
+            let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
+            let resolved = context.resolve(text)
+            nodeCacheQueue.async(flags: .barrier) { nodeTextCache[labelKey] = resolved }
+            return resolved
         }
+        let labelPosition = CGPoint(x: position.x, y: position.y - (radius * zoomScale + 10 * zoomScale))
+        context.draw(resolved, at: labelPosition, anchor: .center)
     }
 }

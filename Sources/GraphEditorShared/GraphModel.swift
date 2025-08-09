@@ -59,33 +59,29 @@ public class GraphModel: ObservableObject {
         
         var tempNodes: [any NodeProtocol] = []
         var tempEdges: [GraphEdge] = []
-        var tempNextLabel = nextNodeLabel ?? 1
         
         do {
             let loaded = try storage.load()
             tempNodes = loaded.nodes
             tempEdges = loaded.edges
-            tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
         } catch {
             os_log("Load failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             // Proceed with defaults below
         }
         
         if tempNodes.isEmpty && tempEdges.isEmpty {
-            (tempNodes, tempEdges, tempNextLabel) = Self.createDefaultGraph(startingLabel: tempNextLabel)
-            do {
-                try storage.save(nodes: tempNodes, edges: tempEdges)
-            } catch {
-                os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+                (tempNodes, tempEdges, _) = Self.createDefaultGraph(startingLabel: 1)  // Start from 1
+                do {
+                    try storage.save(nodes: tempNodes, edges: tempEdges)
+                } catch {
+                    os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+                }
             }
-        } else {
-            // NO save here; loaded data doesn't need immediate save
+            
+            self.nodes = tempNodes
+            self.edges = tempEdges
+            self.nextNodeLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1  // Always compute
         }
-        
-        self.nodes = tempNodes
-        self.edges = tempEdges
-        self.nextNodeLabel = tempNextLabel
-    }
     
     // Static factory for default graph creation.
     private static func createDefaultGraph(startingLabel: Int) -> ([any NodeProtocol], [GraphEdge], Int) {
@@ -227,25 +223,23 @@ public class GraphModel: ObservableObject {
     // Visibility methods
     public func visibleNodes() -> [any NodeProtocol] {
         var visible: [any NodeProtocol] = []
-            let adjacency = buildAdjacencyList()  // from -> [to]
-            let incoming = Set(edges.map { $0.to })
-            let roots = nodes.filter { !incoming.contains($0.id) }
-            var visited = Set<NodeID>()
-            for root in roots {
-                if root.isVisible {
-                    dfsVisible(node: root, adjacency: adjacency, visited: &visited, visible: &visible)
-                }
-            }
+        let adjacency = buildAdjacencyList()
+        let incoming = Set(edges.map { $0.to })
+        let roots = nodes.filter { !incoming.contains($0.id) }
+        var visited = Set<NodeID>()
+        for root in roots {
+            dfsVisible(node: root, adjacency: adjacency, visited: &visited, visible: &visible)  // Removed isVisible check here; always start from roots
+        }
         return visible
     }
     
     private func dfsVisible(node: any NodeProtocol, adjacency: [NodeID: [NodeID]], visited: inout Set<NodeID>, visible: inout [any NodeProtocol]) {
         visited.insert(node.id)
-        visible.append(node)
-        if !node.isExpanded { return }  // Updated: Use protocol property (no cast)
+        visible.append(node)  // Always append (even if collapsed)
+        if !node.isExpanded { return }
         if let children = adjacency[node.id] {
             for childID in children {
-                if !visited.contains(childID), let child = nodes.first(where: { $0.id == childID }), child.isVisible {
+                if !visited.contains(childID), let child = nodes.first(where: { $0.id == childID }) {
                     dfsVisible(node: child, adjacency: adjacency, visited: &visited, visible: &visible)
                 }
             }
@@ -287,10 +281,10 @@ public class GraphModel: ObservableObject {
         snapshot()
         nodes = []
         edges = []
-        nextNodeLabel = 1
+        nextNodeLabel = 1  // Reset explicitly
         physicsEngine.resetSimulation()
         startSimulation()
-        try? storage.clear()  // New: Reset persistence
+        try? storage.clear()
     }
 }
 

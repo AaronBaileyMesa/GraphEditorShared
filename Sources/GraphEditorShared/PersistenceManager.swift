@@ -68,16 +68,19 @@ public class PersistenceManager: GraphStorage {
         let nodesExist = fm.fileExists(atPath: nodeURL.path)
         let edgesExist = fm.fileExists(atPath: edgeURL.path)
         
-        // If both missing, return empty (initial state)
         if !nodesExist && !edgesExist {
             return ([], [])
         }
         
-        // If only one exists, throw as inconsistent
         if nodesExist != edgesExist {
-            let message = nodesExist ? "Edges file missing but nodes exist" : "Nodes file missing but edges exist"
+            let message = nodesExist ? "Edges file missing; deleting orphan nodes file" : "Nodes file missing; deleting orphan edges file"
             os_log("%{public}s", log: logger, type: .error, message)
-            throw GraphStorageError.inconsistentFiles(message)
+            if nodesExist {
+                try? fm.removeItem(at: nodeURL)  // Delete orphan
+            } else {
+                try? fm.removeItem(at: edgeURL)
+            }
+            return ([], [])  // Return empty instead of throw
         }
         
         // Both exist: Load and decode
