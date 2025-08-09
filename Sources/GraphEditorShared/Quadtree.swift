@@ -1,9 +1,4 @@
-//
-//  Quadtree.swift
-//  GraphEditorShared
-//
-//  Created by handcart on 8/4/25.
-//
+// Sources/GraphEditorShared/Quadtree.swift
 
 import Foundation
 import CoreGraphics
@@ -22,7 +17,7 @@ public class Quadtree {  // Made public for consistency/test access
     }
     
     public func insert(_ node: any NodeProtocol, depth: Int = 0) {
-        if depth > Constants.Physics.maxQuadtreeDepth {  // Updated reference
+        if depth > 20 || bounds.width < Constants.Physics.minQuadSize || bounds.height < Constants.Physics.minQuadSize {  // Stricter depth (20) and size check
             nodes.append(node)
             updateCenterOfMass(with: node)
             return
@@ -76,7 +71,7 @@ public class Quadtree {  // Made public for consistency/test access
     private func subdivide() {
         let halfWidth = bounds.width / 2
         let halfHeight = bounds.height / 2
-        if halfWidth < Constants.Physics.distanceEpsilon || halfHeight < Constants.Physics.distanceEpsilon {  // Updated
+        if halfWidth < Constants.Physics.minQuadSize || halfHeight < Constants.Physics.minQuadSize {  // Use constant
             return  // Too small
         }
         children = [
@@ -137,10 +132,10 @@ public class Quadtree {  // Made public for consistency/test access
         let distSquared = deltaX * deltaX + deltaY * deltaY
         if distSquared < Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon {  // Updated
             // Jitter slightly to avoid zero
-            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion  // Updated
+            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion * mass
         }
         let dist = sqrt(distSquared)
-        let forceMagnitude = Constants.Physics.repulsion * mass / distSquared  // Updated
+        let forceMagnitude = Constants.Physics.repulsion * mass / distSquared
         return CGPoint(x: deltaX / dist * forceMagnitude, y: deltaY / dist * forceMagnitude)
     }
 }
