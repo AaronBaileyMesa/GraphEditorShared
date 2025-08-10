@@ -53,6 +53,65 @@ public class Quadtree {  // Made public for consistency/test access
             updateCenterOfMass(with: node)
         }
     }
+    
+    public func batchInsert(_ batchNodes: [any NodeProtocol], depth: Int = 0) {
+        guard depth <= Constants.Physics.maxQuadtreeDepth,
+              bounds.width >= Constants.Physics.minQuadSize,
+              bounds.height >= Constants.Physics.minQuadSize else {
+            nodes.append(contentsOf: batchNodes)
+            for node in batchNodes {
+                updateCenterOfMass(with: node)  // Incremental updates
+            }
+            return
+        }
+        
+        if let children = children {
+            // Existing subdivided quad: Distribute to children, defer aggregation
+            var childBatches: [[any NodeProtocol]] = Array(repeating: [], count: 4)
+            for node in batchNodes {
+                let quadrant = getQuadrant(for: node.position)
+                childBatches[quadrant].append(node)
+            }
+            for i in 0..<4 {
+                if !childBatches[i].isEmpty {
+                    children[i].batchInsert(childBatches[i], depth: depth + 1)
+                }
+            }
+            aggregateFromChildren()  // Aggregate once after all inserts
+        } else if !nodes.isEmpty || !batchNodes.isEmpty {
+            // Leaf: If needs subdivide, do so and redistribute all
+            let allNodes = nodes + batchNodes
+            if allNodes.count > 1 {  // Subdivide threshold (e.g., >1 for batch)
+                subdivide()
+                guard let children = children else {
+                    // Failed: Append to leaf
+                    nodes.append(contentsOf: batchNodes)
+                    for node in batchNodes {
+                        updateCenterOfMass(with: node)
+                    }
+                    return
+                }
+                var childBatches: [[any NodeProtocol]] = Array(repeating: [], count: 4)
+                for node in allNodes {
+                    let quadrant = getQuadrant(for: node.position)
+                    childBatches[quadrant].append(node)
+                }
+                nodes = []
+                for i in 0..<4 {
+                    if !childBatches[i].isEmpty {
+                        children[i].batchInsert(childBatches[i], depth: depth + 1)
+                    }
+                }
+                aggregateFromChildren()  // Aggregate once
+            } else {
+                // No subdivide needed: Append and update
+                nodes.append(contentsOf: batchNodes)
+                for node in batchNodes {
+                    updateCenterOfMass(with: node)
+                }
+            }
+        }
+    }
 
     private func aggregateFromChildren() {
         // Recompute totalMass and centerOfMass from children (bottom-up)
