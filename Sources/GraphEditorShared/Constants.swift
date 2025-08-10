@@ -14,7 +14,7 @@ public enum Constants {
     public enum Physics {
         public static let stiffness: CGFloat = 0.8
         public static let repulsion: CGFloat = 1200  // Reduced for less spread/oscillation
-        public static let damping: CGFloat = 0.95    // Increased for faster stability
+        public static let damping: CGFloat = 0.96    // Increased for faster stability
         public static let idealLength: CGFloat = 70
         public static let centeringForce: CGFloat = 0.06  // Increased for tighter layouts on small screens
         public static let distanceEpsilon: CGFloat = 1e-3
