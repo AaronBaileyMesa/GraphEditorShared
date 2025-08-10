@@ -240,12 +240,12 @@ public class GraphModel: ObservableObject {
     // Visibility methods
     public func visibleNodes() -> [any NodeProtocol] {
         var visible: [any NodeProtocol] = []
-        let adjacency = buildAdjacencyList()
-        let incoming = Set(edges.map { $0.to })
-        let roots = nodes.filter { !incoming.contains($0.id) }
         var visited = Set<NodeID>()
-        for root in roots {
-            dfsVisible(node: root, adjacency: adjacency, visited: &visited, visible: &visible)  // Removed isVisible check here; always start from roots
+        let adjacency = buildAdjacencyList()
+        for node in nodes {
+            if !visited.contains(node.id) {
+                dfsVisible(node: node, adjacency: adjacency, visited: &visited, visible: &visible)
+            }
         }
         return visible
     }
