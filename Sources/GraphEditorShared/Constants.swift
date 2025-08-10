@@ -19,7 +19,7 @@ public enum Constants {
         public static let centeringForce: CGFloat = 0.06  // Increased for tighter layouts on small screens
         public static let distanceEpsilon: CGFloat = 1e-3
         public static let timeStep: CGFloat = 0.03
-        public static let velocityThreshold: CGFloat = 0.3
+        public static let velocityThreshold: CGFloat = 0.1  // Tightened for better convergence (runs longer to lower velocities)
         public static let maxSimulationSteps = 5000
         public static let minQuadSize: CGFloat = 1e-6
         public static let maxQuadtreeDepth = 20
