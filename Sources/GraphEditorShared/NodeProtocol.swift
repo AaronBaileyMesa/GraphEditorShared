@@ -4,6 +4,7 @@ import SwiftUI
 import Foundation
 
 private var nodeTextCache: [String: GraphicsContext.ResolvedText] = [:]
+private let maxCacheSize = 100  // Arbitrary limit; adjust based on testing
 private let nodeCacheQueue = DispatchQueue(label: "nodeTextCache", attributes: .concurrent)
 
 /// Protocol for graph nodes, enabling polymorphism for types like standard or toggleable nodes.
@@ -115,7 +116,12 @@ public extension NodeProtocol {
             if let cached = nodeTextCache[labelKey] { return cached }
             let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
             let resolved = context.resolve(text)
-            nodeCacheQueue.async(flags: .barrier) { nodeTextCache[labelKey] = resolved }
+            nodeCacheQueue.async(flags: .barrier) {
+                nodeTextCache[labelKey] = resolved
+                if nodeTextCache.count > maxCacheSize {
+                    nodeTextCache.removeAll()  // Or remove oldest: sort by key and drop first
+                }
+            }
             return resolved
         }
         let labelPosition = CGPoint(x: position.x, y: position.y - (radius * zoomScale + 10 * zoomScale))

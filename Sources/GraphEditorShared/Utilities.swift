@@ -14,6 +14,11 @@ public extension CGFloat {
 }
 
 public extension CGPoint {
+    func normalized() -> CGPoint {
+            let len = hypot(x, y)
+            return len > 0 ? self / len : .zero
+        }
+    
     static func + (lhs: CGPoint, rhs: CGPoint) -> CGPoint {
         CGPoint(x: lhs.x + rhs.x, y: lhs.y + rhs.y)
     }

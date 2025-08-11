@@ -44,22 +44,23 @@ public class PhysicsEngine {
     private func computeRepulsions(nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
         var forces: [NodeID: CGPoint] = [:]
         
-        let useQuadtree = nodes.count <= maxNodesForQuadtree
+        let useQuadtree = nodes.count <= maxNodesForQuadtree && simulationBounds.width >= Constants.Physics.minQuadSize && simulationBounds.height >= Constants.Physics.minQuadSize
         let quadtree: Quadtree? = useQuadtree ? Quadtree(bounds: CGRect(origin: .zero, size: simulationBounds)) : nil
-        if useQuadtree {
+        if let quadtree = quadtree {
             for node in nodes {
-                quadtree?.insert(node, depth: 0)
+                quadtree.insert(node, depth: 0)
             }
         }
         
         for node in nodes {
             var repulsion: CGPoint = .zero
-            if useQuadtree {
+            if let quadtree = quadtree {
                 let dynamicTheta: CGFloat = nodes.count > 100 ? 1.5 : (nodes.count > 50 ? 1.2 : 0.8)
-                repulsion = quadtree!.computeForce(on: node, theta: dynamicTheta)
+                repulsion = quadtree.computeForce(on: node, theta: dynamicTheta)
             } else {
+                // Brute-force fallback
                 for otherNode in nodes where otherNode.id != node.id {
-                    repulsion += repulsionForce(from: otherNode.position, to: node.position)
+                    repulsion += repulsionForce(from: otherNode.position, to: node.position, nodeCount: nodes.count)
                 }
             }
             forces[node.id] = (forces[node.id] ?? .zero) + repulsion
@@ -127,14 +128,25 @@ public class PhysicsEngine {
             newPosition.x = max(0, min(simulationBounds.width, newPosition.x))
             newPosition.y = max(0, min(simulationBounds.height, newPosition.y))
             if newPosition.x != oldPosition.x {
-                newVelocity.x = -newVelocity.x * 0.8  // Softer: 0.8 instead of full damping
+                newVelocity.x = -newVelocity.x * 0.8
             }
             if newPosition.y != oldPosition.y {
                 newVelocity.y = -newVelocity.y * 0.8
             }
             
+            // Insert anti-collision separation here
+            let minDist: CGFloat = 35.0
+            for other in nodes where other.id != node.id {
+                let delta = newPosition - other.position
+                let d = hypot(delta.x, delta.y)
+                if d < minDist && d > 0 {
+                    newPosition += (delta / d) * (minDist - d) / 2
+                }
+            }
+            
             tentativeUpdates[node.id] = (newPosition, newVelocity)
         }
+        
         
         // Build multi-parent map: child -> [parents]
         var parentMap = [NodeID: [NodeID]]()
@@ -205,14 +217,12 @@ public class PhysicsEngine {
         }
     }
     
-    private func repulsionForce(from: CGPoint, to: CGPoint) -> CGPoint {
+    private func repulsionForce(from: CGPoint, to: CGPoint, nodeCount: Int) -> CGPoint {
         let delta = to - from
-        let distSquared = delta.x * delta.x + delta.y * delta.y
-        if distSquared < Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon {
-            return CGPoint(x: CGFloat.random(in: -0.01...0.01), y: CGFloat.random(in: -0.01...0.01)) * Constants.Physics.repulsion
-        }
+        let distSquared = max(delta.x * delta.x + delta.y * delta.y, Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon)
         let dist = sqrt(distSquared)
-        let forceMagnitude = Constants.Physics.repulsion / distSquared
-        return delta / dist * forceMagnitude
+        let factor = 1 + 0.15 * CGFloat(nodeCount) / 5
+        let forceMagnitude = (Constants.Physics.repulsion * factor) / distSquared
+        return (delta / dist) * forceMagnitude  // Parens for clarity
     }
 }

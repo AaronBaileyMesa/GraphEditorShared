@@ -17,9 +17,12 @@ public class Quadtree {  // Made public for consistency/test access
     }
     
     public func insert(_ node: any NodeProtocol, depth: Int = 0) {
-        guard depth <= Constants.Physics.maxQuadtreeDepth,
-              bounds.width >= Constants.Physics.minQuadSize,
-              bounds.height >= Constants.Physics.minQuadSize else {
+        guard bounds.width >= Constants.Physics.minQuadSize && bounds.height >= Constants.Physics.minQuadSize else {
+            nodes.append(node)
+            updateCenterOfMass(with: node)
+            return
+        }
+        guard depth <= Constants.Physics.maxQuadtreeDepth else {
             nodes.append(node)
             updateCenterOfMass(with: node)
             return
