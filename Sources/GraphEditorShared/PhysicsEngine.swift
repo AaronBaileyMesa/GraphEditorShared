@@ -15,6 +15,7 @@ public class PhysicsEngine {
     let simulationBounds: CGSize
     private var stepCount: Int = 0
     private let maxNodesForQuadtree = 200
+    private let symmetricFactor: CGFloat = 0.2
     
     public init(simulationBounds: CGSize) {
         self.simulationBounds = simulationBounds
@@ -31,92 +32,95 @@ public class PhysicsEngine {
     public var isPaused: Bool = false
     
     @discardableResult
-    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
-        if isPaused { return (nodes, false) }
-        stepCount += 1
-        if stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
-        
-        var forces: [CGPoint] = .init(repeating: .zero, count: nodes.count)
-        var isActive = false
-        
-        let nodeCount = nodes.count
-        let quadtree: Quadtree? = nodeCount > Constants.Physics.maxNodesForQuadtree ? buildQuadtree(nodes: nodes) : nil
-        
-        for i in 0..<nodes.count {
-            // Repulsion
-            if let quadtree = quadtree {
-                forces[i] += quadtreeRepulsion(for: nodes[i], quadtree: quadtree)
-            } else {
-                for j in 0..<nodes.count where i != j {
-                    forces[i] += repulsionForce(repellerPosition: nodes[j].position, queryPosition: nodes[i].position)
+        public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
+            if isPaused { return (nodes, false) }
+            stepCount += 1
+            if stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
+
+            var forces: [CGPoint] = .init(repeating: .zero, count: nodes.count)
+            var isActive = false
+
+            let nodeCount = nodes.count
+            let quadtree: Quadtree? = nodeCount > Constants.Physics.maxNodesForQuadtree ? buildQuadtree(nodes: nodes) : nil
+
+            for i in 0..<nodes.count {
+                // Repulsion
+                if let quadtree = quadtree {
+                    forces[i] += quadtreeRepulsion(for: nodes[i], quadtree: quadtree)
+                } else {
+                    for j in 0..<nodes.count where i != j {
+                        forces[i] += repulsionForce(repellerPosition: nodes[j].position, queryPosition: nodes[i].position)
+                    }
                 }
+
+                // Springs
+                for edge in edges {
+                    if edge.from == nodes[i].id, let toNode = nodes.first(where: { $0.id == edge.to }) {
+                        let pullForce = springForce(from: nodes[i].position, to: toNode.position, idealLength: Constants.Physics.idealLength)
+                        let factor = useAsymmetricAttraction ? symmetricFactor : 1.0
+                        forces[i] += pullForce * factor
+                    }
+                    if edge.to == nodes[i].id, let fromNode = nodes.first(where: { $0.id == edge.from }) {
+                        let pullForce = springForce(from: nodes[i].position, to: fromNode.position, idealLength: Constants.Physics.idealLength)
+                        let factor = useAsymmetricAttraction ? (1.0 + symmetricFactor) : 1.0
+                        forces[i] += pullForce * factor
+                    }
+                }
+
+                // Centering
+                forces[i] += CGPoint(x: -nodes[i].position.x * Constants.Physics.centeringForce, y: -nodes[i].position.y * Constants.Physics.centeringForce)
             }
-            
-            // Springs
-            for edge in edges {
-                if edge.from == nodes[i].id, let toNode = nodes.first(where: { $0.id == edge.to }) {
-                    forces[i] += springForce(from: nodes[i].position, to: toNode.position, idealLength: Constants.Physics.idealLength)
-                }
-                if edge.to == nodes[i].id, let fromNode = nodes.first(where: { $0.id == edge.from }) {
-                    forces[i] += springForce(from: nodes[i].position, to: fromNode.position, idealLength: Constants.Physics.idealLength)
-                }
+
+            var updatedNodes = nodes
+            for i in 0..<updatedNodes.count {
+                let newVelocity = (updatedNodes[i].velocity + forces[i]) * Constants.Physics.damping
+                let newPosition = updatedNodes[i].position + newVelocity * Constants.Physics.timeStep
+                isActive = isActive || hypot(newVelocity.x, newVelocity.y) > Constants.Physics.velocityThreshold
+                updatedNodes[i] = updatedNodes[i].with(position: newPosition, velocity: newVelocity)
             }
-            
-            // Centering
-            forces[i] += CGPoint(x: -nodes[i].position.x * Constants.Physics.centeringForce, y: -nodes[i].position.y * Constants.Physics.centeringForce)
+
+            return (updatedNodes, isActive)
         }
-        
-        var updatedNodes = nodes
-        for i in 0..<updatedNodes.count {
-            let newVelocity = (updatedNodes[i].velocity + forces[i]) * Constants.Physics.damping
-            let newPosition = updatedNodes[i].position + newVelocity * Constants.Physics.timeStep
-            isActive = isActive || hypot(newVelocity.x, newVelocity.y) > Constants.Physics.velocityThreshold
-            updatedNodes[i] = updatedNodes[i].with(position: newPosition, velocity: newVelocity)
-        }
-        
-        return (updatedNodes, isActive)
-    }
     
     private func quadtreeRepulsion(for node: any NodeProtocol, quadtree: Quadtree) -> CGPoint {
-        var force = CGPoint.zero
-        func calculateRepulsion(qt: Quadtree) {
-            if qt.children == nil {
-                for other in qt.nodes where other.id != node.id {
-                    force += repulsionForce(repellerPosition: other.position, queryPosition: node.position)
+            var force = CGPoint.zero
+            func calculateRepulsion(qt: Quadtree) {
+                if qt.children == nil {
+                    for other in qt.nodes where other.id != node.id {
+                        force += repulsionForce(repellerPosition: other.position, queryPosition: node.position, mass: 1.0)
+                    }
+                    return
                 }
-                return
-            }
-            
-            let dx = qt.centerOfMass.x - node.position.x
-            let dy = qt.centerOfMass.y - node.position.y
-            let distance = hypot(dx, dy)
-            let width = qt.bounds.width
-            
-            if width / distance < 0.5 && distance > 0 {
-                let approxForce = repulsionForce(repellerPosition: qt.centerOfMass, queryPosition: node.position, mass: qt.totalMass)
-                force += approxForce
-            } else {
-                if let children = qt.children {
-                    calculateRepulsion(qt: children[0])
-                    calculateRepulsion(qt: children[1])
-                    calculateRepulsion(qt: children[2])
-                    calculateRepulsion(qt: children[3])
+
+                let dx = qt.centerOfMass.x - node.position.x
+                let dy = qt.centerOfMass.y - node.position.y
+                let distance = hypot(dx, dy)
+                let width = qt.bounds.width
+
+                if width / distance < 0.5 && distance > 0 {
+                    let approxForce = repulsionForce(repellerPosition: qt.centerOfMass, queryPosition: node.position, mass: qt.totalMass)
+                    force += approxForce
+                } else {
+                    if let children = qt.children {
+                        calculateRepulsion(qt: children[0])
+                        calculateRepulsion(qt: children[1])
+                        calculateRepulsion(qt: children[2])
+                        calculateRepulsion(qt: children[3])
+                    }
                 }
             }
+
+            calculateRepulsion(qt: quadtree)
+            return force
         }
-        
-        calculateRepulsion(qt: quadtree)
-        return force
-    }
-    
     private func buildQuadtree(nodes: [any NodeProtocol]) -> Quadtree {
-        let boundingBox = self.boundingBox(nodes: nodes)
-        let quadtree = Quadtree(bounds: boundingBox)
-        for node in nodes {
-            quadtree.insert(node)
+            let boundingBox = self.boundingBox(nodes: nodes)
+            let quadtree = Quadtree(bounds: boundingBox)
+            for node in nodes {
+                quadtree.insert(node)
+            }
+            return quadtree
         }
-        return quadtree
-    }
     
     private func computeRepulsions(nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
         var forces: [NodeID: CGPoint] = [:]
@@ -297,13 +301,13 @@ public class PhysicsEngine {
     }
     
     private func repulsionForce(repellerPosition: CGPoint, queryPosition: CGPoint, mass: CGFloat = 1.0) -> CGPoint {
-        let dx = queryPosition.x - repellerPosition.x
-        let dy = queryPosition.y - repellerPosition.y
-        let distanceSquared = max(dx * dx + dy * dy, Constants.Physics.distanceEpsilon)
-        let distance = sqrt(distanceSquared)
-        let forceMagnitude = Constants.Physics.repulsion * mass / distanceSquared
-        return CGPoint(x: dx / distance * forceMagnitude, y: dy / distance * forceMagnitude)
-    }
+            let dx = queryPosition.x - repellerPosition.x
+            let dy = queryPosition.y - repellerPosition.y
+            let distanceSquared = max(dx * dx + dy * dy, Constants.Physics.distanceEpsilon)
+            let distance = sqrt(distanceSquared)
+            let forceMagnitude = Constants.Physics.repulsion * mass / distanceSquared
+            return CGPoint(x: (dx / distance) * forceMagnitude, y: (dy / distance) * forceMagnitude)
+        }
     
     private func springForce(from: CGPoint, to: CGPoint, idealLength: CGFloat) -> CGPoint {
         let dx = to.x - from.x
