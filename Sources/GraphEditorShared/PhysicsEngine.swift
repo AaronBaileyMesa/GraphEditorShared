@@ -16,10 +16,10 @@ public class PhysicsEngine {
     private var stepCount: Int = 0
     private let maxNodesForQuadtree = 200
     private let symmetricFactor: CGFloat = 0.2
-    private let repulsionCalculator: RepulsionCalculator
-    private let attractionCalculator: AttractionCalculator
-    private let centeringCalculator: CenteringCalculator
-    private let positionUpdater: PositionUpdater
+    internal let repulsionCalculator: RepulsionCalculator
+    internal let attractionCalculator: AttractionCalculator
+    internal let centeringCalculator: CenteringCalculator
+    internal let positionUpdater: PositionUpdater
     
     public init(simulationBounds: CGSize) {
         self.simulationBounds = simulationBounds

@@ -16,6 +16,9 @@ class GraphSimulator {
     private let velocityHistoryCount = 5
     
     let physicsEngine: PhysicsEngine
+    private let getVisibleNodes: () -> [any NodeProtocol]
+    private let getVisibleEdges: () -> [GraphEdge]
+    
     private let getNodes: () -> [any NodeProtocol]  // Updated: Polymorphic
     private let setNodes: ([any NodeProtocol]) -> Void  // Updated: Polymorphic
     private let getEdges: () -> [GraphEdge]
@@ -24,6 +27,8 @@ class GraphSimulator {
     init(getNodes: @escaping () -> [any NodeProtocol],
          setNodes: @escaping ([any NodeProtocol]) -> Void,
          getEdges: @escaping () -> [GraphEdge],
+         getVisibleNodes: @escaping () -> [any NodeProtocol],
+         getVisibleEdges: @escaping () -> [GraphEdge],
          physicsEngine: PhysicsEngine,
          onStable: (() -> Void)? = nil) {  // New parameter
         self.getNodes = getNodes
@@ -31,6 +36,9 @@ class GraphSimulator {
         self.getEdges = getEdges
         self.physicsEngine = physicsEngine
         self.onStable = onStable
+        
+        self.getVisibleNodes = getVisibleNodes
+        self.getVisibleEdges = getVisibleEdges
     }
     
     func startSimulation(onUpdate: @escaping () -> Void) {
@@ -39,38 +47,44 @@ class GraphSimulator {
             return  // Don't simulate if backgrounded
         }
         #endif
-            timer?.invalidate()
-            physicsEngine.resetSimulation()
-            recentVelocities.removeAll()
-            
-            let nodeCount = getNodes().count
-            if nodeCount < 5 { return }
-            
-            // Dynamic interval: Slower for larger graphs; further slow in low power mode
-            var baseInterval: TimeInterval = nodeCount < 20 ? 1.0 / 30.0 : (nodeCount < 50 ? 1.0 / 15.0 : 1.0 / 10.0)
-            if ProcessInfo.processInfo.isLowPowerModeEnabled {
-                baseInterval *= 2.0  // Double interval to save battery
-            }
-            
-            timer = Timer.scheduledTimer(withTimeInterval: baseInterval, repeats: true) { [weak self] _ in
-                guard let self = self else { return }
+        timer?.invalidate()
+        physicsEngine.resetSimulation()
+        recentVelocities.removeAll()
+        
+        let nodeCount = getNodes().count
+        if nodeCount < 5 { return }
+        
+        // Dynamic interval: Slower for larger graphs; further slow in low power mode
+        var baseInterval: TimeInterval = nodeCount < 20 ? 1.0 / 30.0 : (nodeCount < 50 ? 1.0 / 15.0 : 1.0 / 10.0)
+        if ProcessInfo.processInfo.isLowPowerModeEnabled {
+            baseInterval *= 2.0  // Double interval to save battery
+        }
+        
+        timer = Timer.scheduledTimer(withTimeInterval: baseInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             
             DispatchQueue.global(qos: .userInitiated).async {
-                var nodes = self.getNodes()  // [any NodeProtocol]
-                let edges = self.getEdges()
+                let nodes = self.getNodes()
+                let visibleNodes = self.getVisibleNodes()
+                let visibleEdges = self.getVisibleEdges()
+                var forces = self.physicsEngine.repulsionCalculator.computeRepulsions(nodes: visibleNodes)
+                forces = self.physicsEngine.attractionCalculator.applyAttractions(forces: forces, edges: visibleEdges, nodes: visibleNodes)
+                forces = self.physicsEngine.centeringCalculator.applyCentering(forces: forces, nodes: visibleNodes)
+                
                 var shouldContinue = false
                 let subSteps = nodes.count < 5 ? 2 : (nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1))
                 
+                var updatedNodes = nodes
                 for _ in 0..<subSteps {
-                    let (updatedNodes, stepActive) = self.physicsEngine.simulationStep(nodes: nodes, edges: edges)  // Updated: Non-inout
-                    nodes = updatedNodes  // Assign updated
+                    let (tempNodes, stepActive) = self.physicsEngine.positionUpdater.updatePositionsAndVelocities(nodes: updatedNodes, forces: forces, edges: self.getEdges())
+                    updatedNodes = tempNodes
                     shouldContinue = shouldContinue || stepActive  // Accumulate
                 }
                 
-                let totalVelocity = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }  // Uses protocol velocity
+                let totalVelocity = updatedNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
                 
                 DispatchQueue.main.async {
-                    self.setNodes(nodes)
+                    self.setNodes(updatedNodes)
                     onUpdate()
                     
                     // Early stop if already stable

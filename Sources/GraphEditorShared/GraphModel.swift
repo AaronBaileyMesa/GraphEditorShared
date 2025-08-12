@@ -32,6 +32,10 @@ public class GraphModel: ObservableObject {
             getNodes: { [weak self] in self?.nodes ?? [] },
             setNodes: { [weak self] nodes in self?.nodes = nodes },
             getEdges: { [weak self] in self?.edges ?? [] },
+            
+            getVisibleNodes: { [weak self] in self?.visibleNodes() ?? [] },
+            getVisibleEdges: { [weak self] in self?.visibleEdges() ?? [] },
+            
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
                 guard let self = self else { return }
@@ -87,7 +91,7 @@ public class GraphModel: ObservableObject {
         self.edges = tempEdges
         self.nextNodeLabel = tempNextLabel  // Always set (computed above)
     }
-
+    
     public func clearGraph() {
         snapshot()
         nodes = []
@@ -211,43 +215,51 @@ public class GraphModel: ObservableObject {
     }
     
     public func startSimulation() {
-        #if os(watchOS)
+#if os(watchOS)
         guard WKApplication.shared().applicationState == .active else {
             return  // Don't simulate if backgrounded
         }
-        #endif
+#endif
         simulator.startSimulation { [weak self] in
             self?.objectWillChange.send()
         }
     }
-
+    
     public func stopSimulation() {
         simulator.stopSimulation()
     }
-
+    
     public func pauseSimulation() {
         stopSimulation()
         physicsEngine.isPaused = true  // Assumes isPaused var in PhysicsEngine
     }
-
+    
     public func resumeSimulation() {
         physicsEngine.isPaused = false
         startSimulation()
     }
-
+    
     
     public func boundingBox() -> CGRect {
         self.physicsEngine.boundingBox(nodes: nodes)
     }
     
+    private func buildRoots() -> [any NodeProtocol] {
+        var incoming = Set<NodeID>()
+        for edge in edges {
+            incoming.insert(edge.to)
+        }
+        return nodes.filter { !incoming.contains($0.id) }
+    }
     // Visibility methods
     public func visibleNodes() -> [any NodeProtocol] {
         var visible: [any NodeProtocol] = []
         var visited = Set<NodeID>()
         let adjacency = buildAdjacencyList()
-        for node in nodes {
-            if !visited.contains(node.id) {
-                dfsVisible(node: node, adjacency: adjacency, visited: &visited, visible: &visible)
+        let roots = buildRoots()
+        for root in roots {
+            if !visited.contains(root.id) {
+                dfsVisible(node: root, adjacency: adjacency, visited: &visited, visible: &visible)
             }
         }
         return visible
@@ -275,7 +287,7 @@ public class GraphModel: ObservableObject {
         edges.contains { $0.from == id1 && $0.to == id2 } &&
         edges.contains { $0.from == id2 && $0.to == id1 }
     }
-
+    
     public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
         edges.filter { ($0.from == id1 && $0.to == id2) || ($0.from == id2 && $0.to == id1) }
     }
@@ -303,8 +315,8 @@ public class GraphModel: ObservableObject {
         nextNodeLabel += 1
         
         let child: any NodeProtocol = isToggle ?
-            ToggleNode(label: childLabel, position: childPosition) :
-            Node(label: childLabel, position: childPosition)
+        ToggleNode(label: childLabel, position: childPosition) :
+        Node(label: childLabel, position: childPosition)
         
         nodes.append(child)
         let newEdge = GraphEdge(from: parentID, to: child.id)
@@ -320,9 +332,9 @@ public class GraphModel: ObservableObject {
         physicsEngine.resetSimulation()
         startSimulation()
     }
-
+    
     // Add this new helper function at the bottom of GraphModel (e.g., after resumeSimulation):
-    private func hasCycle(adding edge: GraphEdge) -> Bool {
+    public func hasCycle(adding edge: GraphEdge) -> Bool {
         var adj = buildAdjacencyList()
         adj[edge.from, default: []].append(edge.to)
         
