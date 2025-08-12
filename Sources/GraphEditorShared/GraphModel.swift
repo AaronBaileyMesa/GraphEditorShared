@@ -268,6 +268,15 @@ public class GraphModel: ObservableObject {
         return edges.filter { visibleIDs.contains($0.from) && visibleIDs.contains($0.to) }
     }
     
+    public func isBidirectionalBetween(_ id1: NodeID, _ id2: NodeID) -> Bool {
+        edges.contains { $0.from == id1 && $0.to == id2 } &&
+        edges.contains { $0.from == id2 && $0.to == id1 }
+    }
+
+    public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
+        edges.filter { ($0.from == id1 && $0.to == id2) || ($0.from == id2 && $0.to == id1) }
+    }
+    
     private func buildAdjacencyList() -> [NodeID: [NodeID]] {
         var adj = [NodeID: [NodeID]]()
         for edge in edges {
