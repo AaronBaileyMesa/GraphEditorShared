@@ -35,13 +35,16 @@ public class GraphModel: ObservableObject {
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
                 guard let self = self else { return }
-                let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes)
+                var centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes)
+                // New: Reset velocities to prevent re-triggering simulation
+                centeredNodes = centeredNodes.map { node in
+                    node.with(position: node.position, velocity: .zero)
+                }
                 self.nodes = centeredNodes
                 self.objectWillChange.send()
             }
         )
     }()
-    
     // Indicates if undo is possible.
     public var canUndo: Bool {
         !undoStack.isEmpty
@@ -292,17 +295,59 @@ public class GraphModel: ObservableObject {
         physicsEngine.resetSimulation()
     }
     
-    public func addChild(to parentID: NodeID, at position: CGPoint? = nil) {
+    // In GraphModel.swift, replace the existing addChild with this:
+    public func addChild(to parentID: NodeID, at position: CGPoint? = nil, isToggle: Bool = false) {
         guard let parent = nodes.first(where: { $0.id == parentID }) else { return }
-        let childPosition = position ?? CGPoint(x: parent.position.x + 50, y: parent.position.y + 50)  // Default near parent
-        let child = Node(label: nextNodeLabel, position: childPosition)  // Or ToggleNode if desired
+        let childPosition = position ?? CGPoint(x: parent.position.x + 50, y: parent.position.y + 50)
+        let childLabel = nextNodeLabel
         nextNodeLabel += 1
+        
+        let child: any NodeProtocol = isToggle ?
+            ToggleNode(label: childLabel, position: childPosition) :
+            Node(label: childLabel, position: childPosition)
+        
         nodes.append(child)
-        edges.append(GraphEdge(from: parentID, to: child.id))
+        let newEdge = GraphEdge(from: parentID, to: child.id)
+        
+        // Check for cycles before adding edge
+        if hasCycle(adding: newEdge) {
+            // Optionally: Log or alert user
+            print("Cycle detected; edge not added.")
+            return
+        }
+        
+        edges.append(newEdge)
         physicsEngine.resetSimulation()
         startSimulation()
     }
-}
+
+    // Add this new helper function at the bottom of GraphModel (e.g., after resumeSimulation):
+    private func hasCycle(adding edge: GraphEdge) -> Bool {
+        var adj = buildAdjacencyList()
+        adj[edge.from, default: []].append(edge.to)
+        
+        // DFS cycle detection from new edge's from-node
+        var visited = Set<NodeID>()
+        var recStack = Set<NodeID>()
+        
+        func dfs(_ node: NodeID) -> Bool {
+            visited.insert(node)
+            recStack.insert(node)
+            if let neighbors = adj[node] {
+                for neighbor in neighbors {
+                    if !visited.contains(neighbor) {
+                        if dfs(neighbor) { return true }
+                    } else if recStack.contains(neighbor) {
+                        return true
+                    }
+                }
+            }
+            recStack.remove(node)
+            return false
+        }
+        
+        return dfs(edge.from)
+    }}
 
 @available(iOS 13.0, watchOS 6.0, *)
 extension GraphModel {

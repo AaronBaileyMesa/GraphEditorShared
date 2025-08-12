@@ -13,14 +13,14 @@ import CoreGraphics
 public enum Constants {
     public enum Physics {
         public static let stiffness: CGFloat = 0.8
-        public static let repulsion: CGFloat = 2200  // Reduced for less spread/oscillation
-        public static let damping: CGFloat = 0.96    // Increased for faster stability
+        public static let repulsion: CGFloat = 2200
+        public static let damping: CGFloat = 0.98  // Increased from 0.96 for faster stability
         public static let idealLength: CGFloat = 70
-        public static let centeringForce: CGFloat = 0.06  // Increased for tighter layouts on small screens
+        public static let centeringForce: CGFloat = 0.06
         public static let distanceEpsilon: CGFloat = 1e-3
         public static let timeStep: CGFloat = 0.03
-        public static let velocityThreshold: CGFloat = 0.1  // Tightened for better convergence (runs longer to lower velocities)
-        public static let maxSimulationSteps = 5000
+        public static let velocityThreshold: CGFloat = 0.1
+        public static let maxSimulationSteps = 1000  // Reduced from 5000 to prevent long runs/crashes
         public static let minQuadSize: CGFloat = 1e-6
         public static let maxQuadtreeDepth = 20
         public static let maxNodesForQuadtree = 200

@@ -11,7 +11,7 @@ public struct ToggleNode: NodeProtocol {
     public var position: CGPoint
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
-    public var isExpanded: Bool = true  // Mutable for toggle
+    public var isExpanded: Bool = true  // Default to expanded
 
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true) {
         self.id = id
@@ -26,13 +26,14 @@ public struct ToggleNode: NodeProtocol {
         ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded)
     }
 
+    // Override: Toggle expansion on tap
     public func handlingTap() -> Self {
         var updated = self
         updated.isExpanded.toggle()
         return updated
     }
 
-    // Custom drawing: Square shape, blue color, +/- indicator
+    // Override: Custom draw with +/- icon
     @available(iOS 15.0, *)
     @available(watchOS 9.0, *)
     public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
@@ -41,32 +42,33 @@ public struct ToggleNode: NodeProtocol {
         let borderRadius = scaledRadius + borderWidth / 2
 
         if borderWidth > 0 {
-            let borderPath = Path(roundedRect: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius), cornerRadius: 4 * zoomScale)
+            let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
             context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
         }
 
-        let innerPath = Path(roundedRect: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius), cornerRadius: 4 * zoomScale)
-        context.fill(innerPath, with: .color(.blue))  // Distinct color
+        let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
+        context.fill(innerPath, with: .color(.blue))  // Blue to distinguish from regular Node (red)
 
-        // +/- indicator (small text inside)
-        let indicator = isExpanded ? "+" : "-"  // Reversed for intuition: + when collapsed (to expand)
-        let fontSize = 10 * zoomScale
-        let text = Text(indicator).foregroundColor(.white).font(.system(size: fontSize, weight: .bold))
+        // Draw +/- icon
+        let iconText = isExpanded ? "-" : "+"
+        let fontSize = max(8.0, 12.0 * zoomScale)  // Readable min size
+        let text = Text(iconText).foregroundColor(.white).font(.system(size: fontSize, weight: .bold))
         let resolved = context.resolve(text)
-        context.draw(resolved, at: position, anchor: .center)
+        context.draw(resolved, at: position, anchor: .center)  // Center in node
 
-        // Always draw label above (fix "disappearing")
-        let labelFontSize = 12 * zoomScale
+        // Draw label above (as in protocol default)
+        let labelFontSize = max(8.0, 12.0 * zoomScale)
         let labelText = Text("\(label)").foregroundColor(.white).font(.system(size: labelFontSize))
         let labelResolved = context.resolve(labelText)
-        let labelPos = CGPoint(x: position.x, y: position.y - (scaledRadius + 8 * zoomScale))
-        context.draw(labelResolved, at: labelPos, anchor: .center)
+        let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
+        context.draw(labelResolved, at: labelPosition, anchor: .center)
     }
 
-    // Coding support (mirror Node's, add isExpanded)
+    // Codable conformance (for persistence)
     enum CodingKeys: String, CodingKey {
         case id, label, radius, isExpanded
-        case positionX, positionY, velocityX, velocityY
+        case positionX, positionY
+        case velocityX, velocityY
     }
 
     public init(from decoder: Decoder) throws {
