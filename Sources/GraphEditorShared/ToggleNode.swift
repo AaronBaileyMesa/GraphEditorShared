@@ -28,9 +28,11 @@ public struct ToggleNode: NodeProtocol {
 
     // Override: Toggle expansion on tap
     public func handlingTap() -> Self {
-        var updated = self
-        updated.isExpanded.toggle()
-        return updated
+        withAnimation(.easeInOut(duration: 0.3)) {
+            var updated = self
+            updated.isExpanded.toggle()
+            return updated
+        }
     }
 
     // Override: Custom draw with +/- icon
