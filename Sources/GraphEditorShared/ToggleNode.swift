@@ -50,8 +50,8 @@ public struct ToggleNode: NodeProtocol {
         }
 
         let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
-        context.fill(innerPath, with: .color(.blue))  // Blue to distinguish from regular Node (red)
-
+        context.fill(innerPath, with: .color(fillColor))  // Use self.fillColor (e.g., .green if expanded, .red if collapsed)
+        
         // Draw +/- icon
         let iconText = isExpanded ? "-" : "+"
         let fontSize = max(8.0, 12.0 * zoomScale)  // Readable min size
