@@ -49,6 +49,9 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     /// Indicates if the node is visible in the graph.
     var isVisible: Bool { get }
     
+    /// Configurable fill color for the node's roundel.
+    var fillColor: Color { get }
+    
     /// Determines if child nodes (via outgoing edges) should be hidden.
     /// - Returns: True if children should be hidden (e.g., collapsed toggle).
     func shouldHideChildren() -> Bool
@@ -74,6 +77,8 @@ public extension NodeProtocol {
     
     /// Default: Node is always visible.
     var isVisible: Bool { true }
+    
+    var fillColor: Color { .red }  // Default to red for all nodes
     
     var isExpanded: Bool {
         get { true }  // Default: Always expanded (non-toggle nodes ignore)

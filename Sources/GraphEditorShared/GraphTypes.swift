@@ -12,6 +12,7 @@ public struct Node: NodeProtocol {
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
     public var isExpanded: Bool = true  // Add: Satisfy protocol (always true for basic Node)
+    public var fillColor: Color { .red }  // Explicit red for basic nodes
 
     // Update init to include radius
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0) {

@@ -12,6 +12,7 @@ public struct ToggleNode: NodeProtocol {
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
     public var isExpanded: Bool = true  // Default to expanded
+    public var fillColor: Color { isExpanded ? .green : .red }
 
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true) {
         self.id = id
