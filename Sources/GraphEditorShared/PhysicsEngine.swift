@@ -5,6 +5,7 @@
 //  Created by handcart on 8/1/25.
 //
 
+import os.log
 import SwiftUI
 import Foundation
 import CoreGraphics
@@ -12,10 +13,11 @@ import CoreGraphics
 @available(iOS 13.0, *)
 @available(watchOS 9.0, *)
 public class PhysicsEngine {
+    private let physicsLogger = OSLog(subsystem: "io.handcart.GraphEditor", category: "physics")
     let simulationBounds: CGSize
     private var stepCount: Int = 0
     private let maxNodesForQuadtree = 200
-    private let symmetricFactor: CGFloat = 0.2
+    private let symmetricFactor: CGFloat = 0.5
     internal let repulsionCalculator: RepulsionCalculator
     internal let attractionCalculator: AttractionCalculator
     internal let centeringCalculator: CenteringCalculator
@@ -48,6 +50,13 @@ public class PhysicsEngine {
         var forces = repulsionCalculator.computeRepulsions(nodes: nodes)
         forces = attractionCalculator.applyAttractions(forces: forces, edges: edges, nodes: nodes)
         forces = centeringCalculator.applyCentering(forces: forces, nodes: nodes)
+        
+        // New: Log totals every 2 steps to avoid spam
+        if stepCount % 2 == 0 {
+            let totalForce = forces.values.reduce(0.0) { $0 + hypot($1.x, $1.y) }
+            let totalVel = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+            os_log("Step %{public}d: Total force magnitude = %{public}.2f, Total velocity = %{public}.2f", log: physicsLogger, type: .debug, stepCount, totalForce, totalVel)
+        }
 
         let (updatedNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: forces, edges: edges)
         return (updatedNodes, isActive)
