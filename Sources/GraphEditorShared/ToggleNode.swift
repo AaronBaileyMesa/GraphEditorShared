@@ -27,13 +27,12 @@ public struct ToggleNode: NodeProtocol {
         ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded)
     }
 
-    // Override: Toggle expansion on tap
+    // In ToggleNode.swift, replace handlingTap with:
     public func handlingTap() -> Self {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            var updated = self
-            updated.isExpanded.toggle()
-            return updated
-        }
+        print("ToggleNode \(label) tapped. Expansion state before: \(isExpanded), after: \(!isExpanded)")
+        var updated = self
+        updated.isExpanded.toggle()
+        return updated
     }
 
     // Override: Custom draw with +/- icon
