@@ -49,6 +49,7 @@ public class GraphModel: ObservableObject {
             }
         )
     }()
+    
     // Indicates if undo is possible.
     public var canUndo: Bool {
         !undoStack.isEmpty
@@ -244,6 +245,7 @@ public class GraphModel: ObservableObject {
         self.physicsEngine.boundingBox(nodes: nodes)
     }
     
+
     private func buildRoots() -> [any NodeProtocol] {
         var incoming = Set<NodeID>()
         for edge in edges {
@@ -359,7 +361,8 @@ public class GraphModel: ObservableObject {
         }
         
         return dfs(edge.from)
-    }}
+    }
+}
 
 @available(iOS 13.0, watchOS 6.0, *)
 extension GraphModel {
