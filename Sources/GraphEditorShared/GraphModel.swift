@@ -15,7 +15,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
 public class GraphModel: ObservableObject {
     @Published public var nodes: [any NodeProtocol] = []
     @Published public var edges: [GraphEdge] = []
-    
+
     @Published public var isSimulating: Bool = false
     private var simulationTimer: Timer? = nil
     
@@ -213,6 +213,14 @@ public class GraphModel: ObservableObject {
         let centeredNodes = physicsEngine.centerNodes(nodes: nodes)
         nodes = centeredNodes
         self.physicsEngine.resetSimulation()
+    }
+    
+    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
+        try storage.saveViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
+    }
+
+    public func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
+        try storage.loadViewState()
     }
     
     public func startSimulation() {
