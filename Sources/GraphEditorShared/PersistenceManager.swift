@@ -132,4 +132,26 @@ public class PersistenceManager: GraphStorage {
             try fm.removeItem(at: edgeURL)
         }
     }
+
+    // Updated helper struct
+    struct ViewState: Codable {
+        let offset: CGPoint
+        let zoomScale: CGFloat
+        let selectedNodeID: UUID?  // NodeID is UUID from GraphTypes.swift
+        let selectedEdgeID: UUID?  // Matches @Published in GraphViewModel
+    }
+
+    // Updated save method
+    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
+        let state = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
+        let data = try JSONEncoder().encode(state)
+        UserDefaults.standard.set(data, forKey: "graphViewState")
+    }
+
+    // Updated load method
+    public func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
+        guard let data = UserDefaults.standard.data(forKey: "graphViewState") else { return nil }
+        let state = try JSONDecoder().decode(ViewState.self, from: data)
+        return (offset: state.offset, zoomScale: state.zoomScale, selectedNodeID: state.selectedNodeID, selectedEdgeID: state.selectedEdgeID)
+    }
 }
