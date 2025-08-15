@@ -146,6 +146,9 @@ public class PersistenceManager: GraphStorage {
         let state = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
         let data = try JSONEncoder().encode(state)
         UserDefaults.standard.set(data, forKey: "graphViewState")
+        // In saveViewState()
+        UserDefaults.standard.set(data, forKey: "graphViewState")
+        UserDefaults.standard.synchronize()  // Add this
     }
 
     // Updated load method
