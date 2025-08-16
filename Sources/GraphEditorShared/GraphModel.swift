@@ -215,6 +215,14 @@ public class GraphModel: ObservableObject {
         self.physicsEngine.resetSimulation()
     }
     
+    public func updateNode(_ updatedNode: any NodeProtocol) {
+        if let index = nodes.firstIndex(where: { $0.id == updatedNode.id }) {
+            nodes[index] = updatedNode
+            objectWillChange.send()  // Ensure views refresh
+            startSimulation()  // Optional: Restart sim if toggle affects layout
+        }
+    }
+    
     public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
         try storage.saveViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
     }
