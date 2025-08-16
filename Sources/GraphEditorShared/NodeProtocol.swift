@@ -124,7 +124,9 @@ public extension NodeProtocol {
             nodeCacheQueue.async(flags: .barrier) {
                 nodeTextCache[labelKey] = resolved
                 if nodeTextCache.count > maxCacheSize {
-                    nodeTextCache.removeAll()  // Or remove oldest: sort by key and drop first
+                    if let oldestKey = nodeTextCache.keys.first {  // Remove oldest (arbitrary order, but efficient)
+                        nodeTextCache.removeValue(forKey: oldestKey)
+                    }
                 }
             }
             return resolved
