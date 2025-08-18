@@ -6,6 +6,8 @@ import Foundation
 private var nodeTextCache: [String: GraphicsContext.ResolvedText] = [:]
 private let maxCacheSize = 100  // Arbitrary limit; adjust based on testing
 private let nodeCacheQueue = DispatchQueue(label: "nodeTextCache", attributes: .concurrent)
+private var insertionOrder: [String] = []  // New: Track order
+
 
 /// Protocol for graph nodes, enabling polymorphism for types like standard or toggleable nodes.
 /// Conformers must provide core properties; defaults are available for common behaviors.
@@ -123,10 +125,10 @@ public extension NodeProtocol {
             let resolved = context.resolve(text)
             nodeCacheQueue.async(flags: .barrier) {
                 nodeTextCache[labelKey] = resolved
+                insertionOrder.append(labelKey)  // Add to order
                 if nodeTextCache.count > maxCacheSize {
-                    if let oldestKey = nodeTextCache.keys.first {  // Remove oldest (arbitrary order, but efficient)
-                        nodeTextCache.removeValue(forKey: oldestKey)
-                    }
+                    let oldestKey = insertionOrder.removeFirst()  // True oldest
+                    nodeTextCache.removeValue(forKey: oldestKey)
                 }
             }
             return resolved
