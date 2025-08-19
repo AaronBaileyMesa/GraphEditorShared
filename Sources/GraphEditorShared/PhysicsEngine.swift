@@ -47,18 +47,20 @@ public class PhysicsEngine {
         stepCount += 1
         if stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
         
-        var forces = repulsionCalculator.computeRepulsions(nodes: nodes)
-        forces = attractionCalculator.applyAttractions(forces: forces, edges: edges, nodes: nodes)
-        forces = centeringCalculator.applyCentering(forces: forces, nodes: nodes)
+        let (forces, quadtree) = repulsionCalculator.computeRepulsions(nodes: nodes)  // Updated: Unpack tuple
+        
+        var updatedForces = forces  // Temp var to avoid mutating forces directly
+        updatedForces = attractionCalculator.applyAttractions(forces: updatedForces, edges: edges, nodes: nodes)
+        updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
         
         // New: Log totals every 2 steps to avoid spam
         if stepCount % 2 == 0 {
-            let totalForce = forces.values.reduce(0.0) { $0 + hypot($1.x, $1.y) }
+            let totalForce = updatedForces.values.reduce(0.0) { $0 + hypot($1.x, $1.y) }
             let totalVel = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
             os_log("Step %{public}d: Total force magnitude = %{public}.2f, Total velocity = %{public}.2f", log: physicsLogger, type: .debug, stepCount, totalForce, totalVel)
         }
 
-        let (updatedNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: forces, edges: edges)
+        let (updatedNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)  // Updated: Pass quadtree
         return (updatedNodes, isActive)
     }
     

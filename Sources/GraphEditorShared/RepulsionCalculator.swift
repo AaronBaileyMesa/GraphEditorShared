@@ -17,7 +17,7 @@ struct RepulsionCalculator {
         self.simulationBounds = simulationBounds
     }
 
-    func computeRepulsions(nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
+    func computeRepulsions(nodes: [any NodeProtocol]) -> ([NodeID: CGPoint], Quadtree?) {
         var forces: [NodeID: CGPoint] = [:]
         let useQuadtree = nodes.count > maxNodesForQuadtree && simulationBounds.width >= Constants.Physics.minQuadSize && simulationBounds.height >= Constants.Physics.minQuadSize
         let quadtree: Quadtree? = useQuadtree ? buildQuadtree(nodes: nodes) : nil
@@ -34,10 +34,10 @@ struct RepulsionCalculator {
             }
             forces[node.id] = (forces[node.id] ?? .zero) + repulsion
         }
-        return forces
+        return (forces, quadtree)  // New: Return tuple
     }
 
-    private func buildQuadtree(nodes: [any NodeProtocol]) -> Quadtree {
+    public func buildQuadtree(nodes: [any NodeProtocol]) -> Quadtree {
         let boundingBox = boundingBox(nodes: nodes)  // Calls local func
         let quadtree = Quadtree(bounds: boundingBox)
         for node in nodes {

@@ -187,6 +187,32 @@ public class Quadtree {  // Made public for consistency/test access
         }
     }
     
+    public func queryNearby(position: CGPoint, radius: CGFloat) -> [any NodeProtocol] {
+        var results: [any NodeProtocol] = []
+        func traverse(qt: Quadtree) {
+            // Check if quad intersects circle
+            let closestX = max(qt.bounds.minX, min(position.x, qt.bounds.maxX))
+            let closestY = max(qt.bounds.minY, min(position.y, qt.bounds.maxY))
+            let distToQuad = hypot(closestX - position.x, closestY - position.y)
+            if distToQuad > radius + hypot(qt.bounds.width/2, qt.bounds.height/2) { return }  // No intersection
+            
+            if let children = qt.children {
+                for child in children {
+                    traverse(qt: child)
+                }
+            } else {
+                for node in qt.nodes {
+                    let delta = node.position - position
+                    if hypot(delta.x, delta.y) < radius {
+                        results.append(node)
+                    }
+                }
+            }
+        }
+        traverse(qt: self)
+        return results
+    }
+    
     private func repulsionForce(from: CGPoint, to: CGPoint, mass: CGFloat = 1) -> CGPoint {
         let deltaX = to.x - from.x
         let deltaY = to.y - from.y

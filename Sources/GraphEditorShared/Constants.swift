@@ -24,6 +24,7 @@ public enum Constants {
         public static let minQuadSize: CGFloat = 1e-6
         public static let maxQuadtreeDepth = 20
         public static let maxNodesForQuadtree = 200
+        public static let minCollisionDist: CGFloat = 35.0  // New: For anti-collision separation
     }
     
     public enum App {

@@ -223,13 +223,7 @@ public class GraphModel: ObservableObject {
         }
     }
     
-    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
-        try storage.saveViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
-    }
 
-    public func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
-        try storage.loadViewState()
-    }
     
     public func startSimulation() {
 #if os(watchOS)
@@ -378,12 +372,29 @@ public class GraphModel: ObservableObject {
         
         return dfs(edge.from)
     }
-}
+    // Added: Public method to load graph from storage (avoids direct private access)
+        public func loadFromStorage() throws {
+            let loaded = try storage.load()
+            nodes = loaded.nodes
+            edges = loaded.edges
+            nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
+            objectWillChange.send()
+        }
+        
+        // Added: Public wrappers for view state (delegate to storage)
+        public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
+            try storage.saveViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
+        }
+        
+        public func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
+            try storage.loadViewState()
+        }
+    }
 
-@available(iOS 13.0, watchOS 6.0, *)
-extension GraphModel {
-    
-    public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
+    @available(iOS 13.0, watchOS 6.0, *)
+    extension GraphModel {
+        
+        public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
         let edgeCount = edges.count
         let edgeWord = edgeCount == 1 ? "edge" : "edges"  // New: Handle plural
         var desc = "Graph with \(nodes.count) nodes and \(edgeCount) directed \(edgeWord)."

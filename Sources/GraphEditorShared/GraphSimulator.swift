@@ -67,16 +67,18 @@ class GraphSimulator {
                 let nodes = self.getNodes()
                 let visibleNodes = self.getVisibleNodes()
                 let visibleEdges = self.getVisibleEdges()
-                var forces = self.physicsEngine.repulsionCalculator.computeRepulsions(nodes: visibleNodes)
-                forces = self.physicsEngine.attractionCalculator.applyAttractions(forces: forces, edges: visibleEdges, nodes: visibleNodes)
-                forces = self.physicsEngine.centeringCalculator.applyCentering(forces: forces, nodes: visibleNodes)
-                
+                let (forces, quadtree) = self.physicsEngine.repulsionCalculator.computeRepulsions(nodes: visibleNodes)  // Updated: Unpack tuple
+
+                var updatedForces = forces  // Temp var
+                updatedForces = self.physicsEngine.attractionCalculator.applyAttractions(forces: updatedForces, edges: visibleEdges, nodes: visibleNodes)
+                updatedForces = self.physicsEngine.centeringCalculator.applyCentering(forces: updatedForces, nodes: visibleNodes)
+
                 var shouldContinue = false
                 let subSteps = nodes.count < 5 ? 2 : (nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1))
-                
+
                 var updatedNodes = nodes
                 for _ in 0..<subSteps {
-                    let (tempNodes, stepActive) = self.physicsEngine.positionUpdater.updatePositionsAndVelocities(nodes: updatedNodes, forces: forces, edges: self.getEdges())
+                    let (tempNodes, stepActive) = self.physicsEngine.positionUpdater.updatePositionsAndVelocities(nodes: updatedNodes, forces: updatedForces, edges: self.getEdges(), quadtree: quadtree)  // Updated: Pass quadtree
                     updatedNodes = tempNodes
                     shouldContinue = shouldContinue || stepActive  // Accumulate
                 }

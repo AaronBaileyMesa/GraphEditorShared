@@ -15,8 +15,7 @@ struct PositionUpdater {
         self.simulationBounds = simulationBounds
     }
     
-    func updatePositionsAndVelocities(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
-        // First pass: Compute tentative position and velocity for all nodes
+    func updatePositionsAndVelocities(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge], quadtree: Quadtree?) -> ([any NodeProtocol], Bool) {
         var tentativeUpdates: [NodeID: (position: CGPoint, velocity: CGPoint)] = [:]
         for node in nodes {
             let force = forces[node.id] ?? .zero
@@ -36,18 +35,30 @@ struct PositionUpdater {
             }
             
             // Insert anti-collision separation here
-            let minDist: CGFloat = 35.0
-            for other in nodes where other.id != node.id {
-                let delta = newPosition - other.position
-                let d = hypot(delta.x, delta.y)
-                if d < minDist && d > 0 {
-                    newPosition += (delta / d) * (minDist - d) / 2
+            let minDist: CGFloat = 35.0  // Or Constants.Physics.minCollisionDist if defined
+            if let qt = quadtree {
+                let nearby = qt.queryNearby(position: newPosition, radius: minDist)
+                for other in nearby where other.id != node.id {
+                    let delta = newPosition - other.position
+                    let d = hypot(delta.x, delta.y)
+                    if d < minDist && d > 0 {
+                        newPosition += (delta / d) * (minDist - d) / 2
+                    }
+                }
+            } else {
+                // Fallback to original O(n^2) for small graphs
+                for other in nodes where other.id != node.id {
+                    let delta = newPosition - other.position
+                    let d = hypot(delta.x, delta.y)
+                    if d < minDist && d > 0 {
+                        newPosition += (delta / d) * (minDist - d) / 2
+                    }
                 }
             }
             
-            tentativeUpdates[node.id] = (newPosition, newVelocity)
+            // FIXED: Store the computed values (this was missing, causing nil in second loop)
+            tentativeUpdates[node.id] = (position: newPosition, velocity: newVelocity)
         }
-        
         
         // Build multi-parent map: child -> [parents]
         var parentMap = [NodeID: [NodeID]]()
