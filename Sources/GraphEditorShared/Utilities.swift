@@ -13,6 +13,13 @@ public extension CGFloat {
     }
 }
 
+public extension CGFloat {
+    func rounded(to decimalPlaces: Int) -> CGFloat {
+        let divisor = pow(10.0, CGFloat(decimalPlaces))
+        return (self * divisor).rounded() / divisor
+    }
+}
+
 public extension CGPoint {
     func normalized() -> CGPoint {
             let len = hypot(x, y)
