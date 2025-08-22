@@ -32,6 +32,8 @@ public enum Constants {
         public static let hitScreenRadius: CGFloat = 40.0  // Larger for watchOS tap targets
         public static let tapThreshold: CGFloat = 10.0  // Pixels for tap vs. drag distinction
         public static let numZoomLevels: Int = 20  // For crown mapping
+        public static let contentPadding: CGFloat = 50.0  // Padding for graph bounds
+        public static let maxZoom: CGFloat = 2.5  // Maximum zoom level
     }
     
     // Add more enums as needed (e.g., UI, Testing)
