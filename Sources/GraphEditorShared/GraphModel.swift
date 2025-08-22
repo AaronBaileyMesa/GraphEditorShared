@@ -15,7 +15,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
 public class GraphModel: ObservableObject {
     @Published public var nodes: [any NodeProtocol] = []
     @Published public var edges: [GraphEdge] = []
-
+    
     @Published public var isSimulating: Bool = false
     private var simulationTimer: Timer? = nil
     
@@ -223,7 +223,7 @@ public class GraphModel: ObservableObject {
         }
     }
     
-
+    
     
     public func startSimulation() {
 #if os(watchOS)
@@ -255,7 +255,7 @@ public class GraphModel: ObservableObject {
         self.physicsEngine.boundingBox(nodes: nodes)
     }
     
-
+    
     private func buildRoots() -> [any NodeProtocol] {
         var incoming = Set<NodeID>()
         for edge in edges {
@@ -373,23 +373,46 @@ public class GraphModel: ObservableObject {
         return dfs(edge.from)
     }
     // Added: Public method to load graph from storage (avoids direct private access)
-        public func loadFromStorage() throws {
-            let loaded = try storage.load()
-            nodes = loaded.nodes
-            edges = loaded.edges
-            nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
-            objectWillChange.send()
-        }
-        
-        // Added: Public wrappers for view state (delegate to storage)
-        public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
-            try storage.saveViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
-        }
-        
-        public func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
-            try storage.loadViewState()
+    public func loadFromStorage() throws {
+        let loaded = try storage.load()
+        nodes = loaded.nodes
+        edges = loaded.edges
+        nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
+        objectWillChange.send()
+    }
+    
+    // Added: Public wrappers for view state (delegate to storage)
+    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
+        try storage.saveViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
+    }
+    
+    public func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
+        try storage.loadViewState()
+    }
+ 
+    public func expandAllRoots() {
+        // If visible nodes are empty but nodes exist, expand all ToggleNodes to ensure visibility.
+        // This handles cycles/hierarchies where "roots" may not exist.
+        if !nodes.isEmpty && visibleNodes().isEmpty {
+            nodes = nodes.map { node in
+                if let toggle = node as? ToggleNode {
+                    var updatedToggle = toggle
+                    updatedToggle.isExpanded = true
+                    return updatedToggle
+                } else {
+                    return node
+                }
+            }
+            // Trigger simulation to reposition after expansion
+            startSimulation()
+            print("Expanded all ToggleNodes; visible nodes now: \(visibleNodes().count)")  // Debug log (remove later)
         }
     }
+    
+    private func incomingEdges(for id: NodeID) -> [GraphEdge] {
+        edges.filter { $0.to == id }
+    }
+}
 
     @available(iOS 13.0, watchOS 6.0, *)
     extension GraphModel {

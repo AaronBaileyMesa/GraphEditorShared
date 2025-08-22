@@ -12,45 +12,42 @@ public enum GraphStorageError: Error {
     case writingFailed(Error)
     case loadingFailed(Error)
     case decodingFailed(Error)
-    case inconsistentFiles(String)  // New: For cases where one file exists but not the other
+    case inconsistentFiles(String)  // Retained for potential future multi-file use
 }
 
 /// File-based JSON persistence conforming to GraphStorage.
 @available(iOS 13.0, watchOS 6.0, *)
 public class PersistenceManager: GraphStorage {
-    private let baseURL: URL
-    private let nodesFileName = "graphNodes.json"
-    private let edgesFileName = "graphEdges.json"
+    private let fileName = "graphState.json"
+    private let fileURL: URL
     
-    public init(baseURL: URL) {
-        self.baseURL = baseURL
-        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+    public init() {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        fileURL = documents.appendingPathComponent(fileName)
     }
     
-    public convenience init() {
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        self.init(baseURL: documents.appendingPathComponent("GraphEditor"))
+    struct SavedState: Codable {
+        let version: Int = 1
+        let nodes: [NodeWrapper]
+        let edges: [GraphEdge]
+        let viewState: ViewState?  // Embed view state (optional)
     }
     
     public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) throws {
-        let wrappedNodes = nodes.map { node in
+        let wrapped = nodes.map { node in
             if let n = node as? Node {
                 return NodeWrapper.node(n)
             } else if let tn = node as? ToggleNode {
                 return NodeWrapper.toggleNode(tn)
             } else {
+                os_log("Unsupported node type: %{public}s", log: logger, type: .error, String(describing: type(of: node)))
                 fatalError("Unsupported node type: \(type(of: node))")
             }
         }
-        let encoder = JSONEncoder()
+        let state = SavedState(nodes: wrapped, edges: edges, viewState: nil)  // Populate viewState if needed from params
         do {
-            let nodeData = try encoder.encode(wrappedNodes)
-            let nodeURL = baseURL.appendingPathComponent(nodesFileName)
-            try nodeData.write(to: nodeURL)
-            
-            let edgeData = try encoder.encode(edges)
-            let edgeURL = baseURL.appendingPathComponent(edgesFileName)
-            try edgeData.write(to: edgeURL)
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: fileURL)
         } catch let error as EncodingError {
             os_log("Encoding failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.encodingFailed(error)
@@ -59,77 +56,31 @@ public class PersistenceManager: GraphStorage {
             throw GraphStorageError.writingFailed(error)
         }
     }
-
+    
     public func load() throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let fm = FileManager.default
-        let nodeURL = baseURL.appendingPathComponent(nodesFileName)
-        let edgeURL = baseURL.appendingPathComponent(edgesFileName)
-        
-        let nodesExist = fm.fileExists(atPath: nodeURL.path)
-        let edgesExist = fm.fileExists(atPath: edgeURL.path)
-        
-        if !nodesExist && !edgesExist {
-            return ([], [])
-        }
-        
-        // Handle inconsistency: Delete orphan and return empty
-        if nodesExist != edgesExist {
-            let message = nodesExist ? "Edges file missing but nodes exist; deleting orphan nodes file" : "Nodes file missing but edges exist; deleting orphan edges file"
-            os_log("%{public}s", log: logger, type: .error, message)
-            if nodesExist {
-                try? fm.removeItem(at: nodeURL)
-            } else {
-                try? fm.removeItem(at: edgeURL)
+        guard fm.fileExists(atPath: fileURL.path) else { return ([], []) }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let state = try JSONDecoder().decode(SavedState.self, from: data)
+            if state.version != 1 {
+                throw GraphStorageError.decodingFailed(NSError(domain: "Invalid version \(state.version)", code: 0))
             }
-            return ([], [])  // Graceful empty return
-        }
-        
-        // Both exist: Load and decode
-        let decoder = JSONDecoder()
-        
-        let nodeData: Data
-        do {
-            nodeData = try Data(contentsOf: nodeURL)
+            let loadedNodes = state.nodes.map { $0.value }
+            return (loadedNodes, state.edges)
+        } catch let error as DecodingError {
+            os_log("Decoding failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+            throw GraphStorageError.decodingFailed(error)
         } catch {
-            os_log("Loading nodes failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+            os_log("Loading failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             throw GraphStorageError.loadingFailed(error)
         }
-        let loadedWrapped: [NodeWrapper]
-        do {
-            loadedWrapped = try decoder.decode([NodeWrapper].self, from: nodeData)
-        } catch {
-            os_log("Decoding nodes failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            throw GraphStorageError.decodingFailed(error)
-        }
-        let loadedNodes = loadedWrapped.map { $0.value }
-        
-        let edgeData: Data
-        do {
-            edgeData = try Data(contentsOf: edgeURL)
-        } catch {
-            os_log("Loading edges failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            throw GraphStorageError.loadingFailed(error)
-        }
-        let loadedEdges: [GraphEdge]
-        do {
-            loadedEdges = try decoder.decode([GraphEdge].self, from: edgeData)
-        } catch {
-            os_log("Decoding edges failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            throw GraphStorageError.decodingFailed(error)
-        }
-        
-        return (loadedNodes, loadedEdges)
     }
+    
     public func clear() throws {
         let fm = FileManager.default
-        let nodeURL = baseURL.appendingPathComponent(nodesFileName)
-        let edgeURL = baseURL.appendingPathComponent(edgesFileName)
-        
-        if fm.fileExists(atPath: nodeURL.path) {
-            try fm.removeItem(at: nodeURL)
-        }
-        if fm.fileExists(atPath: edgeURL.path) {
-            try fm.removeItem(at: edgeURL)
+        if fm.fileExists(atPath: fileURL.path) {
+            try fm.removeItem(at: fileURL)
         }
     }
 
@@ -146,9 +97,7 @@ public class PersistenceManager: GraphStorage {
         let state = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
         let data = try JSONEncoder().encode(state)
         UserDefaults.standard.set(data, forKey: "graphViewState")
-        // In saveViewState()
-        UserDefaults.standard.set(data, forKey: "graphViewState")
-        UserDefaults.standard.synchronize()  // Add this
+        UserDefaults.standard.synchronize()  // Ensure immediate write
     }
 
     // Updated load method
