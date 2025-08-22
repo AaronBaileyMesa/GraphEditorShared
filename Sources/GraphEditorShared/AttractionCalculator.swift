@@ -46,12 +46,4 @@ struct AttractionCalculator {
         }
         return updatedForces
     }
-
-    private func springForce(from: CGPoint, to: CGPoint, idealLength: CGFloat) -> CGPoint {
-        let dx = to.x - from.x
-        let dy = to.y - from.y
-        let distance = max(hypot(dx, dy), Constants.Physics.distanceEpsilon)
-        let forceMagnitude = Constants.Physics.stiffness * (distance - idealLength)
-        return CGPoint(x: (dx / distance) * forceMagnitude, y: (dy / distance) * forceMagnitude)
-    }
 }

@@ -61,7 +61,7 @@ class GraphSimulator {
         }
         
         timer = Timer.scheduledTimer(withTimeInterval: baseInterval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self = self, self.getNodes().count >= 5 else { self?.stopSimulation(); return }
             
             DispatchQueue.global(qos: .userInitiated).async {
                 let nodes = self.getNodes()
