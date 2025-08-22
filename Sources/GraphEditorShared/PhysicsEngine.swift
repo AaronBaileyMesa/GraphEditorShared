@@ -42,27 +42,26 @@ public class PhysicsEngine {
     public var isPaused: Bool = false
     
     @discardableResult
-    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
-        if isPaused { return (nodes, false) }
-        stepCount += 1
-        if stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
-        
-        let (forces, quadtree) = repulsionCalculator.computeRepulsions(nodes: nodes)  // Updated: Unpack tuple
-        
-        var updatedForces = forces  // Temp var to avoid mutating forces directly
-        updatedForces = attractionCalculator.applyAttractions(forces: updatedForces, edges: edges, nodes: nodes)
-        updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
-        
-        // New: Log totals every 2 steps to avoid spam
-        if stepCount % 2 == 0 {
-            let totalForce = updatedForces.values.reduce(0.0) { $0 + hypot($1.x, $1.y) }
-            let totalVel = nodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
-            os_log("Step %{public}d: Total force magnitude = %{public}.2f, Total velocity = %{public}.2f", log: physicsLogger, type: .debug, stepCount, totalForce, totalVel)
+        public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
+            if isPaused || stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
+            stepCount += 1
+            
+            let (forces, quadtree) = repulsionCalculator.computeRepulsions(nodes: nodes)
+            var updatedForces = attractionCalculator.applyAttractions(forces: forces, edges: edges, nodes: nodes)
+            updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
+            
+            let (updatedNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
+            
+            // New: Reset velocities if stable
+            let resetNodes = isActive ? updatedNodes : updatedNodes.map { $0.with(position: $0.position, velocity: .zero) }
+            
+            if stepCount % 10 == 0 {  // Reduced logging frequency
+                let totalVel = resetNodes.reduce(0.0) { $0 + $1.velocity.magnitude }
+                os_log("Step %d: Total velocity = %.2f", log: physicsLogger, type: .debug, stepCount, totalVel)
+            }
+            
+            return (resetNodes, isActive)
         }
-
-        let (updatedNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)  // Updated: Pass quadtree
-        return (updatedNodes, isActive)
-    }
     
     public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
         guard !nodes.isEmpty else { return .zero }
