@@ -39,6 +39,7 @@ public class GraphModel: ObservableObject {
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
                 guard let self = self else { return }
+                print("Simulation stable: Centering nodes")  // Debug
                 var centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes)
                 // New: Reset velocities to prevent re-triggering simulation
                 centeredNodes = centeredNodes.map { node in
@@ -319,7 +320,6 @@ public class GraphModel: ObservableObject {
         physicsEngine.resetSimulation()
     }
     
-    // In GraphModel.swift, replace the existing addChild with this:
     public func addChild(to parentID: NodeID, at position: CGPoint? = nil, isToggle: Bool = false) {
         guard let parent = nodes.first(where: { $0.id == parentID }) else { return }
         let childPosition = position ?? CGPoint(x: parent.position.x + 50, y: parent.position.y + 50)
@@ -411,6 +411,17 @@ public class GraphModel: ObservableObject {
     
     private func incomingEdges(for id: NodeID) -> [GraphEdge] {
         edges.filter { $0.to == id }
+    }
+    
+    public func centerGraph(around center: CGPoint? = nil) {
+        guard !nodes.isEmpty else { return }
+        let oldCentroid = centroid(of: nodes) ?? .zero  // Use free func
+        let targetCenter = center ?? CGPoint(x: physicsEngine.simulationBounds.width / 2, y: physicsEngine.simulationBounds.height / 2)
+        let shift = targetCenter - oldCentroid
+        print("Centering graph: Old centroid \(oldCentroid), Shift \(shift), New target \(targetCenter)")  // Debug
+        
+        nodes = nodes.map { $0.with(position: $0.position + shift, velocity: .zero) }
+        objectWillChange.send()
     }
 }
 

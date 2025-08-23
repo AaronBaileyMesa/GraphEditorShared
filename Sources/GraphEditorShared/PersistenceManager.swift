@@ -27,7 +27,7 @@ public class PersistenceManager: GraphStorage {
     }
     
     struct SavedState: Codable {
-        let version: Int = 1
+        var version: Int = 1  // Change let to var
         let nodes: [NodeWrapper]
         let edges: [GraphEdge]
         let viewState: ViewState?  // Embed view state (optional)

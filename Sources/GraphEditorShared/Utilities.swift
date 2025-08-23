@@ -85,3 +85,21 @@ public extension CGSize {
 public func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
     hypot(a.x - b.x, a.y - b.y)
 }
+
+public extension Array where Element: NodeProtocol {
+    func centroid() -> CGPoint? {
+        guard !isEmpty else { return nil }
+        let totals = reduce((x: 0.0, y: 0.0)) { acc, node in
+            (x: acc.x + node.position.x, y: acc.y + node.position.y)
+        }
+        return CGPoint(x: totals.x / CGFloat(count), y: totals.y / CGFloat(count))
+    }
+}
+
+public func centroid(of nodes: [any NodeProtocol]) -> CGPoint? {
+    guard !nodes.isEmpty else { return nil }
+    let totals = nodes.reduce((x: 0.0, y: 0.0)) { acc, node in
+        (x: acc.x + node.position.x, y: acc.y + node.position.y)
+    }
+    return CGPoint(x: totals.x / CGFloat(nodes.count), y: totals.y / CGFloat(nodes.count))
+}

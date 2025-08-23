@@ -137,3 +137,86 @@ public extension NodeProtocol {
         context.draw(resolved, at: labelPosition, anchor: .center)
     }
 }
+
+public struct AnyNode: NodeProtocol, Equatable {
+    private var base: any NodeProtocol  // Changed to var for mutability
+    
+    public var unwrapped: any NodeProtocol { base }  // Public accessor to avoid private exposure
+    
+    public var id: NodeID { base.id }
+    public var label: Int { base.label }
+    public var position: CGPoint {
+        get { base.position }
+        set { base.position = newValue }  // Now mutates var base
+    }
+    public var velocity: CGPoint {
+        get { base.velocity }
+        set { base.velocity = newValue }
+    }
+    public var radius: CGFloat {
+        get { base.radius }
+        set { base.radius = newValue }
+    }
+    public var isExpanded: Bool {
+        get { base.isExpanded }
+        set { base.isExpanded = newValue }
+    }
+    public var isVisible: Bool { base.isVisible }
+    public var fillColor: Color { base.fillColor }
+    
+    public init(_ base: any NodeProtocol) {
+        self.base = base
+    }
+    
+    public func with(position: CGPoint, velocity: CGPoint) -> Self {
+        var newBase = base
+        newBase.position = position
+        newBase.velocity = velocity
+        return AnyNode(newBase)
+    }
+    
+    public func handlingTap() -> Self {
+        AnyNode(base.handlingTap())
+    }
+    
+    public func shouldHideChildren() -> Bool {
+        base.shouldHideChildren()
+    }
+    
+    // Rendering methods: Forward to base
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
+    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
+        base.renderView(zoomScale: zoomScale, isSelected: isSelected)
+    }
+    
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
+    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
+        base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
+    }
+    
+    // Equatable: Compare via id (adjust if your protocol uses different equality)
+    public static func == (lhs: AnyNode, rhs: AnyNode) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    // Codable: Forward to NodeWrapper for polymorphic handling
+    public init(from decoder: Decoder) throws {
+        let wrapper = try NodeWrapper(from: decoder)
+        self.base = wrapper.value
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        // Wrap base in NodeWrapper and encode that
+        let wrapper: NodeWrapper
+        if let node = base as? Node {
+            wrapper = .node(node)
+        } else if let toggleNode = base as? ToggleNode {
+            wrapper = .toggleNode(toggleNode)
+        } else {
+            throw EncodingError.invalidValue(base, EncodingError.Context(codingPath: [], debugDescription: "Unsupported node type"))
+        }
+        try wrapper.encode(to: encoder)
+    }
+}
