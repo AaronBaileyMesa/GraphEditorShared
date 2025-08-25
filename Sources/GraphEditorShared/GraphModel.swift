@@ -13,12 +13,11 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
 
 @available(iOS 13.0, watchOS 6.0, *)
 public class GraphModel: ObservableObject {
-    @Published public var nodes: [any NodeProtocol] = []
+    @Published public var nodes: [AnyNode] = []  // Changed to [AnyNode] for Equatable conformance
     @Published public var edges: [GraphEdge] = []
-    
     @Published public var isSimulating: Bool = false
+           
     private var simulationTimer: Timer? = nil
-    
     private var undoStack: [GraphState] = []
     private var redoStack: [GraphState] = []
     private let maxUndo = 10
@@ -26,11 +25,36 @@ public class GraphModel: ObservableObject {
     
     private let storage: GraphStorage
     public let physicsEngine: PhysicsEngine  // Changed to public
+    private var hiddenNodeIDs: Set<NodeID> {
+        var hidden = Set<NodeID>()
+        var toHide: [NodeID] = []
+
+        // Seed with direct children of collapsed toggle nodes
+        for node in nodes {
+            if node.unwrapped.shouldHideChildren() {
+                let children = edges.filter { $0.from == node.id }.map { $0.to }
+                toHide.append(contentsOf: children)
+            }
+        }
+
+        // Iteratively hide all descendants (DFS)
+        while !toHide.isEmpty {
+            let current = toHide.removeLast()
+            if hidden.insert(current).inserted {
+                let children = edges.filter { $0.from == current }.map { $0.to }
+                toHide.append(contentsOf: children)
+            }
+        }
+
+        return hidden
+    }
     
-    private lazy var simulator: GraphSimulator = {
+        private lazy var simulator: GraphSimulator = {
         GraphSimulator(
-            getNodes: { [weak self] in self?.nodes ?? [] },
-            setNodes: { [weak self] nodes in self?.nodes = nodes },
+            getNodes: { [weak self] in self?.nodes.map { $0.unwrapped } ?? [] },  // Map to [any NodeProtocol]
+            setNodes: { [weak self] newNodes in
+                self?.nodes = newNodes.map { AnyNode($0) }  // Wrap incoming as [AnyNode]
+            },
             getEdges: { [weak self] in self?.edges ?? [] },
             
             getVisibleNodes: { [weak self] in self?.visibleNodes() ?? [] },
@@ -40,12 +64,9 @@ public class GraphModel: ObservableObject {
             onStable: { [weak self] in
                 guard let self = self else { return }
                 print("Simulation stable: Centering nodes")  // Debug
-                var centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes)
+                let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })  // Unwrap for physics, re-wrap below
                 // New: Reset velocities to prevent re-triggering simulation
-                centeredNodes = centeredNodes.map { node in
-                    node.with(position: node.position, velocity: .zero)
-                }
-                self.nodes = centeredNodes
+                self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
                 self.objectWillChange.send()
             }
         )
@@ -66,13 +87,13 @@ public class GraphModel: ObservableObject {
         self.storage = storage
         self.physicsEngine = physicsEngine
         
-        var tempNodes: [any NodeProtocol] = []
+        var tempNodes: [AnyNode] = []
         var tempEdges: [GraphEdge] = []
         var tempNextLabel = nextNodeLabel ?? 1
         
         do {
             let loaded = try storage.load()
-            tempNodes = loaded.nodes
+            tempNodes = loaded.nodes.map { AnyNode($0) }  // Wrap loaded nodes as AnyNode
             tempEdges = loaded.edges
             tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
         } catch {
@@ -83,7 +104,7 @@ public class GraphModel: ObservableObject {
         if tempNodes.isEmpty && tempEdges.isEmpty {
             (tempNodes, tempEdges, tempNextLabel) = Self.createDefaultGraph(startingLabel: tempNextLabel)
             do {
-                try storage.save(nodes: tempNodes, edges: tempEdges)
+                try storage.save(nodes: tempNodes.map { $0.unwrapped }, edges: tempEdges)  // Unwrap for save
             } catch {
                 os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
             }
@@ -91,9 +112,9 @@ public class GraphModel: ObservableObject {
         
         self.nodes = tempNodes
         self.edges = tempEdges
-        self.nextNodeLabel = tempNextLabel  // Always set (computed above)
+        self.nextNodeLabel = tempNextLabel  // Always set (computed above without duplication)
     }
-    
+
     public func clearGraph() {
         snapshot()
         nodes = []
@@ -105,11 +126,11 @@ public class GraphModel: ObservableObject {
     }
     
     // Static factory for default graph creation.
-    private static func createDefaultGraph(startingLabel: Int) -> ([any NodeProtocol], [GraphEdge], Int) {
-        let defaultNodes: [Node] = [
-            Node(label: startingLabel, position: CGPoint(x: 100, y: 100)),
-            Node(label: startingLabel + 1, position: CGPoint(x: 200, y: 200)),
-            Node(label: startingLabel + 2, position: CGPoint(x: 150, y: 300))
+    private static func createDefaultGraph(startingLabel: Int) -> ([AnyNode], [GraphEdge], Int) {
+        let defaultNodes: [AnyNode] = [
+            AnyNode(Node(label: startingLabel, position: CGPoint(x: 100, y: 100))),
+            AnyNode(Node(label: startingLabel + 1, position: CGPoint(x: 200, y: 200))),
+            AnyNode(Node(label: startingLabel + 2, position: CGPoint(x: 150, y: 300)))
         ]
         let defaultEdges: [GraphEdge] = [
             GraphEdge(from: defaultNodes[0].id, to: defaultNodes[1].id),
@@ -121,14 +142,14 @@ public class GraphModel: ObservableObject {
     
     // Creates a snapshot of the current state for undo/redo and saves.
     public func snapshot() {
-        let state = GraphState(nodes: nodes, edges: edges)
+        let state = GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges)  // Unwrap for state (keep storage light)
         undoStack.append(state)
         if undoStack.count > maxUndo {
             undoStack.removeFirst()
         }
         redoStack.removeAll()
         do {
-            try storage.save(nodes: nodes, edges: edges)
+            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
         } catch {
             os_log("Failed to save snapshot: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
@@ -142,17 +163,17 @@ public class GraphModel: ObservableObject {
 #endif
             return
         }
-        let current = GraphState(nodes: nodes, edges: edges)
+        let current = GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges)
         redoStack.append(current)
         let previous = undoStack.removeLast()
-        nodes = previous.nodes
+        nodes = previous.nodes.map { AnyNode($0) }  // Wrap on load
         edges = previous.edges
         self.physicsEngine.resetSimulation()  // Ready for new simulation
 #if os(watchOS)
         WKInterfaceDevice.current().play(.click)
 #endif
         do {
-            try storage.save(nodes: nodes, edges: edges)
+            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
         } catch {
             os_log("Failed to save after undo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
@@ -165,27 +186,54 @@ public class GraphModel: ObservableObject {
 #endif
             return
         }
-        let current = GraphState(nodes: nodes, edges: edges)
+        let current = GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges)
         undoStack.append(current)
         let next = redoStack.removeLast()
-        nodes = next.nodes
+        nodes = next.nodes.map { AnyNode($0) }
         edges = next.edges
-        self.physicsEngine.resetSimulation()  // Ready for new simulation
+        self.physicsEngine.resetSimulation()
 #if os(watchOS)
         WKInterfaceDevice.current().play(.click)
 #endif
         do {
-            try storage.save(nodes: nodes, edges: edges)
+            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
         } catch {
             os_log("Failed to save after redo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
-    public func saveGraph() {
-        do {
-            try storage.save(nodes: nodes, edges: edges)
-        } catch {
-            os_log("Failed to save graph: %{public}s", log: logger, type: .error, error.localizedDescription)
+    public func visibleNodes() -> [any NodeProtocol] {
+        let hidden = hiddenNodeIDs
+        return nodes.map { $0.unwrapped }.filter { $0.isVisible && !hidden.contains($0.id) }
+    }
+
+    public func visibleEdges() -> [GraphEdge] {
+        let hidden = hiddenNodeIDs
+        return edges.filter { !hidden.contains($0.from) && !hidden.contains($0.to) }
+    }
+    
+    public func addNode(at position: CGPoint) {
+        snapshot()
+        let newNode = AnyNode(Node(label: nextNodeLabel, position: position))
+        nodes.append(newNode)
+        nextNodeLabel += 1
+        physicsEngine.resetSimulation()
+        startSimulation()
+    }
+    
+    public func addToggleNode(at position: CGPoint) {
+        snapshot()
+        let newNode = AnyNode(ToggleNode(label: nextNodeLabel, position: position))
+        nodes.append(newNode)
+        nextNodeLabel += 1
+        physicsEngine.resetSimulation()
+        startSimulation()
+    }
+    
+    public func updateNode(_ updatedNode: any NodeProtocol) {
+        if let index = nodes.firstIndex(where: { $0.id == updatedNode.id }) {
+            nodes[index] = AnyNode(updatedNode)
+            objectWillChange.send()
         }
     }
     
@@ -193,149 +241,34 @@ public class GraphModel: ObservableObject {
         snapshot()
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.to == id }
-        self.physicsEngine.resetSimulation()
+        physicsEngine.resetSimulation()
+        startSimulation()
     }
     
     public func deleteSelectedEdge(id: UUID?) {
         guard let id = id else { return }
         snapshot()
         edges.removeAll { $0.id == id }
-        self.physicsEngine.resetSimulation()
-        startSimulation()
-    }
-    
-    public func addNode(at position: CGPoint) {
-        if nodes.count >= 100 {
-            return
-        }
-        let newNode = Node(label: nextNodeLabel, position: position, radius: 10.0)
-        nodes.append(newNode)
-        nextNodeLabel += 1
-        let centeredNodes = physicsEngine.centerNodes(nodes: nodes)
-        nodes = centeredNodes
-        self.physicsEngine.resetSimulation()
-    }
-    
-    public func updateNode(_ updatedNode: any NodeProtocol) {
-        if let index = nodes.firstIndex(where: { $0.id == updatedNode.id }) {
-            nodes[index] = updatedNode
-            objectWillChange.send()  // Ensure views refresh
-            startSimulation()  // Optional: Restart sim if toggle affects layout
-        }
-    }
-    
-    
-    
-    public func startSimulation() {
-#if os(watchOS)
-        guard WKApplication.shared().applicationState == .active else {
-            return  // Don't simulate if backgrounded
-        }
-#endif
-        simulator.startSimulation { [weak self] in
-            self?.objectWillChange.send()
-        }
-    }
-    
-    public func stopSimulation() {
-        simulator.stopSimulation()
-    }
-    
-    public func pauseSimulation() {
-        stopSimulation()
-        physicsEngine.isPaused = true  // Assumes isPaused var in PhysicsEngine
-    }
-    
-    public func resumeSimulation() {
-        physicsEngine.isPaused = false
-        startSimulation()
-    }
-    
-    
-    public func boundingBox() -> CGRect {
-        self.physicsEngine.boundingBox(nodes: nodes)
-    }
-    
-    
-    private func buildRoots() -> [any NodeProtocol] {
-        var incoming = Set<NodeID>()
-        for edge in edges {
-            incoming.insert(edge.to)
-        }
-        return nodes.filter { !incoming.contains($0.id) }
-    }
-    // Visibility methods
-    public func visibleNodes() -> [any NodeProtocol] {
-        var visible: [any NodeProtocol] = []
-        var visited = Set<NodeID>()
-        let adjacency = buildAdjacencyList()
-        let roots = buildRoots()
-        for root in roots {
-            if !visited.contains(root.id) {
-                dfsVisible(node: root, adjacency: adjacency, visited: &visited, visible: &visible)
-            }
-        }
-        return visible
-    }
-    
-    private func dfsVisible(node: any NodeProtocol, adjacency: [NodeID: [NodeID]], visited: inout Set<NodeID>, visible: inout [any NodeProtocol]) {
-        visited.insert(node.id)
-        visible.append(node)  // Always append (even if collapsed)
-        if !node.isExpanded { return }
-        if let children = adjacency[node.id] {
-            for childID in children {
-                if !visited.contains(childID), let child = nodes.first(where: { $0.id == childID }) {
-                    dfsVisible(node: child, adjacency: adjacency, visited: &visited, visible: &visible)
-                }
-            }
-        }
-    }
-    
-    public func visibleEdges() -> [GraphEdge] {
-        let visibleIDs = Set(visibleNodes().map { $0.id })
-        return edges.filter { visibleIDs.contains($0.from) && visibleIDs.contains($0.to) }
-    }
-    
-    public func isBidirectionalBetween(_ id1: NodeID, _ id2: NodeID) -> Bool {
-        edges.contains { $0.from == id1 && $0.to == id2 } &&
-        edges.contains { $0.from == id2 && $0.to == id1 }
-    }
-    
-    public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
-        edges.filter { ($0.from == id1 && $0.to == id2) || ($0.from == id2 && $0.to == id1) }
-    }
-    
-    private func buildAdjacencyList() -> [NodeID: [NodeID]] {
-        var adj = [NodeID: [NodeID]]()
-        for edge in edges {
-            adj[edge.from, default: []].append(edge.to)
-        }
-        return adj
-    }
-    
-    public func addToggleNode(at position: CGPoint) {
-        nodes.append(ToggleNode(label: nextNodeLabel, position: position))
-        nextNodeLabel += 1
-        if nodes.count >= 100 { return }
         physicsEngine.resetSimulation()
+        startSimulation()
     }
     
-    public func addChild(to parentID: NodeID, at position: CGPoint? = nil, isToggle: Bool = false) {
+    public func addChild(to parentID: NodeID, isToggle: Bool = false) {
+        snapshot()
         guard let parent = nodes.first(where: { $0.id == parentID }) else { return }
-        let childPosition = position ?? CGPoint(x: parent.position.x + 50, y: parent.position.y + 50)
         let childLabel = nextNodeLabel
         nextNodeLabel += 1
+        let childPosition = parent.position + CGPoint(x: CGFloat.random(in: 50...100), y: CGFloat.random(in: 50...100))
         
-        let child: any NodeProtocol = isToggle ?
-        ToggleNode(label: childLabel, position: childPosition) :
-        Node(label: childLabel, position: childPosition)
+        let child = isToggle ?
+            AnyNode(ToggleNode(label: childLabel, position: childPosition)) :
+            AnyNode(Node(label: childLabel, position: childPosition))
         
         nodes.append(child)
         let newEdge = GraphEdge(from: parentID, to: child.id)
         
         // Check for cycles before adding edge
         if hasCycle(adding: newEdge) {
-            // Optionally: Log or alert user
             print("Cycle detected; edge not added.")
             return
         }
@@ -372,10 +305,11 @@ public class GraphModel: ObservableObject {
         
         return dfs(edge.from)
     }
+    
     // Added: Public method to load graph from storage (avoids direct private access)
     public func loadFromStorage() throws {
         let loaded = try storage.load()
-        nodes = loaded.nodes
+        nodes = loaded.nodes.map { AnyNode($0) }  // Wrap as AnyNode
         edges = loaded.edges
         nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
         objectWillChange.send()
@@ -389,16 +323,16 @@ public class GraphModel: ObservableObject {
     public func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
         try storage.loadViewState()
     }
- 
+    
     public func expandAllRoots() {
         // If visible nodes are empty but nodes exist, expand all ToggleNodes to ensure visibility.
         // This handles cycles/hierarchies where "roots" may not exist.
         if !nodes.isEmpty && visibleNodes().isEmpty {
             nodes = nodes.map { node in
-                if let toggle = node as? ToggleNode {
+                if let toggle = node.unwrapped as? ToggleNode {  // Unwrap to check type
                     var updatedToggle = toggle
                     updatedToggle.isExpanded = true
-                    return updatedToggle
+                    return AnyNode(updatedToggle)
                 } else {
                     return node
                 }
@@ -415,20 +349,104 @@ public class GraphModel: ObservableObject {
     
     public func centerGraph(around center: CGPoint? = nil) {
         guard !nodes.isEmpty else { return }
-        let oldCentroid = centroid(of: nodes) ?? .zero  // Use free func
+        let oldCentroid = centroid(of: nodes.map { $0.unwrapped }) ?? .zero  // Unwrap for centroid func if needed
         let targetCenter = center ?? CGPoint(x: physicsEngine.simulationBounds.width / 2, y: physicsEngine.simulationBounds.height / 2)
         let shift = targetCenter - oldCentroid
         print("Centering graph: Old centroid \(oldCentroid), Shift \(shift), New target \(targetCenter)")  // Debug
         
-        nodes = nodes.map { $0.with(position: $0.position + shift, velocity: .zero) }
+        nodes = nodes.map { $0.with(position: $0.position + shift, velocity: .zero) }  // with() returns AnyNode
         objectWillChange.send()
     }
+    
+    
+    public func startSimulation() {
+#if os(watchOS)
+        guard WKApplication.shared().applicationState == .active else {
+            return  // Don't simulate if backgrounded
+        }
+#endif
+        simulator.startSimulation { [weak self] in
+            self?.objectWillChange.send()
+        }
+    }
+    
+    public func stopSimulation() {
+        simulator.stopSimulation()
+    }
+
+    public func pauseSimulation() {
+        stopSimulation()
+        physicsEngine.isPaused = true  // Assumes isPaused var in PhysicsEngine
+    }
+    
+    public func resumeSimulation() {
+        physicsEngine.isPaused = false
+        startSimulation()
+    }
+    
+    
+    public func boundingBox() -> CGRect {
+        self.physicsEngine.boundingBox(nodes: nodes)
+    }
+    
+    
+
+    private func buildRoots() -> [any NodeProtocol] {
+        var incoming = Set<NodeID>()
+        for edge in edges {
+            incoming.insert(edge.to)
+        }
+        return nodes.filter { !incoming.contains($0.id) }
+    }
+    // Visibility methods
+
+    private func dfsVisible(node: any NodeProtocol, adjacency: [NodeID: [NodeID]], visited: inout Set<NodeID>, visible: inout [any NodeProtocol]) {
+        visited.insert(node.id)
+        visible.append(node)  // Always append (even if collapsed)
+        if !node.isExpanded { return }
+        if let children = adjacency[node.id] {
+            for childID in children {
+                if !visited.contains(childID), let child = nodes.first(where: { $0.id == childID }) {
+                    dfsVisible(node: child, adjacency: adjacency, visited: &visited, visible: &visible)
+                }
+            }
+        }
+    }
+    
+
+    public func isBidirectionalBetween(_ id1: NodeID, _ id2: NodeID) -> Bool {
+        edges.contains { $0.from == id1 && $0.to == id2 } &&
+        edges.contains { $0.from == id2 && $0.to == id1 }
+    }
+    
+    public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
+        edges.filter { ($0.from == id1 && $0.to == id2) || ($0.from == id2 && $0.to == id1) }
+    }
+    
+    private func buildAdjacencyList() -> [NodeID: [NodeID]] {
+        var adj = [NodeID: [NodeID]]()
+        for edge in edges {
+            adj[edge.from, default: []].append(edge.to)
+        }
+        return adj
+    }
+    
+    // Add this new helper function at the bottom of GraphModel (e.g., after resumeSimulation):
+
+    // Added: Public method to load graph from storage (avoids direct private access)
+
+    // Added: Public wrappers for view state (delegate to storage)
+    
+    
+
+    
+
 }
 
-    @available(iOS 13.0, watchOS 6.0, *)
-    extension GraphModel {
-        
-        public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
+@available(iOS 13.0, watchOS 6.0, *)
+extension GraphModel {
+    
+    public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
         let edgeCount = edges.count
         let edgeWord = edgeCount == 1 ? "edge" : "edges"  // New: Handle plural
         var desc = "Graph with \(nodes.count) nodes and \(edgeCount) directed \(edgeWord)."
