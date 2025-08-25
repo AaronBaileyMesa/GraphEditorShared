@@ -87,18 +87,4 @@ struct RepulsionCalculator {
         calculateRepulsion(qt: quadtree)
         return force
     }
-
-    // Added missing boundingBox func
-    private func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
-        guard !nodes.isEmpty else { return .zero }
-        var minX = nodes[0].position.x, minY = nodes[0].position.y
-        var maxX = nodes[0].position.x, maxY = nodes[0].position.y
-        for node in nodes {
-            minX = min(minX, node.position.x - node.radius)
-            minY = min(minY, node.position.y - node.radius)
-            maxX = max(maxX, node.position.x + node.radius)
-            maxY = max(maxY, node.position.y + node.radius)
-        }
-        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-    }
 }
