@@ -44,7 +44,6 @@ struct RepulsionCalculator {
             quadtree.insert(node)
         }
         return quadtree
-        // Removed duplicated block
     }
 
     private func repulsionForce(repellerPosition: CGPoint, queryPosition: CGPoint, mass: CGFloat = 1.0) -> CGPoint {
