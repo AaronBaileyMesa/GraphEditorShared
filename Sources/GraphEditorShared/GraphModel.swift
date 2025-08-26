@@ -214,11 +214,18 @@ public class GraphModel: ObservableObject {
     
     public func addNode(at position: CGPoint) {
         snapshot()
-        let newNode = AnyNode(Node(label: nextNodeLabel, position: position))
-        nodes.append(newNode)
-        nextNodeLabel += 1
+        let newNode = Node(label: nextNodeLabel, position: position, content: nil)  // Defaults for id, velocity, radius        nextNodeLabel += 1
         physicsEngine.resetSimulation()
         startSimulation()
+    }
+    
+    // Add this public save method (if truncated/missing; place after resumeSimulation)
+    public func save() {
+        do {
+            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+        } catch {
+            os_log("Failed to save graph: %{public}s", log: logger, type: .error, error.localizedDescription)
+        }
     }
     
     public func addToggleNode(at position: CGPoint) {
@@ -230,9 +237,20 @@ public class GraphModel: ObservableObject {
         startSimulation()
     }
     
+    public func updateNodeContent(id: NodeID, newContent: NodeContent?) {
+        snapshot()
+        if let index = nodes.firstIndex(where: { $0.id == id }) {
+            nodes[index].content = newContent
+            objectWillChange.send()
+            self.save()
+        }
+    }
+    
     public func updateNode(_ updatedNode: any NodeProtocol) {
         if let index = nodes.firstIndex(where: { $0.id == updatedNode.id }) {
+            let existingContent = nodes[index].content  // Preserve if not in updated
             nodes[index] = AnyNode(updatedNode)
+            nodes[index].content = existingContent
             objectWillChange.send()
         }
     }

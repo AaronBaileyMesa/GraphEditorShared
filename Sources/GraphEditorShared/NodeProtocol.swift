@@ -13,6 +13,21 @@ private var insertionOrder: [String] = []  // New: Track order
 /// Conformers must provide core properties; defaults are available for common behaviors.
 @available(iOS 13.0, *)
 @available(watchOS 9.0, *)
+
+public enum NodeContent: Codable, Equatable {
+    case string(String)
+    case date(Date)
+    case number(Double)
+
+    public var displayText: String {
+        switch self {
+        case .string(let str): return str.prefix(10) + (str.count > 10 ? "…" : "")
+        case .date(let date): return DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .none)
+        case .number(let num): return String(format: "%.1f", num)
+        }
+    }
+}
+
 public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeID {
     /// Unique identifier for the node.
     var id: NodeID { get }
@@ -31,6 +46,9 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     
     /// Expansion state for hierarchical nodes (e.g., true shows children).
     var isExpanded: Bool { get set }
+    
+    //Data payload for the node
+    var content: NodeContent? { get set }
     
     /// Creates a copy with updated position and velocity.
     func with(position: CGPoint, velocity: CGPoint) -> Self
@@ -90,6 +108,11 @@ public extension NodeProtocol {
     func shouldHideChildren() -> Bool {
         !isExpanded  // Default: Hide if not expanded
     }
+    
+    var content: NodeContent? {
+        get { nil }
+        set { }  // No-op default
+    }
 }
 
 /// Extension providing default rendering implementations using GraphicsContext.
@@ -133,13 +156,40 @@ public extension NodeProtocol {
             }
             return resolved
         }
-        let labelPosition = CGPoint(x: position.x, y: position.y - (radius * zoomScale + 10 * zoomScale))
+        let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))  // Fix: Use scaledRadius
+        
         context.draw(resolved, at: labelPosition, anchor: .center)
+        
+         // Moved content drawing here (uses scaledRadius in scope)
+        if let content = content, zoomScale > 0.5 {
+            let contentFontSize = max(6.0, 8.0 * zoomScale)
+            let contentKey = "\(content.displayText)-\(contentFontSize)"
+            let contentResolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
+                if let cached = nodeTextCache[contentKey] { return cached }
+                let text = Text(content.displayText).foregroundColor(.gray).font(.system(size: contentFontSize))
+                let resolved = context.resolve(text)
+                nodeCacheQueue.async(flags: .barrier) {
+                    nodeTextCache[contentKey] = resolved
+                    insertionOrder.append(contentKey)
+                    if nodeTextCache.count > maxCacheSize {
+                        let oldestKey = insertionOrder.removeFirst()
+                        nodeTextCache.removeValue(forKey: oldestKey)
+                    }
+                }
+                return resolved
+            }
+            let contentPosition = CGPoint(x: position.x, y: position.y + (scaledRadius + 5 * zoomScale))
+            context.draw(contentResolved, at: contentPosition, anchor: .center)
+        }
     }
 }
 
 public struct AnyNode: NodeProtocol, Equatable {
-    private var base: any NodeProtocol  // Changed to var for mutability
+    private var base: any NodeProtocol
+    public var content: NodeContent? {
+        get { base.content }
+        set { base.content = newValue }
+    }
     
     public var unwrapped: any NodeProtocol { base }  // Public accessor to avoid private exposure
     
@@ -172,6 +222,7 @@ public struct AnyNode: NodeProtocol, Equatable {
         var newBase = base
         newBase.position = position
         newBase.velocity = velocity
+        newBase.content = base.content
         return AnyNode(newBase)
     }
     

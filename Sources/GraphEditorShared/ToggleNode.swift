@@ -1,30 +1,31 @@
-// Sources/GraphEditorShared/ToggleNode.swift
-
+// Full corrected ToggleNode.swift with missing brace added
 import SwiftUI
 import Foundation
 
 @available(iOS 13.0, *)
 @available(watchOS 9.0, *)
-public struct ToggleNode: NodeProtocol {
+public struct ToggleNode: NodeProtocol, Equatable {
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
     public var isExpanded: Bool = true  // Default to expanded
+    public var content: NodeContent? = nil  // New
     public var fillColor: Color { isExpanded ? .green : .red }
 
-    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true) {
+    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true, content: NodeContent? = nil) {
         self.id = id
         self.label = label
         self.position = position
         self.velocity = velocity
         self.radius = radius
         self.isExpanded = isExpanded
+        self.content = content
     }
 
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded)
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content)
     }
 
     // In ToggleNode.swift, replace handlingTap with:
@@ -71,20 +72,22 @@ public struct ToggleNode: NodeProtocol {
         case id, label, radius, isExpanded
         case positionX, positionY
         case velocityX, velocityY
+        case content
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(NodeID.self, forKey: .id)
-        label = try container.decode(Int.self, forKey: .label)
-        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? 10.0
-        isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
+        self.id = try container.decode(NodeID.self, forKey: .id)
+        self.label = try container.decode(Int.self, forKey: .label)
+        self.radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? 10.0
+        self.isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
+        self.content = try container.decodeIfPresent(NodeContent.self, forKey: .content)
         let posX = try container.decode(CGFloat.self, forKey: .positionX)
         let posY = try container.decode(CGFloat.self, forKey: .positionY)
-        position = CGPoint(x: posX, y: posY)
+        self.position = CGPoint(x: posX, y: posY)
         let velX = try container.decode(CGFloat.self, forKey: .velocityX)
         let velY = try container.decode(CGFloat.self, forKey: .velocityY)
-        velocity = CGPoint(x: velX, y: velY)
+        self.velocity = CGPoint(x: velX, y: velY)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -93,9 +96,21 @@ public struct ToggleNode: NodeProtocol {
         try container.encode(label, forKey: .label)
         try container.encode(radius, forKey: .radius)
         try container.encode(isExpanded, forKey: .isExpanded)
+        try container.encodeIfPresent(content, forKey: .content)
         try container.encode(position.x, forKey: .positionX)
         try container.encode(position.y, forKey: .positionY)
         try container.encode(velocity.x, forKey: .velocityX)
         try container.encode(velocity.y, forKey: .velocityY)
+    }
+        
+    // Add Equatable implementation
+    public static func == (lhs: ToggleNode, rhs: ToggleNode) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.label == rhs.label &&
+        lhs.position == rhs.position &&
+        lhs.velocity == rhs.velocity &&
+        lhs.radius == rhs.radius &&
+        lhs.isExpanded == rhs.isExpanded &&
+        lhs.content == rhs.content  // Compare enum (Codable implies Equatable for cases)
     }
 }

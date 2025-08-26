@@ -5,31 +5,33 @@ public typealias NodeID = UUID
 
 @available(iOS 13.0, *)
 @available(watchOS 9.0, *)
-public struct Node: NodeProtocol {
+public struct Node: NodeProtocol, Equatable {
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
     public var isExpanded: Bool = true  // Add: Satisfy protocol (always true for basic Node)
+    public var content: NodeContent? = nil
     public var fillColor: Color { .red }  // Explicit red for basic nodes
 
     // Update init to include radius
-    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0) {
+    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, content: NodeContent? = nil) {
         self.id = id
         self.label = label
         self.position = position
         self.velocity = velocity
         self.radius = radius
+        self.content = content
     }
     
-    public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        Node(id: id, label: label, position: position, velocity: velocity, radius: radius)
-    }
-
+    public func with(position: CGPoint, velocity: CGPoint) -> Self {  // Preserve content
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, content: content)
+         }
+    
     // Update CodingKeys and decoder/encoder for radius
     enum CodingKeys: String, CodingKey {
-        case id, label, radius  // Add radius
+        case id, label, radius, content  // Add radius
         case positionX, positionY
         case velocityX, velocityY
     }
@@ -39,12 +41,13 @@ public struct Node: NodeProtocol {
         id = try container.decode(NodeID.self, forKey: .id)
         label = try container.decode(Int.self, forKey: .label)
         radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? 10.0  // Decode or default
+        self.content = try container.decodeIfPresent(NodeContent.self, forKey: .content) ?? nil  // Decode content
         let posX = try container.decode(CGFloat.self, forKey: .positionX)
         let posY = try container.decode(CGFloat.self, forKey: .positionY)
-        position = CGPoint(x: posX, y: posY)
+        self.position = CGPoint(x: posX, y: posY)
         let velX = try container.decode(CGFloat.self, forKey: .velocityX)
         let velY = try container.decode(CGFloat.self, forKey: .velocityY)
-        velocity = CGPoint(x: velX, y: velY)
+        self.velocity = CGPoint(x: velX, y: velY)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -52,11 +55,21 @@ public struct Node: NodeProtocol {
         try container.encode(id, forKey: .id)
         try container.encode(label, forKey: .label)
         try container.encode(radius, forKey: .radius)  // Encode radius
+        try container.encodeIfPresent(content, forKey: .content)  // Encode content
         try container.encode(position.x, forKey: .positionX)
         try container.encode(position.y, forKey: .positionY)
         try container.encode(velocity.x, forKey: .velocityX)
         try container.encode(velocity.y, forKey: .velocityY)
     }
+    
+        public static func == (lhs: Node, rhs: Node) -> Bool {
+            lhs.id == rhs.id &&
+            lhs.label == rhs.label &&
+            lhs.position == rhs.position &&
+            lhs.velocity == rhs.velocity &&
+            lhs.radius == rhs.radius &&
+            lhs.content == rhs.content
+        }
 }
 
 // Represents an edge connecting two nodes.
