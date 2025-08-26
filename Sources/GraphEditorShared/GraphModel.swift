@@ -237,12 +237,12 @@ public class GraphModel: ObservableObject {
         startSimulation()
     }
     
-    public func updateNodeContent(id: NodeID, newContent: NodeContent?) {
+    public func updateNodeContent(withID id: NodeID, newContent: NodeContent?) {
         snapshot()
         if let index = nodes.firstIndex(where: { $0.id == id }) {
             nodes[index].content = newContent
             objectWillChange.send()
-            self.save()
+            save()
         }
     }
     
@@ -259,16 +259,15 @@ public class GraphModel: ObservableObject {
         snapshot()
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.to == id }
-        physicsEngine.resetSimulation()
+        physicsEngine.resetSimulation()  // If exists; else remove
         startSimulation()
+        save()
     }
-    
-    public func deleteSelectedEdge(id: UUID?) {
-        guard let id = id else { return }
+      public func deleteEdge(withID id: UUID) {
         snapshot()
         edges.removeAll { $0.id == id }
-        physicsEngine.resetSimulation()
         startSimulation()
+        save()
     }
     
     public func addChild(to parentID: NodeID, isToggle: Bool = false) {
