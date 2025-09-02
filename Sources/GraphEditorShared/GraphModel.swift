@@ -12,7 +12,7 @@ import WatchKit
 private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "storage")
 
 @available(iOS 13.0, watchOS 6.0, *)
-public class GraphModel: ObservableObject {
+@MainActor public class GraphModel: ObservableObject {
     @Published public var nodes: [AnyNode] = []  // Changed to [AnyNode] for Equatable conformance
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
@@ -86,43 +86,44 @@ public class GraphModel: ObservableObject {
     public init(storage: GraphStorage = PersistenceManager(), physicsEngine: PhysicsEngine, nextNodeLabel: Int? = nil) {
         self.storage = storage
         self.physicsEngine = physicsEngine
-        
-        var tempNodes: [AnyNode] = []
-        var tempEdges: [GraphEdge] = []
-        var tempNextLabel = nextNodeLabel ?? 1
-        
-        do {
-            let loaded = try storage.load()
-            tempNodes = loaded.nodes.map { AnyNode($0) }  // Wrap loaded nodes as AnyNode
-            tempEdges = loaded.edges
-            tempNextLabel = (tempNodes.map { $0.label }.max() ?? 0) + 1
-        } catch {
-            os_log("Load failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            // Proceed with defaults below
+            self.nodes = []  // Start empty; load async later
+            self.edges = []
+            self.nextNodeLabel = nextNodeLabel ?? 1
+            Task { try? await loadFromStorage() }  // Fire async load; ignore errors for init
         }
-        
-        if tempNodes.isEmpty && tempEdges.isEmpty {
-            (tempNodes, tempEdges, tempNextLabel) = Self.createDefaultGraph(startingLabel: tempNextLabel)
-            do {
-                try storage.save(nodes: tempNodes.map { $0.unwrapped }, edges: tempEdges)  // Unwrap for save
-            } catch {
-                os_log("Save defaults failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            }
-        }
-        
-        self.nodes = tempNodes
-        self.edges = tempEdges
-        self.nextNodeLabel = tempNextLabel  // Always set (computed above without duplication)
-    }
 
-    public func clearGraph() {
-        snapshot()
+        public func loadFromStorage() async throws {
+            let loaded = try await storage.load()
+            nodes = loaded.nodes.map { AnyNode($0) }
+            edges = loaded.edges
+            nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
+            if nodes.isEmpty && edges.isEmpty {
+                (nodes, edges, nextNodeLabel) = Self.defaultGraph()
+            }
+            await startSimulation()  // Start post-load if needed
+        }
+
+        static func defaultGraph() -> ([AnyNode], [GraphEdge], Int) {
+            // Based on tests (3 nodes, 3 edges); adjust as needed
+            let node1 = AnyNode(Node(label: 1, position: .zero))
+            let node2 = AnyNode(Node(label: 2, position: CGPoint(x: 100, y: 0)))
+            let node3 = AnyNode(Node(label: 3, position: CGPoint(x: 50, y: 100)))
+            let edges = [
+                GraphEdge(from: node1.id, to: node2.id),
+                GraphEdge(from: node2.id, to: node3.id),
+                GraphEdge(from: node3.id, to: node1.id)
+            ]
+            return ([node1, node2, node3], edges, 4)  // Next label after 3
+        }
+
+    public func clearGraph() async {
+        await snapshot()
         nodes = []
         edges = []
         nextNodeLabel = 1  // Explicit reset
         physicsEngine.resetSimulation()
-        startSimulation()
-        try? storage.clear()
+        await startSimulation()
+        try? await storage.clear()
     }
     
     // Static factory for default graph creation.
@@ -141,7 +142,7 @@ public class GraphModel: ObservableObject {
     }
     
     // Creates a snapshot of the current state for undo/redo and saves.
-    public func snapshot() {
+    public func snapshot() async {
         let state = GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges)  // Unwrap for state (keep storage light)
         undoStack.append(state)
         if undoStack.count > maxUndo {
@@ -149,14 +150,14 @@ public class GraphModel: ObservableObject {
         }
         redoStack.removeAll()
         do {
-            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
         } catch {
             os_log("Failed to save snapshot: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
     // Undoes the last action if possible, with haptic feedback.
-    public func undo() {
+    public func undo() async {
         guard !undoStack.isEmpty else {
 #if os(watchOS)
             WKInterfaceDevice.current().play(.failure)
@@ -173,13 +174,13 @@ public class GraphModel: ObservableObject {
         WKInterfaceDevice.current().play(.click)
 #endif
         do {
-            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
         } catch {
             os_log("Failed to save after undo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
-    public func redo() {
+    public func redo() async {
         guard !redoStack.isEmpty else {
 #if os(watchOS)
             WKInterfaceDevice.current().play(.failure)
@@ -196,7 +197,7 @@ public class GraphModel: ObservableObject {
         WKInterfaceDevice.current().play(.click)
 #endif
         do {
-            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
         } catch {
             os_log("Failed to save after redo: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
@@ -212,66 +213,87 @@ public class GraphModel: ObservableObject {
         return edges.filter { !hidden.contains($0.from) && !hidden.contains($0.to) }
     }
     
-    public func addNode(at position: CGPoint) {
-        snapshot()
-        let newNode = Node(label: nextNodeLabel, position: position, content: nil)  // Defaults for id, velocity, radius        nextNodeLabel += 1
+    public func addNode(at position: CGPoint) async {
+        await snapshot()
+        let newNode = Node(label: nextNodeLabel, position: position, content: nil)
+        nextNodeLabel += 1
+        nodes.append(AnyNode(newNode))
         physicsEngine.resetSimulation()
-        startSimulation()
+        await startSimulation()
+        do {
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+        } catch {
+            os_log("Save failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+        }
+    }
+    
+    public func addEdge(from fromID: NodeID, to toID: NodeID) async {
+        await snapshot()
+        if edges.contains(where: { $0.from == fromID && $0.to == toID }) { return }  
+        let newEdge = GraphEdge(from: fromID, to: toID)
+        edges.append(newEdge)
+        physicsEngine.resetSimulation()
+        await startSimulation()
+        do {
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+        } catch {
+            os_log("Save failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+        }
     }
     
     // Add this public save method (if truncated/missing; place after resumeSimulation)
-    public func save() {
+    public func save() async {
         do {
-            try storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
         } catch {
             os_log("Failed to save graph: %{public}s", log: logger, type: .error, error.localizedDescription)
         }
     }
     
-    public func addToggleNode(at position: CGPoint) {
-        snapshot()
+    public func addToggleNode(at position: CGPoint) async {
+        await snapshot()
         let newNode = AnyNode(ToggleNode(label: nextNodeLabel, position: position))
         nodes.append(newNode)
         nextNodeLabel += 1
         physicsEngine.resetSimulation()
-        startSimulation()
+        await startSimulation()
     }
     
-    public func updateNodeContent(withID id: NodeID, newContent: NodeContent?) {
-        snapshot()
+    public func updateNodeContent(withID id: NodeID, newContent: NodeContent?) async {
+        await snapshot()
         if let index = nodes.firstIndex(where: { $0.id == id }) {
             nodes[index].content = newContent
             objectWillChange.send()
-            save()
+            await save()
         }
     }
     
     public func updateNode(_ updatedNode: any NodeProtocol) {
         if let index = nodes.firstIndex(where: { $0.id == updatedNode.id }) {
-            let existingContent = nodes[index].content  // Preserve if not in updated
+            let existingContent = nodes[index].content
             nodes[index] = AnyNode(updatedNode)
             nodes[index].content = existingContent
             objectWillChange.send()
         }
     }
     
-    public func deleteNode(withID id: NodeID) {
-        snapshot()
+    public func deleteNode(withID id: NodeID) async {
+        await snapshot()
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.to == id }
-        physicsEngine.resetSimulation()  // If exists; else remove
-        startSimulation()
-        save()
+        physicsEngine.resetSimulation()
+        await startSimulation()
+        await save()
     }
-      public func deleteEdge(withID id: UUID) {
-        snapshot()
+      public func deleteEdge(withID id: UUID) async {
+        await snapshot()
         edges.removeAll { $0.id == id }
-        startSimulation()
-        save()
+        await startSimulation()
+        await save()
     }
     
-    public func addChild(to parentID: NodeID, isToggle: Bool = false) {
-        snapshot()
+    public func addChild(to parentID: NodeID, isToggle: Bool = false) async {
+        await snapshot()
         guard let parent = nodes.first(where: { $0.id == parentID }) else { return }
         let childLabel = nextNodeLabel
         nextNodeLabel += 1
@@ -292,7 +314,7 @@ public class GraphModel: ObservableObject {
         
         edges.append(newEdge)
         physicsEngine.resetSimulation()
-        startSimulation()
+        await startSimulation()
     }
     
     // Add this new helper function at the bottom of GraphModel (e.g., after resumeSimulation):
@@ -322,16 +344,7 @@ public class GraphModel: ObservableObject {
         
         return dfs(edge.from)
     }
-    
-    // Added: Public method to load graph from storage (avoids direct private access)
-    public func loadFromStorage() throws {
-        let loaded = try storage.load()
-        nodes = loaded.nodes.map { AnyNode($0) }  // Wrap as AnyNode
-        edges = loaded.edges
-        nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
-        objectWillChange.send()
-    }
-    
+       
     // Added: Public wrappers for view state (delegate to storage)
     public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
         try storage.saveViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
@@ -341,7 +354,7 @@ public class GraphModel: ObservableObject {
         try storage.loadViewState()
     }
     
-    public func expandAllRoots() {
+    public func expandAllRoots() async {
         // If visible nodes are empty but nodes exist, expand all ToggleNodes to ensure visibility.
         // This handles cycles/hierarchies where "roots" may not exist.
         if !nodes.isEmpty && visibleNodes().isEmpty {
@@ -355,7 +368,7 @@ public class GraphModel: ObservableObject {
                 }
             }
             // Trigger simulation to reposition after expansion
-            startSimulation()
+            await startSimulation()
             print("Expanded all ToggleNodes; visible nodes now: \(visibleNodes().count)")  // Debug log (remove later)
         }
     }
@@ -376,29 +389,27 @@ public class GraphModel: ObservableObject {
     }
     
     
-    public func startSimulation() {
+    public func startSimulation() async {
 #if os(watchOS)
         guard WKApplication.shared().applicationState == .active else {
             return  // Don't simulate if backgrounded
         }
 #endif
-        simulator.startSimulation { [weak self] in
-            self?.objectWillChange.send()
-        }
+        await simulator.startSimulation()
     }
     
-    public func stopSimulation() {
-        simulator.stopSimulation()
+    public func stopSimulation() async {
+        await simulator.stopSimulation()
     }
 
-    public func pauseSimulation() {
-        stopSimulation()
+    public func pauseSimulation() async {
+        await stopSimulation()
         physicsEngine.isPaused = true  // Assumes isPaused var in PhysicsEngine
     }
     
-    public func resumeSimulation() {
+    public func resumeSimulation() async {
         physicsEngine.isPaused = false
-        startSimulation()
+        await startSimulation()
     }
     
     
@@ -432,8 +443,8 @@ public class GraphModel: ObservableObject {
     
 
     public func isBidirectionalBetween(_ id1: NodeID, _ id2: NodeID) -> Bool {
-        edges.contains { $0.from == id1 && $0.to == id2 } &&
-        edges.contains { $0.from == id2 && $0.to == id1 }
+        edges.contains(where: { $0.from == id1 && $0.to == id2 }) &&  // Parenthesized
+        edges.contains(where: { $0.from == id2 && $0.to == id1 })     // Parenthesized
     }
     
     public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
@@ -448,16 +459,6 @@ public class GraphModel: ObservableObject {
         return adj
     }
     
-    // Add this new helper function at the bottom of GraphModel (e.g., after resumeSimulation):
-
-    // Added: Public method to load graph from storage (avoids direct private access)
-
-    // Added: Public wrappers for view state (delegate to storage)
-    
-    
-
-    
-
 }
 
 @available(iOS 13.0, watchOS 6.0, *)

@@ -33,7 +33,7 @@ public class PersistenceManager: GraphStorage {
         let viewState: ViewState?  // Embed view state (optional)
     }
     
-    public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) throws {
+    public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
         let wrapped = nodes.map { node in
             if let n = node as? Node {
                 return NodeWrapper.node(n)
@@ -45,42 +45,54 @@ public class PersistenceManager: GraphStorage {
             }
         }
         let state = SavedState(nodes: wrapped, edges: edges, viewState: nil)  // Populate viewState if needed from params
-        do {
-            let data = try JSONEncoder().encode(state)
-            try data.write(to: fileURL)
-        } catch let error as EncodingError {
-            os_log("Encoding failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            throw GraphStorageError.encodingFailed(error)
-        } catch {
-            os_log("Writing failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            throw GraphStorageError.writingFailed(error)
-        }
+            try await withCheckedThrowingContinuation { continuation in
+                do {
+                    let data = try JSONEncoder().encode(state)
+                    try data.write(to: fileURL)
+                    continuation.resume()
+                } catch let error as EncodingError {
+                    os_log("Encoding failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+                    continuation.resume(throwing: GraphStorageError.encodingFailed(error))
+                } catch {
+                    os_log("Writing failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+                    continuation.resume(throwing: GraphStorageError.writingFailed(error))
+                }
+            }
     }
     
-    public func load() throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
+    public func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let fm = FileManager.default
         guard fm.fileExists(atPath: fileURL.path) else { return ([], []) }
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let state = try JSONDecoder().decode(SavedState.self, from: data)
-            if state.version != 1 {
-                throw GraphStorageError.decodingFailed(NSError(domain: "Invalid version \(state.version)", code: 0))
+        return try await withCheckedThrowingContinuation { continuation in
+            do {
+                let data = try Data(contentsOf: fileURL)
+                let state = try JSONDecoder().decode(SavedState.self, from: data)
+                if state.version != 1 {
+                    throw GraphStorageError.decodingFailed(NSError(domain: "Invalid version \(state.version)", code: 0))
+                }
+                let loadedNodes = state.nodes.map { $0.value }
+                continuation.resume(returning: (loadedNodes, state.edges))
+            } catch let error as DecodingError {
+                os_log("Decoding failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+                continuation.resume(throwing: GraphStorageError.decodingFailed(error))
+            } catch {
+                os_log("Loading failed: %{public}s", log: logger, type: .error, error.localizedDescription)
+                continuation.resume(throwing: GraphStorageError.loadingFailed(error))
             }
-            let loadedNodes = state.nodes.map { $0.value }
-            return (loadedNodes, state.edges)
-        } catch let error as DecodingError {
-            os_log("Decoding failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            throw GraphStorageError.decodingFailed(error)
-        } catch {
-            os_log("Loading failed: %{public}s", log: logger, type: .error, error.localizedDescription)
-            throw GraphStorageError.loadingFailed(error)
         }
     }
     
-    public func clear() throws {
+    public func clear() async throws {
         let fm = FileManager.default
         if fm.fileExists(atPath: fileURL.path) {
-            try fm.removeItem(at: fileURL)
+            try await withCheckedThrowingContinuation { cont in
+                do {
+                    try fm.removeItem(at: fileURL)
+                    cont.resume()
+                } catch {
+                    cont.resume(throwing: error)
+                }
+            }
         }
     }
 
