@@ -1,3 +1,5 @@
+// Utilities.swift (Updated with rounding in screenToModel)
+
 import Foundation
 import CoreGraphics
 
@@ -136,7 +138,8 @@ public struct CoordinateTransformer {
         print("screenToModel: Screen \(screenPos) -> Model \(modelPos), Zoom \(safeZoom), Offset \(panOffset), Centroid \(effectiveCentroid), ViewSize \(viewSize)")
         #endif
         
-        return modelPos
+        // New: Round to 3 decimals to eliminate floating-point drift
+        return CGPoint(x: modelPos.x.rounded(to: 3), y: modelPos.y.rounded(to: 3))
     }
     
     public static func modelToScreen(
