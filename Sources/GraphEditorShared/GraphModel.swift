@@ -16,6 +16,8 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     @Published public var nodes: [AnyNode] = []  // Changed to [AnyNode] for Equatable conformance
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
+    @Published public var isStable: Bool = false  // New: Added for onReceive
+    @Published public var simulationError: Error? = nil  // New: Added for onReceive
            
     private var simulationTimer: Timer? = nil
     private var undoStack: [GraphState] = []
@@ -67,6 +69,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
                 let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })  // Unwrap for physics, re-wrap below
                 // New: Reset velocities to prevent re-triggering simulation
                 self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
+                self.isStable = true  // New: Set isStable on stable
                 self.objectWillChange.send()
             }
         )
@@ -96,11 +99,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
             let loaded = try await storage.load()
             nodes = loaded.nodes.map { AnyNode($0) }
             edges = loaded.edges
-            nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
-            if nodes.isEmpty && edges.isEmpty {
-                (nodes, edges, nextNodeLabel) = Self.defaultGraph()
-            }
-            await startSimulation()  // Start post-load if needed
+            objectWillChange.send()
         }
 
         static func defaultGraph() -> ([AnyNode], [GraphEdge], Int) {
@@ -140,6 +139,8 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         ]
         return (defaultNodes, defaultEdges, startingLabel + 3)
     }
+    
+    
     
     // Creates a snapshot of the current state for undo/redo and saves.
     public func snapshot() async {
@@ -412,13 +413,13 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     
     
     public func startSimulation() async {
-#if os(watchOS)
-        guard WKApplication.shared().applicationState == .active else {
-            return  // Don't simulate if backgrounded
+            isStable = false  // Reset on start
+            simulationError = nil  // Clear error
+            isSimulating = true
+            await simulator.startSimulation()  // No do-catch since non-throwing
+            isSimulating = false
         }
-#endif
-        await simulator.startSimulation()
-    }
+    
     
     public func stopSimulation() async {
         await simulator.stopSimulation()
