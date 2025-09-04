@@ -258,23 +258,45 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         physicsEngine.resetSimulation()
         await startSimulation()
     }
-    
+            
     public func updateNodeContent(withID id: NodeID, newContent: NodeContent?) async {
-        await snapshot()
-        if let index = nodes.firstIndex(where: { $0.id == id }) {
-            nodes[index].content = newContent
-            objectWillChange.send()
-            await save()
-        }
+        guard let index = nodes.firstIndex(where: { $0.id == id }) else { return }
+        var updatedNode = nodes[index]
+        updatedNode.content = newContent  // Assumes AnyNode supports mutable content
+        nodes[index] = updatedNode
+        await snapshot()  // Save undo state
+        physicsEngine.temporaryDampingBoost()  // Optional: Boost for quick settling (from prior fixes)
+        await startSimulation()  // Restart sim to reflect changes visually
     }
     
-    public func updateNode(_ updatedNode: any NodeProtocol) {
-        if let index = nodes.firstIndex(where: { $0.id == updatedNode.id }) {
-            let existingContent = nodes[index].content
-            nodes[index] = AnyNode(updatedNode)
-            nodes[index].content = existingContent
-            objectWillChange.send()
+    @MainActor
+    public func updateNode(withID id: NodeID, newPosition: CGPoint? = nil, newContent: NodeContent? = nil) async {
+        guard let index = nodes.firstIndex(where: { $0.id == id }) else {
+            print("Warning: No node found for update with ID \(id.uuidString)")  // Debug for usability
+            return
         }
+        let original = nodes[index]  // AnyNode
+        var updatedUnwrapped = original.unwrapped  // Unwrap to any NodeProtocol for updates
+        
+        if let newPosition = newPosition {
+            updatedUnwrapped = updatedUnwrapped.with(position: newPosition, velocity: .zero)  // Reset velocity to avoid drifts
+        } else if let newContent = newContent {
+            // Option 1: Direct mutation (if your existentials support it)
+            // updatedUnwrapped.content = newContent
+            
+            // Option 2: Immutable pattern (add to NodeProtocol if missing)
+            updatedUnwrapped = updatedUnwrapped.with(position: updatedUnwrapped.position, velocity: updatedUnwrapped.velocity, content: newContent)
+        } else {
+            // Handle tap/toggle (e.g., for ToggleNode)
+            updatedUnwrapped = updatedUnwrapped.handlingTap()  // Toggles isExpanded if applicable; returns any NodeProtocol
+        }
+        
+        nodes[index] = AnyNode(updatedUnwrapped)  // Re-wrap as AnyNode for assignment (fixes type error)
+        await snapshot()  // Save undo state
+        
+        physicsEngine.temporaryDampingBoost()  // NEW: Boost damping for quick settling post-change
+        
+        await startSimulation()  // Restart sim with boosted damping active
     }
     
     public func deleteNode(withID id: NodeID) async {

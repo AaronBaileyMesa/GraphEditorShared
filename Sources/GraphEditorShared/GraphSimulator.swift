@@ -80,6 +80,7 @@ class GraphSimulator {
                         let (updated, active) = self.physicsEngine.positionUpdater.updatePositionsAndVelocities(nodes: tempNodes, forces: updatedForces, edges: self.getEdges(), quadtree: quadtree)
                         tempNodes = updated
                         stepActive = stepActive || active
+                        
                     }
                     
                     let totalVel = tempNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }

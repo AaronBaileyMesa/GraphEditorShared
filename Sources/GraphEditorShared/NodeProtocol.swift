@@ -53,6 +53,8 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     /// Creates a copy with updated position and velocity.
     func with(position: CGPoint, velocity: CGPoint) -> Self
     
+    func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self
+    
     /// Renders the node as a SwiftUI view, customizable by zoom and selection.
     /// - Parameters:
     ///   - zoomScale: Current zoom level of the canvas.
@@ -113,7 +115,14 @@ public extension NodeProtocol {
         get { nil }
         set { }  // No-op default
     }
+    
+    func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> Self {  // Default to nil
+            // Default: Ignore content if not overridden; just update position/velocity
+            self.with(position: position, velocity: velocity)  // Call existing with (assumes it exists)
+        }
 }
+
+
 
 /// Extension providing default rendering implementations using GraphicsContext.
 /// Override for custom node appearances (e.g., different shapes/colors).
@@ -185,7 +194,8 @@ public extension NodeProtocol {
 }
 
 public struct AnyNode: NodeProtocol, Equatable {
-    private var base: any NodeProtocol
+    private var base: any NodeProtocol  // var for mutability (e.g., position, content setters)
+    
     public var content: NodeContent? {
         get { base.content }
         set { base.content = newValue }
@@ -222,8 +232,19 @@ public struct AnyNode: NodeProtocol, Equatable {
         var newBase = base
         newBase.position = position
         newBase.velocity = velocity
-        newBase.content = base.content
+        newBase.content = base.content  // Preserve existing content
         return AnyNode(newBase)
+    }
+    
+    // Fixed: Use 'base' instead of 'box'; delegate and handle content mutation for usability
+    public func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> AnyNode {
+        var newBase = base
+        newBase.position = position
+        newBase.velocity = velocity
+        if let content = content {
+            newBase.content = content  // Mutate content if provided (makes updates easy)
+        }
+        return AnyNode(newBase)  // Re-wrap for polymorphism
     }
     
     public func handlingTap() -> Self {

@@ -19,6 +19,7 @@ public class PhysicsEngine {
     private let maxNodesForQuadtree = 200
     private let symmetricFactor: CGFloat = 0.5
     internal let repulsionCalculator: RepulsionCalculator
+    private var dampingBoostSteps: Int = 0
     internal let attractionCalculator: AttractionCalculator
     internal let centeringCalculator: CenteringCalculator
     internal let positionUpdater: PositionUpdater
@@ -31,6 +32,10 @@ public class PhysicsEngine {
         self.positionUpdater = PositionUpdater(simulationBounds: simulationBounds)  // Added missing arg
     }
     
+    public func temporaryDampingBoost(steps: Int = 20) {
+        dampingBoostSteps = steps
+    }
+     
     private var simulationSteps = 0
     
     public func resetSimulation() {
@@ -42,26 +47,35 @@ public class PhysicsEngine {
     public var isPaused: Bool = false
     
     @discardableResult
-        public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
-            if isPaused || stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
-            stepCount += 1
-            
-            let (forces, quadtree) = repulsionCalculator.computeRepulsions(nodes: nodes)
-            var updatedForces = attractionCalculator.applyAttractions(forces: forces, edges: edges, nodes: nodes)
-            updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
-            
-            let (updatedNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
-            
-            // New: Reset velocities if stable
-            let resetNodes = isActive ? updatedNodes : updatedNodes.map { $0.with(position: $0.position, velocity: .zero) }
-            
-            if stepCount % 10 == 0 {  // Reduced logging frequency
-                let totalVel = resetNodes.reduce(0.0) { $0 + $1.velocity.magnitude }
-                os_log("Step %d: Total velocity = %.2f", log: physicsLogger, type: .debug, stepCount, totalVel)
+    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
+        if isPaused || stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
+        stepCount += 1
+        
+        let (forces, quadtree) = repulsionCalculator.computeRepulsions(nodes: nodes)
+        var updatedForces = attractionCalculator.applyAttractions(forces: forces, edges: edges, nodes: nodes)
+        updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
+        
+        let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)  // Changed var to let
+        // New: Reset velocities if stable
+        let resetNodes = isActive ? tempNodes : tempNodes.map { $0.with(position: $0.position, velocity: .zero) }
+         // NEW: Apply boosted damping if active
+        var updatedNodes = resetNodes
+        if dampingBoostSteps > 0 {
+            let extraDamping = Constants.Physics.damping * 1.2  // 20% boost; adjust as needed
+            updatedNodes = updatedNodes.map { node in
+                var boostedNode = node
+                boostedNode.velocity *= extraDamping
+                return boostedNode
             }
-            
-            return (resetNodes, isActive)
+            dampingBoostSteps -= 1
         }
+        if stepCount % 10 == 0 {  // Reduced logging frequency
+            let totalVel = resetNodes.reduce(0.0) { $0 + $1.velocity.magnitude }
+            os_log("Step %d: Total velocity = %.2f", log: physicsLogger, type: .debug, stepCount, totalVel)
+        }
+        
+        return (resetNodes, isActive)
+    }
     
     public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {
         guard !nodes.isEmpty else { return .zero }
@@ -92,5 +106,11 @@ public class PhysicsEngine {
             let newPosition = CGPoint(x: node.position.x + dx, y: node.position.y + dy)
             return node.with(position: newPosition, velocity: node.velocity)
         }
+    }
+    
+    public func queryNearby(position: CGPoint, radius: CGFloat, nodes: [any NodeProtocol]) -> [any NodeProtocol] {
+        guard !nodes.isEmpty else { return [] }
+        let quadtree = repulsionCalculator.buildQuadtree(nodes: nodes)
+        return quadtree.queryNearby(position: position, radius: radius)
     }
 }

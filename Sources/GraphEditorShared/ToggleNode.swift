@@ -33,6 +33,7 @@ public struct ToggleNode: NodeProtocol, Equatable {
         print("ToggleNode \(label) tapped. Expansion state before: \(isExpanded), after: \(!isExpanded)")
         var updated = self
         updated.isExpanded.toggle()
+        updated.velocity = .zero
         return updated
     }
 
@@ -112,5 +113,18 @@ public struct ToggleNode: NodeProtocol, Equatable {
         lhs.radius == rhs.radius &&
         lhs.isExpanded == rhs.isExpanded &&
         lhs.content == rhs.content  // Compare enum (Codable implies Equatable for cases)
+    }
+    
+    // In ToggleNode.swift
+    public func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> Self {
+        ToggleNode(
+            id: id,
+            label: label,
+            position: position,
+            velocity: velocity,
+            radius: radius,
+            isExpanded: isExpanded,
+            content: content ?? self.content  // Use new content if provided, else keep existing
+        )
     }
 }
