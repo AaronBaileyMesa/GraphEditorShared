@@ -33,7 +33,7 @@ public enum Constants {
         public static let tapThreshold: CGFloat = 8.0  // Tightened from 10.0 for small screens
         public static let numZoomLevels: Int = 20  // For crown mapping
         public static let contentPadding: CGFloat = 50.0  // Padding for graph bounds
-        public static let maxZoom: CGFloat = 2.5  // Maximum zoom level
+        public static let maxZoom: CGFloat = 8.0  // Maximum zoom level
     }
     
     // Add more enums as needed (e.g., UI, Testing)
