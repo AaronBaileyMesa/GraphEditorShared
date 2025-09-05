@@ -9,11 +9,9 @@ import Foundation
 import CoreGraphics
 
 struct AttractionCalculator {
-    let useAsymmetricAttraction: Bool
     let symmetricFactor: CGFloat
 
-    init(useAsymmetricAttraction: Bool, symmetricFactor: CGFloat) {
-        self.useAsymmetricAttraction = useAsymmetricAttraction
+    init(symmetricFactor: CGFloat) {
         self.symmetricFactor = symmetricFactor
     }
 
@@ -38,9 +36,15 @@ struct AttractionCalculator {
             updatedForces[fromNode.id] = CGPoint(x: currentForceFrom.x + symForceX, y: currentForceFrom.y + symForceY)
             
             let currentForceTo = updatedForces[toNode.id] ?? .zero
-            if useAsymmetricAttraction {
-                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * (1 + self.symmetricFactor), y: currentForceTo.y - forceY * (1 + self.symmetricFactor))
+            let isAsymmetric = edge.type == .hierarchy  // Asymmetric for .hierarchy
+            if isAsymmetric {
+                // Stronger pull for 'to' (child) toward 'from' (parent); add vertical bias
+                let asymmetricFactor: CGFloat = 1.5  // Tune: Stronger for hierarchy
+                var asymmetricForceY = forceY * asymmetricFactor
+                asymmetricForceY += Constants.Physics.verticalBias  // Pull downward (assume positive Y down; adjust if not)
+                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * asymmetricFactor, y: currentForceTo.y - asymmetricForceY)
             } else {
+                // Symmetric for .association
                 updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX + symForceX, y: currentForceTo.y - forceY + symForceY)
             }
         }

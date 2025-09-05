@@ -25,6 +25,7 @@ public enum Constants {
         public static let maxQuadtreeDepth = 20
         public static let maxNodesForQuadtree = 200
         public static let minCollisionDist: CGFloat = 35.0  // New: For anti-collision separation
+        public static let verticalBias: CGFloat = 10.0  // New: Downward bias for hierarchy edges (tune as needed)
     }
     
     public enum App {

@@ -27,9 +27,9 @@ public class PhysicsEngine {
     public init(simulationBounds: CGSize) {
         self.simulationBounds = simulationBounds
         self.repulsionCalculator = RepulsionCalculator(maxNodesForQuadtree: 200, simulationBounds: simulationBounds)
-        self.attractionCalculator = AttractionCalculator(useAsymmetricAttraction: self.useAsymmetricAttraction, symmetricFactor: self.symmetricFactor)
+        self.attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor)  // Only symmetricFactor; per-edge logic handles asymmetry
         self.centeringCalculator = CenteringCalculator(simulationBounds: simulationBounds)
-        self.positionUpdater = PositionUpdater(simulationBounds: simulationBounds)  // Added missing arg
+        self.positionUpdater = PositionUpdater(simulationBounds: simulationBounds)
     }
     
     public func temporaryDampingBoost(steps: Int = 20) {
@@ -43,7 +43,6 @@ public class PhysicsEngine {
         stepCount = 0
     }
     
-    public var useAsymmetricAttraction: Bool = false  // Default to false for stability
     public var isPaused: Bool = false
     
     @discardableResult
@@ -55,7 +54,7 @@ public class PhysicsEngine {
         var updatedForces = attractionCalculator.applyAttractions(forces: forces, edges: edges, nodes: nodes)
         updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
         
-        let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)  // Changed var to let
+        let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
         // New: Reset velocities if stable
         let resetNodes = isActive ? tempNodes : tempNodes.map { $0.with(position: $0.position, velocity: .zero) }
          // NEW: Apply boosted damping if active
