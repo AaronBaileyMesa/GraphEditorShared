@@ -72,20 +72,28 @@ public struct Node: NodeProtocol, Equatable {
         }
 }
 
+// New: EdgeType enum
+public enum EdgeType: String, Codable {
+    case hierarchy  // DAG-enforced, directed
+    case association  // Allows cycles, symmetric/undirected feel
+}
+
 // Represents an edge connecting two nodes.
 public struct GraphEdge: Identifiable, Equatable, Codable {
     public let id: NodeID
     public let from: NodeID
     public let to: NodeID
+    public let type: EdgeType  // New: Required type
     
     enum CodingKeys: String, CodingKey {
-        case id, from, to
+        case id, from, to, type  // Added type
     }
     
-    public init(id: NodeID = NodeID(), from: NodeID, to: NodeID) {
+    public init(id: NodeID = NodeID(), from: NodeID, to: NodeID, type: EdgeType = .association) {  // Default to .association
         self.id = id
         self.from = from
         self.to = to
+        self.type = type
     }
     
     public init(from decoder: Decoder) throws {
@@ -93,6 +101,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
         id = try container.decode(NodeID.self, forKey: .id)
         from = try container.decode(NodeID.self, forKey: .from)
         to = try container.decode(NodeID.self, forKey: .to)
+        type = try container.decode(EdgeType.self, forKey: .type)  // Decode type
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -100,6 +109,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
         try container.encode(id, forKey: .id)
         try container.encode(from, forKey: .from)
         try container.encode(to, forKey: .to)
+        try container.encode(type, forKey: .type)  // Encode type
     }
 }
 
