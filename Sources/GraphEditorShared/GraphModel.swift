@@ -32,19 +32,20 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
 
-        // Seed with direct children of collapsed toggle nodes
+        // Seed with direct children of collapsed toggle nodes, but only via .hierarchy edges
         for node in nodes {
             if node.unwrapped.shouldHideChildren() {
-                let children = edges.filter { $0.from == node.id }.map { $0.to }
+                let children = edges.filter { $0.from == node.id && $0.type == .hierarchy }.map { $0.to }
                 toHide.append(contentsOf: children)
             }
         }
 
-        // Iteratively hide all descendants (DFS)
+        // Iteratively hide all descendants (DFS), only along .hierarchy edges
+        let adj = buildAdjacencyList(for: .hierarchy)  // Filter by type
         while !toHide.isEmpty {
             let current = toHide.removeLast()
             if hidden.insert(current).inserted {
-                let children = edges.filter { $0.from == current }.map { $0.to }
+                let children = adj[current] ?? []
                 toHide.append(contentsOf: children)
             }
         }
@@ -138,7 +139,48 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
                 self.objectWillChange.send()
             }
         )
-        await startSimulation()  // Await the async call
+    }
+
+    // New: Cycle check method (filters by .hierarchy)
+    public func wouldCreateCycle(withNewEdgeFrom from: NodeID, to: NodeID, type: EdgeType) -> Bool {
+        guard type == .hierarchy else { return false }  // No check for .association
+        var tempEdges = edges.filter { $0.type == .hierarchy }  // Filter existing .hierarchy
+        tempEdges.append(GraphEdge(from: from, to: to, type: type))
+        return !isAcyclic(edges: tempEdges)
+    }
+
+    private func isAcyclic(edges: [GraphEdge]) -> Bool {
+        // Build adjacency list from filtered edges
+        var adj: [NodeID: [NodeID]] = [:]
+        var inDegree: [NodeID: Int] = [:]
+        nodes.forEach { inDegree[$0.id] = 0 }
+        for edge in edges {
+            adj[edge.from, default: []].append(edge.to)
+            inDegree[edge.to, default: 0] += 1
+        }
+        // Kahn's algorithm
+        var queue = nodes.filter { inDegree[$0.id] == 0 }.map { $0.id }
+        var count = 0
+        while !queue.isEmpty {
+            let node = queue.removeFirst()
+            count += 1
+            for neighbor in adj[node] ?? [] {
+                inDegree[neighbor]! -= 1
+                if inDegree[neighbor]! == 0 { queue.append(neighbor) }
+            }
+        }
+        return count == nodes.count  // Acyclic if all nodes processed
+    }
+
+    // New/Updated: Add edge with type and cycle check
+    public func addEdge(from: NodeID, to: NodeID, type: EdgeType) async {
+        if wouldCreateCycle(withNewEdgeFrom: from, to: to, type: type) {
+            print("Cannot add edge: Would create cycle in hierarchy")
+            return  // Reject if cycle in .hierarchy
+        }
+        edges.append(GraphEdge(from: from, to: to, type: type))
+        objectWillChange.send()
+        await startSimulation()
     }
     
     public func boundingBox() -> CGRect {
@@ -238,15 +280,23 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     }
     
     public func addChild(to parentID: NodeID) async {
-        let newLabel = nextNodeLabel
-        nextNodeLabel += 1
-        let newPosition = CGPoint(x: CGFloat.random(in: -50...50), y: CGFloat.random(in: -50...50))  // Random near parent
-        let newNode = AnyNode(Node(label: newLabel, position: newPosition))
-        nodes.append(newNode)
-        edges.append(GraphEdge(from: parentID, to: newNode.id))
-        objectWillChange.send()
-        await startSimulation()
-    }
+            let newLabel = nextNodeLabel
+            nextNodeLabel += 1
+            let newPosition = CGPoint(x: CGFloat.random(in: -50...50), y: CGFloat.random(in: -50...50))  // Random near parent
+            let newNode = AnyNode(Node(label: newLabel, position: newPosition))
+            nodes.append(newNode)
+            await addEdge(from: parentID, to: newNode.id, type: .hierarchy)  // Use .hierarchy
+        }
+
+        // Updated: buildAdjacencyList with optional type filter
+        private func buildAdjacencyList(for edgeType: EdgeType? = nil) -> [NodeID: [NodeID]] {
+            var adj = [NodeID: [NodeID]]()
+            let filteredEdges = edgeType != nil ? edges.filter { $0.type == edgeType! } : edges
+            for edge in filteredEdges {
+                adj[edge.from, default: []].append(edge.to)
+            }
+            return adj
+        }
     
     public func addNode(at position: CGPoint) async {
         let newLabel = nextNodeLabel
