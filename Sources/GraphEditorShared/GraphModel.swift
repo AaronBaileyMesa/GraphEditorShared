@@ -87,23 +87,28 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         !redoStack.isEmpty
     }
     
-    // Single initializer with optional nextNodeLabel for testing.
-    public init(storage: GraphStorage = PersistenceManager(), physicsEngine: PhysicsEngine, nextNodeLabel: Int? = nil) {
+    // UPDATED: Init no longer loads (to avoid async in init); call load() after creation
+    public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
         self.storage = storage
         self.physicsEngine = physicsEngine
-        self.nodes = []  // Start empty; load async later
-        self.edges = []
-        self.nextNodeLabel = nextNodeLabel ?? 1
-        Task { try? await loadFromStorage() }  // Fire async load; ignore errors for init
+        // No loading here—do it async via load() to fix concurrency errors
     }
-
-    public func loadFromStorage() async throws {
-        let loaded = try await storage.load()
-        nodes = loaded.nodes.map { AnyNode($0) }
-        edges = loaded.edges
-        objectWillChange.send()
-        await resizeSimulationBounds(for: nodes.count)  // New: Make async call
+    
+    // UPDATED: Made loadFromStorage private async (fixes lines 95/105)
+    private func loadFromStorage() async throws {
+        let (loadedNodes, loadedEdges) = try await storage.load()  // Add await (fixes line 114)
+        self.nodes = loadedNodes.map { AnyNode($0) }
+        self.edges = loadedEdges
+        self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
     }
+    
+    // NEW/UPDATED: Public async load() to trigger loading (call from GraphViewModel)
+    public func load() async throws {
+        try await loadFromStorage()
+        // Optional: Restart simulation after load
+        await startSimulation()
+    }
+    
 
     // Added: Missing visibleNodes and visibleEdges from errors
     public func visibleNodes() -> [any NodeProtocol] {
@@ -241,12 +246,12 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     }
     
     public func clearGraph() async {
-        nodes = []
-        edges = []
-        nextNodeLabel = 1
-        objectWillChange.send()
-        await startSimulation()
-    }
+            nodes = []
+            edges = []
+            nextNodeLabel = 1
+            try? await storage.clear()
+            objectWillChange.send()
+        }
     
     public func deleteNode(withID id: NodeID) async {
         nodes.removeAll { $0.id == id }
@@ -362,60 +367,60 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     
 
     public func isBidirectionalBetween(_ id1: NodeID, _ id2: NodeID) -> Bool {
-        edges.contains(where: { $0.from == id1 && $0.to == id2 }) &&  // Parenthesized
-        edges.contains(where: { $0.from == id2 && $0.to == id1 })     // Parenthesized
-    }
-    
-    public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
-        edges.filter { ($0.from == id1 && $0.to == id2) || ($0.from == id2 && $0.to == id1) }
-    }
-    
-    private func buildAdjacencyList() -> [NodeID: [NodeID]] {
-        var adj = [NodeID: [NodeID]]()
-        for edge in edges {
-            adj[edge.from, default: []].append(edge.to)
+            edges.contains(where: { $0.from == id1 && $0.to == id2 }) &&  // Parenthesized
+            edges.contains(where: { $0.from == id2 && $0.to == id1 })     // Parenthesized
         }
-        return adj
+        
+        public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
+            edges.filter { ($0.from == id1 && $0.to == id2) || ($0.from == id2 && $0.to == id1) }
+        }
+        
+        private func buildAdjacencyList() -> [NodeID: [NodeID]] {
+            var adj = [NodeID: [NodeID]]()
+            for edge in edges {
+                adj[edge.from, default: []].append(edge.to)
+            }
+            return adj
+        }
+        
     }
-    
-}
 
-@available(iOS 13.0, watchOS 6.0, *)
-extension GraphModel {
-    
-    public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
-        let edgeCount = edges.count
-        let edgeWord = edgeCount == 1 ? "edge" : "edges"  // New: Handle plural
-        var desc = "Graph with \(nodes.count) nodes and \(edgeCount) directed \(edgeWord)."
-        if let selectedEdgeID = selectedEdgeID, let selectedEdge = edges.first(where: { $0.id == selectedEdgeID }),
-           let fromNode = nodes.first(where: { $0.id == selectedEdge.from })?.unwrapped,
-           let toNode = nodes.first(where: { $0.id == selectedEdge.to })?.unwrapped {
-            desc += " Directed edge from node \(fromNode.label) to node \(toNode.label) selected."
-        } else if let selectedID = selectedID, let selectedNode = nodes.first(where: { $0.id == selectedID })?.unwrapped {
-            let outgoingLabels = edges
-                .filter { $0.from == selectedID }
-                .compactMap { edge in
-                    let toID = edge.to
-                    return nodes.first { $0.id == toID }?.unwrapped.label
-                }
-                .sorted()
-                .map { String($0) }
-                .joined(separator: ", ")
-            let incomingLabels = edges
-                .filter { $0.to == selectedID }
-                .compactMap { edge in
-                    let fromID = edge.from
-                    return nodes.first { $0.id == fromID }?.unwrapped.label
-                }
-                .sorted()
-                .map { String($0) }
-                .joined(separator: ", ")
-            let outgoingText = outgoingLabels.isEmpty ? "none" : outgoingLabels
-            let incomingText = incomingLabels.isEmpty ? "none" : incomingLabels
-            desc += " Node \(selectedNode.label) selected, outgoing to: \(outgoingText); incoming from: \(incomingText)."
-        } else {
-            desc += " No node or edge selected."
+    @available(iOS 13.0, watchOS 6.0, *)
+    extension GraphModel {
+        
+        public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
+            let edgeCount = edges.count
+            let edgeWord = edgeCount == 1 ? "edge" : "edges"  // New: Handle plural
+            var desc = "Graph with \(nodes.count) nodes and \(edgeCount) directed \(edgeWord)."
+            if let selectedEdgeID = selectedEdgeID, let selectedEdge = edges.first(where: { $0.id == selectedEdgeID }),
+               let fromNode = nodes.first(where: { $0.id == selectedEdge.from })?.unwrapped,
+               let toNode = nodes.first(where: { $0.id == selectedEdge.to })?.unwrapped {
+                desc += " Directed edge from node \(fromNode.label) to node \(toNode.label) selected."
+            } else if let selectedID = selectedID, let selectedNode = nodes.first(where: { $0.id == selectedID })?.unwrapped {
+                let outgoingLabels = edges
+                    .filter { $0.from == selectedID }
+                    .compactMap { edge in
+                        let toID = edge.to
+                        return nodes.first { $0.id == toID }?.unwrapped.label
+                    }
+                    .sorted()
+                    .map { String($0) }
+                    .joined(separator: ", ")
+                let incomingLabels = edges
+                    .filter { $0.to == selectedID }
+                    .compactMap { edge in
+                        let fromID = edge.from
+                        return nodes.first { $0.id == fromID }?.unwrapped.label
+                    }
+                    .sorted()
+                    .map { String($0) }
+                    .joined(separator: ", ")
+                let outgoingText = outgoingLabels.isEmpty ? "none" : outgoingLabels
+                let incomingText = incomingLabels.isEmpty ? "none" : incomingLabels
+                desc += " Node \(selectedNode.label) selected, outgoing to: \(outgoingText); incoming from: \(incomingText)."
+            } else {
+                desc += " No node or edge selected."
+            }
+            return desc
         }
-        return desc
     }
-}

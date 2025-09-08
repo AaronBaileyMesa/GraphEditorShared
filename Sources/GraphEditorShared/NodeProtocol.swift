@@ -136,14 +136,17 @@ public extension NodeProtocol {
     }
     
     func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        let scaledRadius = radius * zoomScale
-        let borderWidth: CGFloat = isSelected ? 4 * zoomScale : 0
-        let borderRadius = scaledRadius + borderWidth / 2
+            print("Drawing node \(label) at \(position), isSelected: \(isSelected), zoom: \(zoomScale)")
         
-        if borderWidth > 0 {
-            let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
-            context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
-        }
+            let scaledRadius = radius * zoomScale
+            let borderWidth: CGFloat = isSelected ? max(3.0, 5 * zoomScale) : 0  // Tweak: Min 3px for visibility (from prior advice)
+            let borderRadius = scaledRadius + borderWidth / 2
+
+            if borderWidth > 0 {
+                let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
+                context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
+                print("Drew yellow border for node \(label), width: \(borderWidth)")  // Add this
+            }
         
         let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
         context.fill(innerPath, with: .color(.red))
@@ -265,7 +268,8 @@ public struct AnyNode: NodeProtocol, Equatable {
     @available(iOS 15.0, *)
     @available(watchOS 9.0, *)
     public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
+        print("Drawing ToggleNode \(label) at \(position), isSelected: \(isSelected), zoom: \(zoomScale)")  // Add this
+                base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
     }
     
     // Equatable: Compare via id (adjust if your protocol uses different equality)
