@@ -23,11 +23,12 @@ public class PhysicsEngine {
     internal let attractionCalculator: AttractionCalculator
     internal let centeringCalculator: CenteringCalculator
     internal let positionUpdater: PositionUpdater
+    public var useAsymmetricAttraction: Bool = false
     
     public init(simulationBounds: CGSize) {
         self.simulationBounds = simulationBounds
         self.repulsionCalculator = RepulsionCalculator(maxNodesForQuadtree: 200, simulationBounds: simulationBounds)
-        self.attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor)  // Only symmetricFactor; per-edge logic handles asymmetry
+        self.attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor, useAsymmetric: useAsymmetricAttraction)
         self.centeringCalculator = CenteringCalculator(simulationBounds: simulationBounds)
         self.positionUpdater = PositionUpdater(simulationBounds: simulationBounds)
     }
@@ -56,8 +57,7 @@ public class PhysicsEngine {
         
         let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
         // New: Reset velocities if stable
-        let resetNodes = isActive ? tempNodes : tempNodes.map { $0.with(position: $0.position, velocity: .zero) }
-         // NEW: Apply boosted damping if active
+        let resetNodes = isActive ? tempNodes : tempNodes.map { $0.with(position: $0.position, velocity: CGPoint.zero) }         // NEW: Apply boosted damping if active
         var updatedNodes = resetNodes
         if dampingBoostSteps > 0 {
             let extraDamping = Constants.Physics.damping * 1.2  // 20% boost; adjust as needed
