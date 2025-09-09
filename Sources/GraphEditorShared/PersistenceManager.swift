@@ -27,7 +27,7 @@ public class PersistenceManager: GraphStorage {
     }
     
     struct SavedState: Codable {
-        let version: Int = 1
+        var version: Int = 1
         let nodes: [NodeWrapper]
         let edges: [GraphEdge]
         let viewState: ViewState?  // Embed view state (optional)
@@ -35,64 +35,61 @@ public class PersistenceManager: GraphStorage {
     
     // UPDATED: Made async (wrap sync ops in Task for non-blocking I/O)
     public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
-        try await Task {  // Wrap in Task to make async
-            let wrapped = nodes.map { node in
-                if let n = node as? Node {
-                    return NodeWrapper.node(n)
-                } else if let tn = node as? ToggleNode {
-                    return NodeWrapper.toggleNode(tn)
-                } else {
-                    logger.error("Unsupported node type: \(String(describing: type(of: node)))")
-                    fatalError("Unsupported node type: \(type(of: node))")
-                }
+        let wrapped = nodes.compactMap { node -> NodeWrapper? in
+            if let n = node as? Node { return .node(n) }
+            else if let tn = node as? ToggleNode { return .toggleNode(tn) }
+            else {
+                logger.error("Unsupported node type: \(String(describing: type(of: node))); skipping.")
+                return nil  // Skip instead of fatalError
             }
-            let state = SavedState(nodes: wrapped, edges: edges, viewState: nil)  // Populate viewState if needed
-            do {
-                let data = try JSONEncoder().encode(state)
-                try data.write(to: fileURL)
-            } catch let error as EncodingError {
-                logger.error("Encoding failed: \(error.localizedDescription)")
-                throw GraphStorageError.encodingFailed(error)
-            } catch {
-                logger.error("Writing failed: \(error.localizedDescription)")
-                throw GraphStorageError.writingFailed(error)
-            }
-        }.value  // Await the task's completion
+        }
+        let state = SavedState(nodes: wrapped, edges: edges, viewState: nil)  // Add viewState if passed
+        do {
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: fileURL)
+            logger.debug("Saved \(wrapped.count) nodes and \(edges.count) edges")
+        } catch let error as EncodingError {
+            logger.error("Encoding failed: \(error.localizedDescription)")
+            throw GraphStorageError.encodingFailed(error)
+        } catch {
+            logger.error("Writing failed: \(error.localizedDescription)")
+            throw GraphStorageError.writingFailed(error)
+        }
     }
     
     // UPDATED: Made async
     public func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
-        try await Task {
-            let fm = FileManager.default
-            guard fm.fileExists(atPath: fileURL.path) else { return ([], []) }
-            do {
-                let data = try Data(contentsOf: fileURL)
-                let state = try JSONDecoder().decode(SavedState.self, from: data)
-                if state.version != 1 {
-                    throw GraphStorageError.decodingFailed(NSError(domain: "Invalid version \(state.version)", code: 0))
-                }
-                let loadedNodes = state.nodes.map { $0.value }
-                return (loadedNodes, state.edges)
-            } catch let error as DecodingError {
-                logger.error("Decoding failed: \(error.localizedDescription)")
-                throw GraphStorageError.decodingFailed(error)
-            } catch {
-                logger.error("Loading failed: \(error.localizedDescription)")
-                throw GraphStorageError.loadingFailed(error)
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: fileURL.path) else {
+            logger.debug("No saved file; returning empty")
+            return ([], [])
+        }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let state = try JSONDecoder().decode(SavedState.self, from: data)
+            if state.version != 1 {
+                throw GraphStorageError.decodingFailed(NSError(domain: "Invalid version \(state.version)", code: 0))
             }
-        }.value
-    }
-    
-    // UPDATED: Made async
-    public func clear() async throws {
-        try await Task {
-            let fm = FileManager.default
-            if fm.fileExists(atPath: fileURL.path) {
-                try fm.removeItem(at: fileURL)
-            }
-        }.value
+            let loadedNodes = state.nodes.map { $0.value }
+            logger.debug("Loaded \(loadedNodes.count) nodes and \(state.edges.count) edges")
+            return (loadedNodes, state.edges)
+        } catch let error as DecodingError {
+            logger.error("Decoding failed: \(error.localizedDescription)")
+            throw GraphStorageError.decodingFailed(error)
+        } catch {
+            logger.error("Loading failed: \(error.localizedDescription)")
+            throw GraphStorageError.loadingFailed(error)
+        }
     }
 
+    public func clear() async throws {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: fileURL.path) {
+            try fm.removeItem(at: fileURL)
+            logger.debug("Cleared saved graph")
+        }
+    }
+    
     // Updated helper struct (unchanged)
     struct ViewState: Codable {
         let offset: CGPoint
