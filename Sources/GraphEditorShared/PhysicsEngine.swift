@@ -56,9 +56,17 @@ public class PhysicsEngine {
         updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
         
         let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
+        var updatedNodes = tempNodes.map { node in
+            var clamped = node
+            if hypot(clamped.velocity.x, clamped.velocity.y) < 0.001 {
+                clamped.velocity = .zero
+            }
+            return clamped
+        }
+
         // New: Reset velocities if stable
         let resetNodes = isActive ? tempNodes : tempNodes.map { $0.with(position: $0.position, velocity: CGPoint.zero) }         // NEW: Apply boosted damping if active
-        var updatedNodes = resetNodes
+//        var updatedNodes = resetNodes
         if dampingBoostSteps > 0 {
             let extraDamping = Constants.Physics.damping * 1.2  // 20% boost; adjust as needed
             updatedNodes = updatedNodes.map { node in
@@ -74,6 +82,17 @@ public class PhysicsEngine {
         }
         
         return (resetNodes, isActive)
+    }
+    
+    // Add to PhysicsEngine class
+    public func runSimulation(steps: Int, nodes: [any NodeProtocol], edges: [GraphEdge]) -> [any NodeProtocol] {
+        var currentNodes = nodes
+        for _ in 0..<steps {
+            let (updatedNodes, isActive) = simulationStep(nodes: currentNodes, edges: edges)
+            currentNodes = updatedNodes
+            if !isActive { break }  // Early exit if stable
+        }
+        return currentNodes
     }
     
     public func boundingBox(nodes: [any NodeProtocol]) -> CGRect {

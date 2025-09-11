@@ -28,7 +28,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     private let storage: GraphStorage
     public var physicsEngine: PhysicsEngine  // Changed to var to allow recreation
     
-    private var hiddenNodeIDs: Set<NodeID> {
+    public var hiddenNodeIDs: Set<NodeID> {
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
 
@@ -66,16 +66,23 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
             
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
-                        guard let self = self, !self.isStable else { return }  // Guard against re-entry
-                        print("Simulation stable: Centering nodes")
-                        let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
-                        self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
-                        self.isStable = true
-                        Task { await self.stopSimulation() }  // Explicit stop post-stable
-                        self.objectWillChange.send()
+                        guard let self = self, !self.isStable else { return }
+                        let velocities = self.nodes.map { hypot($0.velocity.x, $0.velocity.y) }
+                        if velocities.allSatisfy({ $0 < 0.001 }) {
+                            print("Simulation stable: Centering nodes")
+                            let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
+                            self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
+                            self.isStable = true
+                            Task {
+                                await self.stopSimulation()
+                                try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5s cooldown
+                                self.isStable = false  // Allow restart if needed
+                            }
+                            self.objectWillChange.send()
+                        }
                     }
-        )
-    }()
+                )
+            }()
     
     // Indicates if undo is possible.
     public var canUndo: Bool {
@@ -115,10 +122,14 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         for i in 0..<nodes.count {
             if let toggle = nodes[i].unwrapped as? ToggleNode, !toggle.isExpanded {
                 let children = edges.filter { $0.from == nodes[i].id && $0.type == .hierarchy }.map { $0.to }
-                for childID in children {
+                for (index, childID) in children.enumerated() {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
                     var child = nodes[childIndex]
-                    child.position = nodes[i].position
+                    // Larger jitter: Fan out based on index
+                    let angle = CGFloat(index) * (2 * .pi / CGFloat(children.count))
+                    let jitterX = cos(angle) * 5.0  // 5px radius fan
+                    let jitterY = sin(angle) * 5.0
+                    child.position = nodes[i].position + CGPoint(x: jitterX, y: jitterY)
                     child.velocity = .zero
                     nodes[childIndex] = child
                 }
@@ -442,7 +453,10 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         }
         
         objectWillChange.send()
-        await resumeSimulation()  // Restart sim post-tap for stability
+        let unwrappedNodes = nodes.map { $0.unwrapped }
+            let updatedUnwrapped = physicsEngine.runSimulation(steps: 20, nodes: unwrappedNodes, edges: edges)
+            nodes = updatedUnwrapped.map { AnyNode($0) }
+            await resumeSimulation()  // Restart sim post-tap for stability
     }
     }
 
