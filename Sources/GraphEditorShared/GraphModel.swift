@@ -66,14 +66,14 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
             
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
-                guard let self = self else { return }
-                print("Simulation stable: Centering nodes")  // Debug
-                let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })  // Unwrap for physics, re-wrap below
-                // New: Reset velocities to prevent re-triggering simulation
-                self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
-                self.isStable = true  // New: Set isStable on stable
-                self.objectWillChange.send()
-            }
+                        guard let self = self, !self.isStable else { return }  // Guard against re-entry
+                        print("Simulation stable: Centering nodes")
+                        let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
+                        self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
+                        self.isStable = true
+                        Task { await self.stopSimulation() }  // Explicit stop post-stable
+                        self.objectWillChange.send()
+                    }
         )
     }()
     
@@ -102,13 +102,29 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
     }
     
-    // NEW/UPDATED: Public async load() to trigger loading (call from GraphViewModel)
     public func load() async {
         do {
             try await loadFromStorage()
+            syncCollapsedPositions()  // New: Sync after load
         } catch {
             print("Failed to load graph: \(error)")
         }
+    }
+    
+    private func syncCollapsedPositions() {
+        for i in 0..<nodes.count {
+            if let toggle = nodes[i].unwrapped as? ToggleNode, !toggle.isExpanded {
+                let children = edges.filter { $0.from == nodes[i].id && $0.type == .hierarchy }.map { $0.to }
+                for childID in children {
+                    guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
+                    var child = nodes[childIndex]
+                    child.position = nodes[i].position
+                    child.velocity = .zero
+                    nodes[childIndex] = child
+                }
+            }
+        }
+        objectWillChange.send()
     }
 
     // Added: Missing visibleNodes and visibleEdges from errors
@@ -285,14 +301,20 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         await startSimulation()
     }
     
+    // Update addChild to position near parent
     public func addChild(to parentID: NodeID) async {
-            let newLabel = nextNodeLabel
-            nextNodeLabel += 1
-            let newPosition = CGPoint(x: CGFloat.random(in: -50...50), y: CGFloat.random(in: -50...50))  // Random near parent
-            let newNode = AnyNode(Node(label: newLabel, position: newPosition))
-            nodes.append(newNode)
-            await addEdge(from: parentID, to: newNode.id, type: .hierarchy)  // Use .hierarchy
-        }
+        let newLabel = nextNodeLabel
+        nextNodeLabel += 1
+        guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }) else { return }
+        let parentPosition = nodes[parentIndex].position  // Direct assignment (non-optional)
+        // Position near parent initially
+        let offsetX = CGFloat.random(in: -50...50)
+        let offsetY = CGFloat.random(in: -50...50)
+        let newPosition = parentPosition + CGPoint(x: offsetX, y: offsetY)
+        let newNode = AnyNode(Node(label: newLabel, position: newPosition))
+        nodes.append(newNode)
+        await addEdge(from: parentID, to: newNode.id, type: .hierarchy)
+    }
 
         // Updated: buildAdjacencyList with optional type filter
         private func buildAdjacencyList(for edgeType: EdgeType? = nil) -> [NodeID: [NodeID]] {
@@ -385,31 +407,43 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         }
     
     public func handleTap(on nodeID: NodeID) async {  // NEW: Method to handle taps, called from view/gestures
-            guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
-            let oldNode = nodes[index]
-            let updatedNode = oldNode.handlingTap()  // Call without model
-            nodes[index] = updatedNode
-            
-            // NEW: If ToggleNode and now expanded, position children near parent
-            if let toggleNode = updatedNode.unwrapped as? ToggleNode, toggleNode.isExpanded {
-                let children = edges.filter { $0.from == nodeID && $0.type == .hierarchy }.map { $0.to }
+        guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
+        let oldNode = nodes[index]
+        let updatedNode = oldNode.handlingTap()  // Call without model
+        nodes[index] = updatedNode
+        
+        // Get children (hierarchy only)
+        let children = edges.filter { $0.from == nodeID && $0.type == .hierarchy }.map { $0.to }
+        
+        if let toggleNode = updatedNode.unwrapped as? ToggleNode {
+            if toggleNode.isExpanded {
+                // Position children near parent on expand
                 for childID in children {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
                     var child = nodes[childIndex]
-                    // Place child slightly offset from parent (use constants for offset)
-                    let offsetX = CGFloat.random(in: -Constants.App.nodeModelRadius * 2 ... Constants.App.nodeModelRadius * 2)
-                    let offsetY = CGFloat.random(in: Constants.App.nodeModelRadius ... Constants.App.nodeModelRadius * 3)  // Bias downward for hierarchy
-                    child.position = CGPoint(x: toggleNode.position.x + offsetX, y: toggleNode.position.y + offsetY)
-                    child.velocity = .zero  // Reset child velocity
+                    // Larger offset to spread siblings and avoid overlaps
+                    let offsetX = CGFloat.random(in: -Constants.App.nodeModelRadius * 3 ... Constants.App.nodeModelRadius * 3)
+                    let offsetY = CGFloat.random(in: Constants.App.nodeModelRadius * 2 ... Constants.App.nodeModelRadius * 4)  // Bias downward
+                    child.position = toggleNode.position + CGPoint(x: offsetX, y: offsetY)
+                    child.velocity = .zero
                     nodes[childIndex] = child
                 }
-                physicsEngine.temporaryDampingBoost(steps: Constants.Physics.maxSimulationSteps / 10)  // Boost damping on expand
+                physicsEngine.temporaryDampingBoost(steps: Constants.Physics.maxSimulationSteps / 10)
+            } else {
+                // On collapse, move children to parent position (hidden, prevents jumps on re-expand)
+                for childID in children {
+                    guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
+                    var child = nodes[childIndex]
+                    child.position = toggleNode.position
+                    child.velocity = .zero
+                    nodes[childIndex] = child
+                }
             }
-            
-            objectWillChange.send()
-            await resumeSimulation()  // Restart sim post-tap for stability
         }
-    
+        
+        objectWillChange.send()
+        await resumeSimulation()  // Restart sim post-tap for stability
+    }
     }
 
     @available(iOS 13.0, watchOS 6.0, *)
