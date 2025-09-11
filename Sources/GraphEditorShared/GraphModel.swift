@@ -103,12 +103,13 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     }
     
     // NEW/UPDATED: Public async load() to trigger loading (call from GraphViewModel)
-    public func load() async throws {
-        try await loadFromStorage()
-        // Optional: Restart simulation after load
-        await startSimulation()
+    public func load() async {
+        do {
+            try await loadFromStorage()
+        } catch {
+            print("Failed to load graph: \(error)")
+        }
     }
-    
 
     // Added: Missing visibleNodes and visibleEdges from errors
     public func visibleNodes() -> [any NodeProtocol] {
@@ -382,7 +383,33 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
             }
             return adj
         }
-        
+    
+    public func handleTap(on nodeID: NodeID) async {  // NEW: Method to handle taps, called from view/gestures
+            guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
+            let oldNode = nodes[index]
+            let updatedNode = oldNode.handlingTap()  // Call without model
+            nodes[index] = updatedNode
+            
+            // NEW: If ToggleNode and now expanded, position children near parent
+            if let toggleNode = updatedNode.unwrapped as? ToggleNode, toggleNode.isExpanded {
+                let children = edges.filter { $0.from == nodeID && $0.type == .hierarchy }.map { $0.to }
+                for childID in children {
+                    guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
+                    var child = nodes[childIndex]
+                    // Place child slightly offset from parent (use constants for offset)
+                    let offsetX = CGFloat.random(in: -Constants.App.nodeModelRadius * 2 ... Constants.App.nodeModelRadius * 2)
+                    let offsetY = CGFloat.random(in: Constants.App.nodeModelRadius ... Constants.App.nodeModelRadius * 3)  // Bias downward for hierarchy
+                    child.position = CGPoint(x: toggleNode.position.x + offsetX, y: toggleNode.position.y + offsetY)
+                    child.velocity = .zero  // Reset child velocity
+                    nodes[childIndex] = child
+                }
+                physicsEngine.temporaryDampingBoost(steps: Constants.Physics.maxSimulationSteps / 10)  // Boost damping on expand
+            }
+            
+            objectWillChange.send()
+            await resumeSimulation()  // Restart sim post-tap for stability
+        }
+    
     }
 
     @available(iOS 13.0, watchOS 6.0, *)

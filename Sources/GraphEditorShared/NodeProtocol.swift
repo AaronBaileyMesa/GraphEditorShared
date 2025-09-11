@@ -3,31 +3,16 @@
 import SwiftUI
 import Foundation
 
+@available(iOS 15.0, *)
 private var nodeTextCache: [String: GraphicsContext.ResolvedText] = [:]
 private let maxCacheSize = 100  // Arbitrary limit; adjust based on testing
 private let nodeCacheQueue = DispatchQueue(label: "nodeTextCache", attributes: .concurrent)
 private var insertionOrder: [String] = []  // New: Track order
 
-
 /// Protocol for graph nodes, enabling polymorphism for types like standard or toggleable nodes.
 /// Conformers must provide core properties; defaults are available for common behaviors.
 @available(iOS 13.0, *)
 @available(watchOS 9.0, *)
-
-public enum NodeContent: Codable, Equatable {
-    case string(String)
-    case date(Date)
-    case number(Double)
-
-    public var displayText: String {
-        switch self {
-        case .string(let str): return str.prefix(10) + (str.count > 10 ? "…" : "")
-        case .date(let date): return DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .none)
-        case .number(let num): return String(format: "%.1f", num)
-        }
-    }
-}
-
 public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeID {
     /// Unique identifier for the node.
     var id: NodeID { get }
@@ -47,7 +32,7 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     /// Expansion state for hierarchical nodes (e.g., true shows children).
     var isExpanded: Bool { get set }
     
-    //Data payload for the node
+    // Data payload for the node
     var content: NodeContent? { get set }
     
     /// Creates a copy with updated position and velocity.
@@ -89,6 +74,20 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool)
 }
 
+public enum NodeContent: Codable, Equatable {
+    case string(String)
+    case date(Date)
+    case number(Double)
+
+    public var displayText: String {
+        switch self {
+        case .string(let str): return str.prefix(10) + (str.count > 10 ? "…" : "")
+        case .date(let date): return DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .none)
+        case .number(let num): return String(format: "%.1f", num)
+        }
+    }
+}
+
 /// Extension providing default implementations for non-rendering behaviors.
 /// These can be overridden in conformers for custom logic.
 @available(iOS 13.0, *)
@@ -116,69 +115,47 @@ public extension NodeProtocol {
         set { }  // No-op default
     }
     
-    func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> Self {  // Default to nil
-            // Default: Ignore content if not overridden; just update position/velocity
-            self.with(position: position, velocity: velocity)  // Call existing with (assumes it exists)
-        }
-}
-
-
-
-/// Extension providing default rendering implementations using GraphicsContext.
-/// Override for custom node appearances (e.g., different shapes/colors).
-@available(iOS 15.0, *)
-@available(watchOS 9.0, *)
-public extension NodeProtocol {
-    func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-        AnyView(Canvas { context, _ in
-            self.draw(in: context, at: .zero, zoomScale: zoomScale, isSelected: isSelected)
-        })
+    func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self {
+        with(position: position, velocity: velocity)  // Default: Ignore content
     }
     
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
+    func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
+        AnyView(Text("Node \(label)"))  // Default simple view
+    }
+    
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
     func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-            print("Drawing node \(label) at \(position), isSelected: \(isSelected), zoom: \(zoomScale)")
-        
-            let scaledRadius = radius * zoomScale
-            let borderWidth: CGFloat = isSelected ? max(3.0, 5 * zoomScale) : 0  // Tweak: Min 3px for visibility (from prior advice)
-            let borderRadius = scaledRadius + borderWidth / 2
+        let scaledRadius = radius * zoomScale
+        let borderWidth: CGFloat = isSelected ? max(3.0, 4 * zoomScale) : 0
+        let borderRadius = scaledRadius + borderWidth / 2
 
-            if borderWidth > 0 {
-                let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
-                context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
-                print("Drew yellow border for node \(label), width: \(borderWidth)")  // Add this
-            }
-        
-        let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
-        context.fill(innerPath, with: .color(.red))
-        
-        // Always draw label (removed if isSelected)
-        let fontSize = UIFontMetrics.default.scaledValue(for: 12) * zoomScale
-        let labelKey = "\(label)-\(fontSize)"
-        let resolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
-            if let cached = nodeTextCache[labelKey] { return cached }
-            let text = Text("\(label)").foregroundColor(.white).font(.system(size: fontSize))
-            let resolved = context.resolve(text)
-            nodeCacheQueue.async(flags: .barrier) {
-                nodeTextCache[labelKey] = resolved
-                insertionOrder.append(labelKey)  // Add to order
-                if nodeTextCache.count > maxCacheSize {
-                    let oldestKey = insertionOrder.removeFirst()  // True oldest
-                    nodeTextCache.removeValue(forKey: oldestKey)
-                }
-            }
-            return resolved
+        // Draw border if selected
+        if borderWidth > 0 {
+            let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
+            context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
         }
-        let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))  // Fix: Use scaledRadius
-        
-        context.draw(resolved, at: labelPosition, anchor: .center)
-        
-         // Moved content drawing here (uses scaledRadius in scope)
+
+        // Draw node circle
+        let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
+        context.fill(innerPath, with: .color(fillColor))
+
+        // Draw label above node
+        let labelFontSize = max(8.0, 12.0 * zoomScale)
+        let labelResolved = context.resolve(Text("\(label)").foregroundColor(.white).font(.system(size: labelFontSize)))
+        let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
+        context.draw(labelResolved, at: labelPosition, anchor: .center)
+
+        // Draw content below node if present and zoomed in
         if let content = content, zoomScale > 0.5 {
-            let contentFontSize = max(6.0, 8.0 * zoomScale)
-            let contentKey = "\(content.displayText)-\(contentFontSize)"
-            let contentResolved: GraphicsContext.ResolvedText = nodeCacheQueue.sync {
-                if let cached = nodeTextCache[contentKey] { return cached }
-                let text = Text(content.displayText).foregroundColor(.gray).font(.system(size: contentFontSize))
+            let contentKey = "\(content.displayText)-\(zoomScale)"
+            let contentResolved: GraphicsContext.ResolvedText
+            if let cached = nodeTextCache[contentKey] {
+                contentResolved = cached
+            } else {
+                let text = Text(content.displayText).foregroundColor(.gray).font(.system(size: max(6.0, 8.0 * zoomScale)))
                 let resolved = context.resolve(text)
                 nodeCacheQueue.async(flags: .barrier) {
                     nodeTextCache[contentKey] = resolved
@@ -188,29 +165,30 @@ public extension NodeProtocol {
                         nodeTextCache.removeValue(forKey: oldestKey)
                     }
                 }
-                return resolved
+                contentResolved = resolved
             }
             let contentPosition = CGPoint(x: position.x, y: position.y + (scaledRadius + 5 * zoomScale))
             context.draw(contentResolved, at: contentPosition, anchor: .center)
         }
     }
 }
-
-public struct AnyNode: NodeProtocol, Equatable {
-    private var base: any NodeProtocol  // var for mutability (e.g., position, content setters)
+@available(iOS 13.0, *)
+@available(watchOS 9.0, *)
+public struct AnyNode: NodeProtocol {
+    private var base: any NodeProtocol  // var for mutability
     
     public var content: NodeContent? {
         get { base.content }
         set { base.content = newValue }
     }
     
-    public var unwrapped: any NodeProtocol { base }  // Public accessor to avoid private exposure
+    public var unwrapped: any NodeProtocol { base }
     
     public var id: NodeID { base.id }
     public var label: Int { base.label }
     public var position: CGPoint {
         get { base.position }
-        set { base.position = newValue }  // Now mutates var base
+        set { base.position = newValue }
     }
     public var velocity: CGPoint {
         get { base.velocity }
@@ -235,19 +213,17 @@ public struct AnyNode: NodeProtocol, Equatable {
         var newBase = base
         newBase.position = position
         newBase.velocity = velocity
-        newBase.content = base.content  // Preserve existing content
         return AnyNode(newBase)
     }
     
-    // Fixed: Use 'base' instead of 'box'; delegate and handle content mutation for usability
     public func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> AnyNode {
         var newBase = base
         newBase.position = position
         newBase.velocity = velocity
         if let content = content {
-            newBase.content = content  // Mutate content if provided (makes updates easy)
+            newBase.content = content
         }
-        return AnyNode(newBase)  // Re-wrap for polymorphism
+        return AnyNode(newBase)
     }
     
     public func handlingTap() -> Self {
@@ -258,7 +234,6 @@ public struct AnyNode: NodeProtocol, Equatable {
         base.shouldHideChildren()
     }
     
-    // Rendering methods: Forward to base
     @available(iOS 15.0, *)
     @available(watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
@@ -268,23 +243,23 @@ public struct AnyNode: NodeProtocol, Equatable {
     @available(iOS 15.0, *)
     @available(watchOS 9.0, *)
     public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        print("Drawing ToggleNode \(label) at \(position), isSelected: \(isSelected), zoom: \(zoomScale)")  // Add this
-                base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
+        #if DEBUG
+        print("Drawing node \(label) at \(position), isSelected: \(isSelected), zoom: \(zoomScale)")
+        #endif
+        base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
     }
     
-    // Equatable: Compare via id (adjust if your protocol uses different equality)
     public static func == (lhs: AnyNode, rhs: AnyNode) -> Bool {
-        lhs.id == rhs.id
+        lhs.id == rhs.id && lhs.position == rhs.position && lhs.velocity == rhs.velocity &&
+        lhs.isExpanded == rhs.isExpanded && lhs.content == rhs.content
     }
     
-    // Codable: Forward to NodeWrapper for polymorphic handling
     public init(from decoder: Decoder) throws {
         let wrapper = try NodeWrapper(from: decoder)
         self.base = wrapper.value
     }
     
     public func encode(to encoder: Encoder) throws {
-        // Wrap base in NodeWrapper and encode that
         let wrapper: NodeWrapper
         if let node = base as? Node {
             wrapper = .node(node)

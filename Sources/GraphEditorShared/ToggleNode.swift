@@ -35,14 +35,24 @@ public struct ToggleNode: NodeProtocol, Equatable {
     }
 
     public func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self {
-        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content)
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content ?? self.content)
     }
 
     public func handlingTap() -> Self {
         var updated = self
         updated.isExpanded.toggle()
-        updated.velocity = .zero
+        updated.velocity = .zero  // Reset to prevent immediate jumps
         return updated
+    }
+    
+    public func shouldHideChildren() -> Bool {
+        !isExpanded
+    }
+    
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
+    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
+        AnyView(Circle().fill(fillColor).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))  // Simple default
     }
 
     @available(iOS 15.0, *)
