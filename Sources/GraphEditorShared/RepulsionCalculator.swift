@@ -47,43 +47,43 @@ struct RepulsionCalculator {
     }
 
     private func repulsionForce(repellerPosition: CGPoint, queryPosition: CGPoint, mass: CGFloat = 1.0) -> CGPoint {
-        let dx = queryPosition.x - repellerPosition.x
-        let dy = queryPosition.y - repellerPosition.y
-        let distanceSquared = max(dx * dx + dy * dy, Constants.Physics.distanceEpsilon)
+        let deltaX = queryPosition.x - repellerPosition.x
+        let deltaY = queryPosition.y - repellerPosition.y
+        let distanceSquared = max(deltaX * deltaX + deltaY * deltaY, Constants.Physics.distanceEpsilon)
         let distance = sqrt(distanceSquared)
         let forceMagnitude = Constants.Physics.repulsion * mass / distanceSquared
-        return CGPoint(x: (dx / distance) * forceMagnitude, y: (dy / distance) * forceMagnitude)
+        return CGPoint(x: (deltaX / distance) * forceMagnitude, y: (deltaY / distance) * forceMagnitude)
     }
     
     private func quadtreeRepulsion(for node: any NodeProtocol, quadtree: Quadtree, theta: CGFloat) -> CGPoint {  // Added theta
         var force = CGPoint.zero
-        func calculateRepulsion(qt: Quadtree) {
-            if qt.children == nil {
-                for other in qt.nodes where other.id != node.id {
+        func calculateRepulsion(quadTree: Quadtree) {
+            if quadTree.children == nil {
+                for other in quadTree.nodes where other.id != node.id {
                     force += repulsionForce(repellerPosition: other.position, queryPosition: node.position, mass: 1.0)
                 }
                 return
             }
 
-            let dx = qt.centerOfMass.x - node.position.x
-            let dy = qt.centerOfMass.y - node.position.y
-            let distance = hypot(dx, dy)
-            let width = qt.bounds.width
+            let deltaX = quadTree.centerOfMass.x - node.position.x
+            let deltaY = quadTree.centerOfMass.y - node.position.y
+            let distance = hypot(deltaX, deltaY)
+            let width = quadTree.bounds.width
 
             if width / distance < theta && distance > 0 {  // Use theta
-                let approxForce = repulsionForce(repellerPosition: qt.centerOfMass, queryPosition: node.position, mass: qt.totalMass)
+                let approxForce = repulsionForce(repellerPosition: quadTree.centerOfMass, queryPosition: node.position, mass: quadTree.totalMass)
                 force += approxForce
             } else {
-                if let children = qt.children {
-                    calculateRepulsion(qt: children[0])
-                    calculateRepulsion(qt: children[1])
-                    calculateRepulsion(qt: children[2])
-                    calculateRepulsion(qt: children[3])
+                if let children = quadTree.children {
+                    calculateRepulsion(quadTree: children[0])
+                    calculateRepulsion(quadTree: children[1])
+                    calculateRepulsion(quadTree: children[2])
+                    calculateRepulsion(quadTree: children[3])
                 }
             }
         }
 
-        calculateRepulsion(qt: quadtree)
+        calculateRepulsion(quadTree: quadtree)
         return force
     }
 
