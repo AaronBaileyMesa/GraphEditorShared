@@ -5,7 +5,7 @@ import os  // For Logger
 
 private let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "storage")
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 14.0, watchOS 6.0, *)
 /// Error types for graph storage operations.
 public enum GraphStorageError: Error {
     case encodingFailed(Error)
@@ -16,7 +16,7 @@ public enum GraphStorageError: Error {
 }
 
 /// File-based JSON persistence conforming to GraphStorage.
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 14.0, watchOS 6.0, *)
 public class PersistenceManager: GraphStorage {
     private let fileName = "graphState.json"
     private let fileURL: URL
@@ -36,9 +36,7 @@ public class PersistenceManager: GraphStorage {
     // UPDATED: Made async (wrap sync ops in Task for non-blocking I/O)
     public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
         let wrapped = nodes.compactMap { node -> NodeWrapper? in
-            if let n = node as? Node { return .node(n) }
-            else if let tn = node as? ToggleNode { return .toggleNode(tn) }
-            else {
+            if let plainNode = node as? Node { return .node(plainNode) } else if let toggleNode = node as? ToggleNode { return .toggleNode(toggleNode) } else {
                 logger.error("Unsupported node type: \(String(describing: type(of: node))); skipping.")
                 return nil  // Skip instead of fatalError
             }
@@ -59,8 +57,8 @@ public class PersistenceManager: GraphStorage {
     
     // UPDATED: Made async
     public func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: fileURL.path) else {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: fileURL.path) else {
             logger.debug("No saved file; returning empty")
             return ([], [])
         }
@@ -83,9 +81,9 @@ public class PersistenceManager: GraphStorage {
     }
 
     public func clear() async throws {
-        let fm = FileManager.default
-        if fm.fileExists(atPath: fileURL.path) {
-            try fm.removeItem(at: fileURL)
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
             logger.debug("Cleared saved graph")
         }
     }
@@ -113,7 +111,7 @@ public class PersistenceManager: GraphStorage {
         try await Task {
             guard let data = UserDefaults.standard.data(forKey: "graphViewState") else { return nil }
             let state = try JSONDecoder().decode(ViewState.self, from: data)
-            return (offset: state.offset, zoomScale: state.zoomScale, selectedNodeID: state.selectedNodeID, selectedEdgeID: state.selectedEdgeID)
+            return (state.offset, state.zoomScale, state.selectedNodeID, state.selectedEdgeID)
         }.value
     }
 }
