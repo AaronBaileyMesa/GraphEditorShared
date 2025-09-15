@@ -64,6 +64,11 @@ public extension CGPoint {
         lhs = lhs + rhs
     }
     
+    static func /= (lhs: inout CGPoint, rhs: CGFloat) {
+            lhs.x /= rhs
+            lhs.y /= rhs
+        }
+    
     var magnitude: CGFloat {
         hypot(x, y)
     }

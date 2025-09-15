@@ -40,18 +40,18 @@ struct PositionUpdater {
                 let nearby = qt.queryNearby(position: newPosition, radius: minDist)
                 for other in nearby where other.id != node.id {
                     let delta = newPosition - other.position
-                    let d = hypot(delta.x, delta.y)
-                    if d < minDist && d > 0 {
-                        newPosition += (delta / d) * (minDist - d) / 2
+                    let distance = hypot(delta.x, delta.y)
+                    if distance < minDist && distance > 0 {
+                        newPosition += (delta / distance) * (minDist - distance) / 2
                     }
                 }
             } else {
                 // Fallback to original O(n^2) for small graphs
                 for other in nodes where other.id != node.id {
                     let delta = newPosition - other.position
-                    let d = hypot(delta.x, delta.y)
-                    if d < minDist && d > 0 {
-                        newPosition += (delta / d) * (minDist - d) / 2
+                    let distance = hypot(delta.x, delta.y)
+                    if distance < minDist && distance > 0 {
+                        newPosition += (delta / distance) * (minDist - distance) / 2
                     }
                 }
             }
@@ -81,9 +81,9 @@ struct PositionUpdater {
                     // Average tentative positions of collapsed parents
                     var avgPos = CGPoint.zero
                     for parentID in collapsedParents {
-                        avgPos = avgPos + tentativeUpdates[parentID]!.position
+                        avgPos += tentativeUpdates[parentID]!.position
                     }
-                    avgPos = avgPos / CGFloat(collapsedParents.count)
+                    avgPos /= CGFloat(collapsedParents.count) 
                     newPosition = avgPos
                     newVelocity = .zero
                 }

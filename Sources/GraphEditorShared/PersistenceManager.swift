@@ -33,7 +33,6 @@ public class PersistenceManager: GraphStorage {
         let viewState: ViewState?  // Embed view state (optional)
     }
     
-    // UPDATED: Made async (wrap sync ops in Task for non-blocking I/O)
     public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
         let wrapped = nodes.compactMap { node -> NodeWrapper? in
             if let plainNode = node as? Node { return .node(plainNode) } else if let toggleNode = node as? ToggleNode { return .toggleNode(toggleNode) } else {
@@ -55,7 +54,6 @@ public class PersistenceManager: GraphStorage {
         }
     }
     
-    // UPDATED: Made async
     public func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: fileURL.path) else {
@@ -88,30 +86,14 @@ public class PersistenceManager: GraphStorage {
         }
     }
     
-    // Updated helper struct (unchanged)
-    struct ViewState: Codable {
-        let offset: CGPoint
-        let zoomScale: CGFloat
-        let selectedNodeID: UUID?  // NodeID is UUID from GraphTypes.swift
-        let selectedEdgeID: UUID?  // Matches @Published in GraphViewModel
+    public func saveViewState(_ viewState: ViewState) async throws {
+        let data = try JSONEncoder().encode(viewState)
+        UserDefaults.standard.set(data, forKey: "graphViewState")
+        UserDefaults.standard.synchronize()  // Ensure immediate write
     }
 
-    // UPDATED: Made async for consistency (though UserDefaults is sync)
-    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) async throws {
-        try await Task {
-            let state = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
-            let data = try JSONEncoder().encode(state)
-            UserDefaults.standard.set(data, forKey: "graphViewState")
-            UserDefaults.standard.synchronize()  // Ensure immediate write
-        }.value
-    }
-
-    // UPDATED: Made async
-    public func loadViewState() async throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
-        try await Task {
-            guard let data = UserDefaults.standard.data(forKey: "graphViewState") else { return nil }
-            let state = try JSONDecoder().decode(ViewState.self, from: data)
-            return (state.offset, state.zoomScale, state.selectedNodeID, state.selectedEdgeID)
-        }.value
+    public func loadViewState() async throws -> ViewState? {
+        guard let data = UserDefaults.standard.data(forKey: "graphViewState") else { return nil }
+        return try JSONDecoder().decode(ViewState.self, from: data)
     }
 }

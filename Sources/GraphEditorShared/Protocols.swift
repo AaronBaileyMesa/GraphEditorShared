@@ -5,8 +5,17 @@
 //  Created by handcart on 8/1/25.
 //
 
-import SwiftUI
 // Sources/GraphEditorShared/Protocols.swift
+
+import SwiftUI
+
+@available(iOS 13.0, watchOS 6.0, *)
+public struct ViewState: Codable {
+    public var offset: CGPoint
+    public var zoomScale: CGFloat
+    public var selectedNodeID: UUID?
+    public var selectedEdgeID: UUID?
+}
 
 @available(iOS 13.0, watchOS 6.0, *)
 public protocol GraphStorage {
@@ -15,21 +24,16 @@ public protocol GraphStorage {
     /// Loads the graph nodes and edges, throwing on failure (e.g., file not found or decoding errors).
     func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge])
     func clear() async throws  // Unchanged
-    func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) async throws
-    func loadViewState() async throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)?
+    func saveViewState(_ viewState: ViewState) async throws
+    func loadViewState() async throws -> ViewState?
 }
 
-// In GraphEditorShared/Sources/GraphEditorShared/Protocols.swift (add inside protocol GraphStorage)
-
-
-
-// Add a protocol extension for defaults (at bottom of file)
 extension GraphStorage {
-    func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) throws {
+    func saveViewState(_ viewState: ViewState) throws {
         // Default: Do nothing (for storages that don't support view state)
     }
     
-    func loadViewState() throws -> (offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?)? {
+    func loadViewState() throws -> ViewState? {
         return nil  // Default: No state
     }
 }
