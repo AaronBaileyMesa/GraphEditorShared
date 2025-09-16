@@ -27,12 +27,12 @@ struct GraphEditorSharedTests {
     @Test func testGraphEdgeInitializationAndEquality() {
         let id = UUID()
         let from = UUID()
-        let to = UUID()
-        let edge1 = GraphEdge(id: id, from: from, to: to)
-        let edge2 = GraphEdge(id: id, from: from, to: to)
+        let target = UUID()
+        let edge1 = GraphEdge(id: id, from: from, target: target)
+        let edge2 = GraphEdge(id: id, from: from, target: target)
         #expect(edge1 == edge2, "Edges with same properties should be equal")
         
-        let edge3 = GraphEdge(from: to, to: from)
+        let edge3 = GraphEdge(from: target, target: from)
         #expect(edge1 != edge3, "Edges with swapped from/to should not be equal")
     }
     
@@ -47,14 +47,14 @@ struct GraphEditorSharedTests {
     }
     
     @Test func testDistanceFunction() {
-        let a = CGPoint(x: 0, y: 0)
-        let b = CGPoint(x: 3, y: 4)
-        #expect(distance(a, b) == 5, "Distance should be calculated correctly")
+        let fromPoint = CGPoint(x: 0, y: 0)
+        let targetPoint = CGPoint(x: 3, y: 4)
+        #expect(distance(fromPoint, targetPoint) == 5, "Distance should be calculated correctly")
     }
     
     @Test func testGraphStateInitialization() {
         let nodes: [any NodeProtocol] = [Node(id: UUID(), label: 1, position: .zero)]
-        let edges = [GraphEdge(from: UUID(), to: UUID())]
+        let edges = [GraphEdge(from: UUID(), target: UUID())]
         let state = GraphState(nodes: nodes, edges: edges)
         #expect(state.nodes.map { $0.id } == nodes.map { $0.id }, "Nodes should match")
         #expect(state.edges == edges, "Edges should match")
@@ -88,7 +88,7 @@ struct GraphEditorSharedTests {
     }
     
     @Test func testGraphEdgeCodingRoundTrip() throws {
-        let edge = GraphEdge(id: UUID(), from: UUID(), to: UUID())
+        let edge = GraphEdge(id: UUID(), from: UUID(), target: UUID())
         let encoder = JSONEncoder()
         let data = try encoder.encode(edge)
         let decoder = JSONDecoder()
@@ -218,8 +218,8 @@ struct GraphEditorSharedTests {
     }
     
     @Test func testDirectedEdgeCreation() {
-        let edge = GraphEdge(from: UUID(), to: UUID())
-        #expect(edge.from != edge.to, "Directed edge has distinct from/to")
+        let edge = GraphEdge(from: UUID(), target: UUID())
+        #expect(edge.from != edge.target, "Directed edge has distinct from/to")
     }
     
     @Test func testAsymmetricAttraction() throws {
@@ -229,7 +229,7 @@ struct GraphEditorSharedTests {
         let toID = UUID()
         var nodes: [any NodeProtocol] = [Node(id: fromID, label: 1, position: CGPoint(x: 0, y: 0)),
                      Node(id: toID, label: 2, position: CGPoint(x: 200, y: 0))]
-        let edges = [GraphEdge(from: fromID, to: toID)]
+        let edges = [GraphEdge(from: fromID, target: toID)]
         let (updatedNodes, _) = engine.simulationStep(nodes: nodes, edges: edges)
         nodes = updatedNodes
         #expect(abs(nodes[0].position.x - 0) < 1, "From node position unchanged in asymmetric")

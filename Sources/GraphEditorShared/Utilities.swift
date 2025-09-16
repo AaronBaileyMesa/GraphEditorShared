@@ -89,8 +89,8 @@ public extension CGSize {
 }
 
 // Shared utility functions
-public func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
-    hypot(a.x - b.x, a.y - b.y)
+public func distance(_ fromPoint: CGPoint, _ targetPoint: CGPoint) -> CGFloat {
+    hypot(fromPoint.x - targetPoint.x, fromPoint.y - targetPoint.y)
 }
 
 public extension Array where Element: NodeProtocol {
