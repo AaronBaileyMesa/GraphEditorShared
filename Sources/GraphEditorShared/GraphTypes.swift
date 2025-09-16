@@ -141,10 +141,10 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
         case id, from, to, type
     }
     
-    public init(id: NodeID = NodeID(), from: NodeID, to: NodeID, type: EdgeType = .association) {
+    public init(id: NodeID = NodeID(), from: NodeID, target: NodeID, type: EdgeType = .association) {
         self.id = id
         self.from = from
-        self.target = to
+        self.target = target
         self.type = type
     }
     

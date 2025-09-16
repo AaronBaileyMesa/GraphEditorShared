@@ -246,7 +246,7 @@ extension GraphModel {
     public func wouldCreateCycle(withNewEdgeFrom from: NodeID, target: NodeID, type: EdgeType) -> Bool {
         guard type == .hierarchy else { return false }
         var tempEdges = edges.filter { $0.type == .hierarchy }
-        tempEdges.append(GraphEdge(from: from, to: target, type: type))
+        tempEdges.append(GraphEdge(from: from, target: target, type: type))
         return !isAcyclic(edges: tempEdges)
     }
 
@@ -276,7 +276,7 @@ extension GraphModel {
             print("Cannot add edge: Would create cycle in hierarchy")
             return
         }
-        edges.append(GraphEdge(from: from, to: target, type: type))
+        edges.append(GraphEdge(from: from, target: target, type: type))
         objectWillChange.send()
         await startSimulation()
     }

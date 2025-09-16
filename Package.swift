@@ -9,7 +9,7 @@ let package = Package(
     products: [
         .library(
             name: "GraphEditorShared",
-            targets: ["GraphEditorShared"]),
+            targets: ["GraphEditorShared"])
     ],
     targets: [
         .target(
@@ -20,6 +20,6 @@ let package = Package(
             name: "GraphEditorSharedTests",
             dependencies: ["GraphEditorShared"],
             path: "Tests/GraphEditorSharedTests"  // Explicitly set path if needed
-        ),
+        )
     ]
 )

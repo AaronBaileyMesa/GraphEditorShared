@@ -164,7 +164,7 @@ public class Quadtree {  // Public for consistency and test access
             // Leaf: Compute exact repulsion from each node
             var force: CGPoint = .zero
             for leafNode in nodes where leafNode.id != queryNode.id {
-                force += repulsionForce(from: leafNode.position, to: queryNode.position)
+                force += repulsionForce(from: leafNode.position, target: queryNode.position)
             }
             return force
         }
@@ -173,7 +173,7 @@ public class Quadtree {  // Public for consistency and test access
         let delta = centerOfMass - queryNode.position
         let dist = max(hypot(delta.x, delta.y), Constants.Physics.distanceEpsilon)  // Fixed: Use hypot instead of .magnitude
         if (bounds.width / dist) < theta || children == nil {
-            return repulsionForce(from: centerOfMass, to: queryNode.position, mass: totalMass)
+            return repulsionForce(from: centerOfMass, target: queryNode.position, mass: totalMass)
         } else {
             var force: CGPoint = .zero
             if let children = children {
@@ -214,9 +214,9 @@ public class Quadtree {  // Public for consistency and test access
         return results
     }
     
-    private func repulsionForce(from: CGPoint, to: CGPoint, mass: CGFloat = 1) -> CGPoint {
-        let deltaX = to.x - from.x
-        let deltaY = to.y - from.y
+    private func repulsionForce(from: CGPoint, target: CGPoint, mass: CGFloat = 1) -> CGPoint {
+        let deltaX = target.x - from.x
+        let deltaY = target.y - from.y
         let distSquared = deltaX * deltaX + deltaY * deltaY
         let epsilonSquared = Constants.Physics.distanceEpsilon * Constants.Physics.distanceEpsilon
         if distSquared < epsilonSquared {
