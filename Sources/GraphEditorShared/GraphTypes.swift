@@ -134,7 +134,7 @@ public enum EdgeType: String, Codable {
 public struct GraphEdge: Identifiable, Equatable, Codable {
     public let id: NodeID
     public let from: NodeID
-    public let to: NodeID
+    public let target: NodeID
     public let type: EdgeType  // Required type
     
     enum CodingKeys: String, CodingKey {
@@ -144,7 +144,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
     public init(id: NodeID = NodeID(), from: NodeID, to: NodeID, type: EdgeType = .association) {
         self.id = id
         self.from = from
-        self.to = to
+        self.target = to
         self.type = type
     }
     
@@ -152,7 +152,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(NodeID.self, forKey: .id)
         from = try container.decode(NodeID.self, forKey: .from)
-        to = try container.decode(NodeID.self, forKey: .to)
+        target = try container.decode(NodeID.self, forKey: .to)
         type = try container.decode(EdgeType.self, forKey: .type)
     }
     
@@ -160,12 +160,12 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(from, forKey: .from)
-        try container.encode(to, forKey: .to)
+        try container.encode(target, forKey: .to)
         try container.encode(type, forKey: .type)
     }
     
     public static func == (lhs: GraphEdge, rhs: GraphEdge) -> Bool {
-        lhs.id == rhs.id && lhs.from == rhs.from && lhs.to == rhs.to && lhs.type == rhs.type
+        lhs.id == rhs.id && lhs.from == rhs.from && lhs.target == rhs.target && lhs.type == rhs.type
     }
 }
 

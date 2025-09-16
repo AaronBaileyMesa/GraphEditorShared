@@ -21,7 +21,7 @@ struct AttractionCalculator {
         var updatedForces = forces
         for edge in edges {
             guard let fromNode = nodes.first(where: { $0.id == edge.from }),
-                  let toNode = nodes.first(where: { $0.id == edge.to }) else { continue }
+                  let toNode = nodes.first(where: { $0.id == edge.target }) else { continue }
             let deltaX = toNode.position.x - fromNode.position.x
             let deltaY = toNode.position.y - fromNode.position.y
             let dist = max(hypot(deltaX, deltaY), Constants.Physics.distanceEpsilon)

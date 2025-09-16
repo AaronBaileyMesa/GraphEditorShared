@@ -31,7 +31,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         var toHide: [NodeID] = []
 
         for node in nodes where node.unwrapped.shouldHideChildren() {
-            let children = edges.filter { $0.from == node.id && $0.type == .hierarchy }.map { $0.to }
+            let children = edges.filter { $0.from == node.id && $0.type == .hierarchy }.map { $0.target }
             toHide.append(contentsOf: children)
         }
 
@@ -127,7 +127,7 @@ extension GraphModel {
     private func syncCollapsedPositions() {
         for parentIndex in 0..<nodes.count {
             if let toggle = nodes[parentIndex].unwrapped as? ToggleNode, !toggle.isExpanded {
-                let children = edges.filter { $0.from == nodes[parentIndex].id && $0.type == .hierarchy }.map { $0.to }
+                let children = edges.filter { $0.from == nodes[parentIndex].id && $0.type == .hierarchy }.map { $0.target }
                 for (index, childID) in children.enumerated() {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
                     var child = nodes[childIndex]
@@ -161,7 +161,7 @@ extension GraphModel {
 
     public func visibleEdges() -> [GraphEdge] {
         let hidden = hiddenNodeIDs
-        return edges.filter { !hidden.contains($0.from) && !hidden.contains($0.to) }
+        return edges.filter { !hidden.contains($0.from) && !hidden.contains($0.target) }
     }
 
     public func boundingBox() -> CGRect {
@@ -187,7 +187,7 @@ extension GraphModel {
     private func buildRoots() -> [any NodeProtocol] {
         var incoming = Set<NodeID>()
         for edge in edges {
-            incoming.insert(edge.to)
+            incoming.insert(edge.target)
         }
         return nodes.filter { !incoming.contains($0.id) }.map { $0.unwrapped }
     }
@@ -255,8 +255,8 @@ extension GraphModel {
         var inDegree: [NodeID: Int] = [:]
         nodes.forEach { inDegree[$0.id] = 0 }
         for edge in edges {
-            adj[edge.from, default: []].append(edge.to)
-            inDegree[edge.to, default: 0] += 1
+            adj[edge.from, default: []].append(edge.target)
+            inDegree[edge.target, default: 0] += 1
         }
         var queue = nodes.filter { inDegree[$0.id] == 0 }.map { $0.id }
         var count = 0
@@ -320,7 +320,7 @@ extension GraphModel {
 
     public func deleteNode(withID id: NodeID) async {
         nodes.removeAll { $0.id == id }
-        edges.removeAll { $0.from == id || $0.to == id }
+        edges.removeAll { $0.from == id || $0.target == id }
         objectWillChange.send()
         await startSimulation()
     }
@@ -376,7 +376,7 @@ extension GraphModel {
         var adj = [NodeID: [NodeID]]()
         let filteredEdges = edgeType != nil ? edges.filter { $0.type == edgeType! } : edges
         for edge in filteredEdges {
-            adj[edge.from, default: []].append(edge.to)
+            adj[edge.from, default: []].append(edge.target)
         }
         return adj
     }
@@ -395,12 +395,12 @@ extension GraphModel {
     }
 
     public func isBidirectionalBetween(_ id1: NodeID, _ id2: NodeID) -> Bool {
-        edges.contains(where: { $0.from == id1 && $0.to == id2 }) &&
-        edges.contains(where: { $0.from == id2 && $0.to == id1 })
+        edges.contains(where: { $0.from == id1 && $0.target == id2 }) &&
+        edges.contains(where: { $0.from == id2 && $0.target == id1 })
     }
 
     public func edgesBetween(_ id1: NodeID, _ id2: NodeID) -> [GraphEdge] {
-        edges.filter { ($0.from == id1 && $0.to == id2) || ($0.from == id2 && $0.to == id1) }
+        edges.filter { ($0.from == id1 && $0.target == id2) || ($0.from == id2 && $0.target == id1) }
     }
 
     public func handleTap(on nodeID: NodeID) async {
@@ -409,7 +409,7 @@ extension GraphModel {
         let updatedNode = oldNode.handlingTap()
         nodes[index] = updatedNode
 
-        let children = edges.filter { $0.from == nodeID && $0.type == .hierarchy }.map { $0.to }
+        let children = edges.filter { $0.from == nodeID && $0.type == .hierarchy }.map { $0.target }
 
         if let toggleNode = updatedNode.unwrapped as? ToggleNode {
             if toggleNode.isExpanded {
@@ -450,20 +450,20 @@ extension GraphModel {
         var desc = "Graph with \(nodes.count) nodes and \(edgeCount) directed \(edgeWord)."
         if let selectedEdgeID = selectedEdgeID, let selectedEdge = edges.first(where: { $0.id == selectedEdgeID }),
            let fromNode = nodes.first(where: { $0.id == selectedEdge.from })?.unwrapped,
-           let toNode = nodes.first(where: { $0.id == selectedEdge.to })?.unwrapped {
+           let toNode = nodes.first(where: { $0.id == selectedEdge.target })?.unwrapped {
             desc += " Directed edge from node \(fromNode.label) to node \(toNode.label) selected."
         } else if let selectedID = selectedID, let selectedNode = nodes.first(where: { $0.id == selectedID })?.unwrapped {
             let outgoingLabels = edges
                 .filter { $0.from == selectedID }
                 .compactMap { edge in
-                    let toID = edge.to
+                    let toID = edge.target
                     return nodes.first { $0.id == toID }?.unwrapped.label
                 }
                 .sorted()
                 .map { String($0) }
                 .joined(separator: ", ")
             let incomingLabels = edges
-                .filter { $0.to == selectedID }
+                .filter { $0.target == selectedID }
                 .compactMap { edge in
                     let fromID = edge.from
                     return nodes.first { $0.id == fromID }?.unwrapped.label

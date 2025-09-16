@@ -53,7 +53,7 @@ struct PositionUpdater {
     private func buildParentMap(from edges: [GraphEdge]) -> [NodeID: [NodeID]] {
         var parentMap = [NodeID: [NodeID]]()
         for edge in edges {
-            parentMap[edge.to, default: []].append(edge.from)
+            parentMap[edge.target, default: []].append(edge.from)
         }
         return parentMap
     }
