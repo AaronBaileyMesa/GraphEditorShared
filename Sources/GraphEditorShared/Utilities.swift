@@ -111,7 +111,6 @@ public func centroid(of nodes: [any NodeProtocol]) -> CGPoint? {
     return CGPoint(x: totals.x / CGFloat(nodes.count), y: totals.y / CGFloat(nodes.count))
 }
 
-import CoreGraphics
 import SwiftUI  // For GeometryProxy if needed
 
 public struct CoordinateTransformer {
