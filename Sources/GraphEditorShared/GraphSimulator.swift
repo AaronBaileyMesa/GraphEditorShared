@@ -7,10 +7,10 @@ import os.log  // For logging if needed
 import WatchKit  // Only if using haptics; otherwise remove
 #endif
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 /// Manages physics simulation loops for graph updates.
 class GraphSimulator {
-    private var simulationTask: Task<Void, Never>? = nil
+    private var simulationTask: Task<Void, Never>?
     private var recentVelocities: [CGFloat] = []
     private let velocityChangeThreshold: CGFloat = 0.01
     private let velocityHistoryCount = 5
@@ -64,7 +64,13 @@ class GraphSimulator {
                 #endif
                 
                 // Detach heavy computation to background (nonisolated)
-                let (updatedNodes, shouldContinue, totalVelocity): ([any NodeProtocol], Bool, Double) = await Task.detached {
+                struct SimulationStepResult {
+                    let updatedNodes: [any NodeProtocol]
+                    let shouldContinue: Bool
+                    let totalVelocity: Double
+                }
+                
+                let result: SimulationStepResult = await Task.detached {
                     let nodes = self.getNodes()
                     let visibleNodes = self.getVisibleNodes()
                     let visibleEdges = self.getVisibleEdges()
@@ -84,17 +90,17 @@ class GraphSimulator {
                     }
                     
                     let totalVel = tempNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
-                    return (tempNodes, stepActive, totalVel)
+                    return SimulationStepResult(updatedNodes: tempNodes, shouldContinue: stepActive, totalVelocity: totalVel)
                 }.value  // Await the detached task's result
                 
                 // Now back on main: Update model safely
-                self.setNodes(updatedNodes)
+                self.setNodes(result.updatedNodes)
                 
-                if !shouldContinue || totalVelocity < Constants.Physics.velocityThreshold * CGFloat(nodeCount) {
+                if !result.shouldContinue || result.totalVelocity < Constants.Physics.velocityThreshold * CGFloat(nodeCount) {
                     break
                 }
                 
-                recentVelocities.append(totalVelocity)
+                recentVelocities.append(result.totalVelocity)
                 if recentVelocities.count > velocityHistoryCount {
                     recentVelocities.removeFirst()
                 }

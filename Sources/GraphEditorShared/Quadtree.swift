@@ -108,19 +108,16 @@ public class Quadtree {  // Public for consistency and test access
             children[index].batchInsert(childBatches[index], depth: depth)
         }
     }
+    
     private func aggregateFromChildren() {
         // Recompute totalMass and centerOfMass from children (bottom-up weighted average)
         centerOfMass = .zero
         totalMass = 0
         guard let children = children else { return }
-        for child in children {
-            if child.totalMass > 0 {
-                let newTotalMass = totalMass + child.totalMass
-                if newTotalMass > 0 {  // Avoid division by zero
-                    centerOfMass = (centerOfMass * totalMass + child.centerOfMass * child.totalMass) / newTotalMass
-                }
-                totalMass = newTotalMass
-            }
+        for child in children where child.totalMass > 0 {
+            let newTotalMass = totalMass + child.totalMass
+            centerOfMass = (centerOfMass * totalMass + child.centerOfMass * child.totalMass) / newTotalMass
+            totalMass = newTotalMass
         }
     }
     

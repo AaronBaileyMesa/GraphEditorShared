@@ -118,10 +118,10 @@ public class PhysicsEngine {
         let centroid = CGPoint(x: totalX / CGFloat(nodes.count), y: totalY / CGFloat(nodes.count))
         
         // Create updated nodes with translation
-        let dx = targetCenter.x - centroid.x
-        let dy = targetCenter.y - centroid.y
+        let deltaX = targetCenter.x - centroid.x
+        let deltaY = targetCenter.y - centroid.y
         return nodes.map { node in
-            let newPosition = CGPoint(x: node.position.x + dx, y: node.position.y + dy)
+            let newPosition = CGPoint(x: node.position.x + deltaX, y: node.position.y + deltaY)
             return node.with(position: newPosition, velocity: node.velocity)
         }
     }

@@ -102,8 +102,7 @@ public extension NodeProtocol {
     var fillColor: Color { .red }  // Default to red for all nodes
     
     var isExpanded: Bool {
-        get { true }  // Default: Always expanded (non-toggle nodes ignore)
-        set { }  // No-op setter for non-mutating types
+        true  // Default: Always expanded (non-toggle nodes ignore)
     }
     
     func shouldHideChildren() -> Bool {
@@ -111,8 +110,7 @@ public extension NodeProtocol {
     }
     
     var content: NodeContent? {
-        get { nil }
-        set { }  // No-op default
+       nil
     }
     
     func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self {

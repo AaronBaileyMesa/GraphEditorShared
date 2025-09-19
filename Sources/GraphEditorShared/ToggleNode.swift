@@ -17,7 +17,7 @@ public struct ToggleNode: NodeProtocol, Equatable {
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = Constants.App.nodeModelRadius  // Use constant for consistency
     public var isExpanded: Bool = true
-    public var content: NodeContent? = nil
+    public var content: NodeContent?
     public var fillColor: Color { isExpanded ? .green : .red }
 
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, content: NodeContent? = nil) {
