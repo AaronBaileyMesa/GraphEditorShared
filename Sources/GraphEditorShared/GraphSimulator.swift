@@ -41,6 +41,12 @@ class GraphSimulator {
         self.getVisibleEdges = getVisibleEdges
     }
     
+    struct SimulationStepResult {
+        let updatedNodes: [any NodeProtocol]
+        let shouldContinue: Bool
+        let totalVelocity: CGFloat
+    }
+    
     @MainActor
     func startSimulation() async {
         #if os(watchOS)
@@ -57,68 +63,75 @@ class GraphSimulator {
             baseInterval *= 2.0
         }
         
-        simulationTask = Task {  // This Task inherits @MainActor, but we'll detach inner work
-            while !Task.isCancelled {
-                #if os(watchOS)
-                if WKApplication.shared().applicationState != .active { break }
-                #endif
-                
-                // Detach heavy computation to background (nonisolated)
-                struct SimulationStepResult {
-                    let updatedNodes: [any NodeProtocol]
-                    let shouldContinue: Bool
-                    let totalVelocity: Double
-                }
-                
-                let result: SimulationStepResult = await Task.detached {
-                    let nodes = self.getNodes()
-                    let visibleNodes = self.getVisibleNodes()
-                    let visibleEdges = self.getVisibleEdges()
-                    let (forces, quadtree) = self.physicsEngine.repulsionCalculator.computeRepulsions(nodes: visibleNodes)
-                    var updatedForces = forces
-                    updatedForces = self.physicsEngine.attractionCalculator.applyAttractions(forces: updatedForces, edges: visibleEdges, nodes: visibleNodes)
-                    updatedForces = self.physicsEngine.centeringCalculator.applyCentering(forces: updatedForces, nodes: visibleNodes)
-                    
-                    var tempNodes = nodes
-                    var stepActive = false
-                    let subSteps = nodes.count < 5 ? 2 : (nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1))
-                    for _ in 0..<subSteps {
-                        let (updated, active) = self.physicsEngine.positionUpdater.updatePositionsAndVelocities(nodes: tempNodes, forces: updatedForces, edges: self.getEdges(), quadtree: quadtree)
-                        tempNodes = updated
-                        stepActive = stepActive || active
-                        
-                    }
-                    
-                    let totalVel = tempNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
-                    return SimulationStepResult(updatedNodes: tempNodes, shouldContinue: stepActive, totalVelocity: totalVel)
-                }.value  // Await the detached task's result
-                
-                // Now back on main: Update model safely
-                self.setNodes(result.updatedNodes)
-                
-                if !result.shouldContinue || result.totalVelocity < Constants.Physics.velocityThreshold * CGFloat(nodeCount) {
-                    break
-                }
-                
-                recentVelocities.append(result.totalVelocity)
-                if recentVelocities.count > velocityHistoryCount {
-                    recentVelocities.removeFirst()
-                }
-                
-                if recentVelocities.count == velocityHistoryCount {
-                    let maxVel = recentVelocities.max() ?? 1.0
-                    let minVel = recentVelocities.min() ?? 0.0
-                    let relativeChange = (maxVel - minVel) / maxVel
-                    if relativeChange < velocityChangeThreshold {
-                        break
-                    }
-                }
-                
-                try? await Task.sleep(for: .seconds(baseInterval))
-            }
-            self.onStable?()
+        simulationTask = Task {
+            await self.runSimulationLoop(baseInterval: baseInterval, nodeCount: nodeCount)
         }
         await simulationTask?.value
+    }
+    
+    private func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
+        while !Task.isCancelled {
+            #if os(watchOS)
+            if await WKApplication.shared().applicationState != .active { break }
+            #endif
+            
+            let result: SimulationStepResult = await Task.detached {
+                return self.computeSimulationStep()
+            }.value
+            
+            self.setNodes(result.updatedNodes)
+            
+            if self.shouldStopSimulation(result: result, nodeCount: nodeCount) {
+                break
+            }
+            
+            try? await Task.sleep(for: .seconds(baseInterval))
+        }
+        self.onStable?()
+    }
+    
+    private nonisolated func computeSimulationStep() -> SimulationStepResult {
+        let nodes = self.getNodes()
+        let visibleNodes = self.getVisibleNodes()
+        let visibleEdges = self.getVisibleEdges()
+        let (forces, quadtree) = self.physicsEngine.repulsionCalculator.computeRepulsions(nodes: visibleNodes)
+        var updatedForces = forces
+        updatedForces = self.physicsEngine.attractionCalculator.applyAttractions(forces: updatedForces, edges: visibleEdges, nodes: visibleNodes)
+        updatedForces = self.physicsEngine.centeringCalculator.applyCentering(forces: updatedForces, nodes: visibleNodes)
+        
+        var tempNodes = nodes
+        var stepActive = false
+        let subSteps = nodes.count < 5 ? 2 : (nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1))
+        for _ in 0..<subSteps {
+            let (updated, active) = self.physicsEngine.positionUpdater.updatePositionsAndVelocities(nodes: tempNodes, forces: updatedForces, edges: self.getEdges(), quadtree: quadtree)
+            tempNodes = updated
+            stepActive = stepActive || active
+        }
+        
+        let totalVel = tempNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+        return SimulationStepResult(updatedNodes: tempNodes, shouldContinue: stepActive, totalVelocity: totalVel)
+    }
+    
+    private func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) -> Bool {
+        if !result.shouldContinue || result.totalVelocity < Constants.Physics.velocityThreshold * CGFloat(nodeCount) {
+            return true
+        }
+        
+        recentVelocities.append(result.totalVelocity)
+        if recentVelocities.count > velocityHistoryCount {
+            recentVelocities.removeFirst()
+        }
+        
+        if recentVelocities.count == velocityHistoryCount {
+            let maxVel = recentVelocities.max() ?? 1.0
+            let minVel = recentVelocities.min() ?? 0.0
+            let relativeChange = (maxVel - minVel) / maxVel
+            if relativeChange < velocityChangeThreshold {
+                return true
+            }
+        }
+        
+        return false
     }
     
     func stopSimulation() async {
