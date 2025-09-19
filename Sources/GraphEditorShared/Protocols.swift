@@ -28,6 +28,7 @@ public protocol GraphStorage {
     func loadViewState() async throws -> ViewState?
 }
 
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphStorage {
     func saveViewState(_ viewState: ViewState) throws {
         // Default: Do nothing (for storages that don't support view state)
