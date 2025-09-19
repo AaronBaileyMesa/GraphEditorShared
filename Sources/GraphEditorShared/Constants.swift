@@ -4,8 +4,6 @@
 //
 //  Created by handcart on 8/6/25.
 //
-
-
 // Sources/GraphEditorShared/Constants.swift
 
 import CoreGraphics

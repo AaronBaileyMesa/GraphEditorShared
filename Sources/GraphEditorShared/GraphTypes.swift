@@ -13,7 +13,7 @@ public struct Node: NodeProtocol, Equatable {
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
     public var isExpanded: Bool = true  // Satisfy protocol (always true for basic Node)
-    public var content: NodeContent? = nil
+    public var content: NodeContent?
     public var fillColor: Color { .red }  // Explicit red for basic nodes
 
     // Init with all params
@@ -123,7 +123,6 @@ public struct Node: NodeProtocol, Equatable {
     }
 }
 
-
 // New: EdgeType enum
 public enum EdgeType: String, Codable {
     case hierarchy  // DAG-enforced, directed
@@ -138,7 +137,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
     public let type: EdgeType  // Required type
     
     enum CodingKeys: String, CodingKey {
-        case id, from, to, type
+        case id, from, target, type
     }
     
     public init(id: NodeID = NodeID(), from: NodeID, target: NodeID, type: EdgeType = .association) {
@@ -152,7 +151,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(NodeID.self, forKey: .id)
         from = try container.decode(NodeID.self, forKey: .from)
-        target = try container.decode(NodeID.self, forKey: .to)
+        target = try container.decode(NodeID.self, forKey: .target)
         type = try container.decode(EdgeType.self, forKey: .type)
     }
     
@@ -160,7 +159,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(from, forKey: .from)
-        try container.encode(target, forKey: .to)
+        try container.encode(target, forKey: .target)
         try container.encode(type, forKey: .type)
     }
     
