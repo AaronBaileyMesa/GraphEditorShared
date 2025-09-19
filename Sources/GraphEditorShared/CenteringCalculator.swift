@@ -11,7 +11,7 @@ import CoreGraphics
 struct CenteringCalculator {
     let simulationBounds: CGSize
 
-    @available(iOS 13.0, *)
+    @available(iOS 16.0, *)
     func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
         var updatedForces = forces
         let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)

@@ -8,7 +8,7 @@
 import SwiftUI
 import Foundation
 
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct ToggleNode: NodeProtocol, Equatable {
     public let id: NodeID
@@ -49,13 +49,13 @@ public struct ToggleNode: NodeProtocol, Equatable {
         !isExpanded
     }
     
-    @available(iOS 15.0, *)
+    @available(iOS 16.0, *)
     @available(watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         AnyView(Circle().fill(fillColor).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))  // Simple default
     }
 
-    @available(iOS 15.0, *)
+    @available(iOS 16.0, *)
     @available(watchOS 9.0, *)
     public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
         let scaledRadius = radius * zoomScale

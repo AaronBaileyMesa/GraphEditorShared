@@ -8,7 +8,7 @@
 import Foundation  // For hypot, CGFloat, etc.
 import CoreGraphics  // For CGPoint, CGVector (used internally)
 
-@available(iOS 13.0, watchOS 9.0, *)
+@available(iOS 16.0, watchOS 9.0, *)
 struct AttractionCalculator {
     let symmetricFactor: CGFloat
     let useAsymmetric: Bool  // New: Controls full asymmetry for hierarchy edges

@@ -10,7 +10,7 @@ import SwiftUI
 import Foundation
 import CoreGraphics
 
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public class PhysicsEngine {
     private let physicsLogger = OSLog(subsystem: "io.handcart.GraphEditor", category: "physics")

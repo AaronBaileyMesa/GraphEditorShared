@@ -11,7 +11,7 @@ private var insertionOrder: [String] = []  // New: Track order
 
 /// Protocol for graph nodes, enabling polymorphism for types like standard or toggleable nodes.
 /// Conformers must provide core properties; defaults are available for common behaviors.
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeID {
     /// Unique identifier for the node.
@@ -90,7 +90,7 @@ public enum NodeContent: Codable, Equatable {
 
 /// Extension providing default implementations for non-rendering behaviors.
 /// These can be overridden in conformers for custom logic.
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public extension NodeProtocol {
     /// Default: No change on tap.
@@ -170,7 +170,7 @@ public extension NodeProtocol {
         }
     }
 }
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct AnyNode: NodeProtocol {
     private var base: any NodeProtocol  // var for mutability

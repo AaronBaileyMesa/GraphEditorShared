@@ -9,7 +9,7 @@
 
 import SwiftUI
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 public struct ViewState: Codable {
     public var offset: CGPoint
     public var zoomScale: CGFloat
@@ -17,7 +17,7 @@ public struct ViewState: Codable {
     public var selectedEdgeID: UUID?
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 public protocol GraphStorage {
     /// Saves the graph nodes and edges, throwing on failure (e.g., encoding or writing errors).
     func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws

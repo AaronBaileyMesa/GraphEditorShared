@@ -8,7 +8,7 @@
 import Foundation
 import CoreGraphics
 
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public class Quadtree {  // Public for consistency and test access
     let bounds: CGRect

@@ -4,7 +4,7 @@ import Foundation
 public typealias NodeID = UUID
 
 // Replace the entire Node struct in GraphTypes.swift with this corrected version
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct Node: NodeProtocol, Equatable {
     public let id: NodeID
@@ -169,7 +169,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 }
 
 // Snapshot of the graph state for undo/redo.
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct GraphState {
     public let nodes: [any NodeProtocol]
@@ -181,7 +181,7 @@ public struct GraphState {
     }
 }
 
-@available(iOS 13.0, *)
+@available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public enum NodeWrapper: Codable {
     case node(Node)

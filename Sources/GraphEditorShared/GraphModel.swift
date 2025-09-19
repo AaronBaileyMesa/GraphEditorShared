@@ -9,7 +9,7 @@ import WatchKit
 
 private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "storage")
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 @MainActor public class GraphModel: ObservableObject {
     @Published public var nodes: [AnyNode] = []
     @Published public var edges: [GraphEdge] = []
@@ -90,7 +90,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     }
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 public struct GraphViewState {
     public var offset: CGPoint
     public var zoomScale: CGFloat
@@ -98,7 +98,7 @@ public struct GraphViewState {
     public var selectedEdgeID: UUID?
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     private func loadFromStorage() async throws {
         let (loadedNodes, loadedEdges) = try await storage.load()
@@ -152,7 +152,7 @@ extension GraphModel {
     }
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     public func visibleNodes() -> [any NodeProtocol] {
         let hidden = hiddenNodeIDs
@@ -193,7 +193,7 @@ extension GraphModel {
     }
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     public func resizeSimulationBounds(for nodeCount: Int) async {
         let newSize = max(300.0, sqrt(Double(nodeCount)) * 100.0)
@@ -241,7 +241,7 @@ extension GraphModel {
     }
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     public func wouldCreateCycle(withNewEdgeFrom from: NodeID, target: NodeID, type: EdgeType) -> Bool {
         guard type == .hierarchy else { return false }
@@ -335,7 +335,7 @@ extension GraphModel {
     }
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     public func snapshot() async {
         let state = GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges)
@@ -370,7 +370,7 @@ extension GraphModel {
     }
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     private func buildAdjacencyList(for edgeType: EdgeType? = nil) -> [NodeID: [NodeID]] {
         var adj = [NodeID: [NodeID]]()
@@ -442,7 +442,7 @@ extension GraphModel {
     }
 }
 
-@available(iOS 13.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
         let edgeCount = edges.count
