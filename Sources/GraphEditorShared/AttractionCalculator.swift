@@ -8,6 +8,7 @@
 import Foundation  // For hypot, CGFloat, etc.
 import CoreGraphics  // For CGPoint, CGVector (used internally)
 
+@available(iOS 13.0, watchOS 9.0, *)
 struct AttractionCalculator {
     let symmetricFactor: CGFloat
     let useAsymmetric: Bool  // New: Controls full asymmetry for hierarchy edges
@@ -49,11 +50,8 @@ struct AttractionCalculator {
                 updatedForces[toNode.id] = CGPoint(x: currentForceTo.x + toForceX, y: currentForceTo.y + toForceY)
                 updatedForces[fromNode.id] = CGPoint(x: currentForceFrom.x + fromBackPullX, y: currentForceFrom.y + fromBackPullY)
             } else if isHierarchy {
-                // Existing hierarchy logic (preserved when flag false)
-                let asymmetricFactor: CGFloat = 1.5  // Your original
-                var asymmetricForceY = forceY * asymmetricFactor
-                asymmetricForceY += Constants.Physics.verticalBias  // Your vertical pull
-                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX * asymmetricFactor, y: currentForceTo.y - asymmetricForceY)
+                // Symmetric for stability (net force zero)
+                updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX + symForceX, y: currentForceTo.y - forceY + symForceY)
                 updatedForces[fromNode.id] = CGPoint(x: currentForceFrom.x + symForceX, y: currentForceFrom.y + symForceY)
             } else {
                 // Symmetric for .association (unchanged)

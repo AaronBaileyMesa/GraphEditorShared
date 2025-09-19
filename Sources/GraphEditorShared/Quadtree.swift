@@ -187,22 +187,22 @@ public class Quadtree {  // Public for consistency and test access
     
     public func queryNearby(position: CGPoint, radius: CGFloat) -> [any NodeProtocol] {
         var results: [any NodeProtocol] = []
-        func traverse(qt: Quadtree) {
+        func traverse(quadTree: Quadtree) {
             // Quick reject: Check if quad intersects query circle
-            let closestX = max(qt.bounds.minX, min(position.x, qt.bounds.maxX))
-            let closestY = max(qt.bounds.minY, min(position.y, qt.bounds.maxY))
+            let closestX = max(quadTree.bounds.minX, min(position.x, quadTree.bounds.maxX))
+            let closestY = max(quadTree.bounds.minY, min(position.y, quadTree.bounds.maxY))
             let distToQuad = hypot(closestX - position.x, closestY - position.y)
-            let quadDiagonalHalf = hypot(qt.bounds.width / 2, qt.bounds.height / 2)
+            let quadDiagonalHalf = hypot(quadTree.bounds.width / 2, quadTree.bounds.height / 2)
             if distToQuad > radius + quadDiagonalHalf { return }  // No intersection
             
-            if let children = qt.children {
+            if let children = quadTree.children {
                 // Traverse children
                 for child in children {
-                    traverse(qt: child)
+                    traverse(quadTree: child)
                 }
             } else {
                 // Leaf: Check individual nodes
-                for node in qt.nodes {
+                for node in quadTree.nodes {
                     let delta = node.position - position
                     if hypot(delta.x, delta.y) < radius {
                         results.append(node)
@@ -210,7 +210,7 @@ public class Quadtree {  // Public for consistency and test access
                 }
             }
         }
-        traverse(qt: self)
+        traverse(quadTree: self)
         return results
     }
     
