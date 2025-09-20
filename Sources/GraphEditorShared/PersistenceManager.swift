@@ -3,9 +3,9 @@
 import Foundation
 import os  // For Logger
 
+@available(iOS 16.0, watchOS 6.0, *)
 private let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "storage")
 
-@available(iOS 14.0, watchOS 6.0, *)
 /// Error types for graph storage operations.
 public enum GraphStorageError: Error {
     case encodingFailed(Error)
@@ -16,7 +16,7 @@ public enum GraphStorageError: Error {
 }
 
 /// File-based JSON persistence conforming to GraphStorage.
-@available(iOS 14.0, watchOS 6.0, *)
+@available(iOS 16.0, watchOS 6.0, *)
 public class PersistenceManager: GraphStorage {
     private let fileName = "graphState.json"
     private let fileURL: URL

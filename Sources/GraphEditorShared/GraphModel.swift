@@ -17,17 +17,18 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
 
-    var simulationTimer: Timer? // Removed 'private'
-    var undoStack: [GraphState] = [] // Removed 'private'
-    var redoStack: [GraphState] = [] // Removed 'private'
-    let maxUndo = 10 // Removed 'private'
+    var simulationTimer: Timer?
+    var undoStack: [GraphState] = []
+    var redoStack: [GraphState] = []
+    let maxUndo = 10
 
     public var nextNodeLabel = 1
 
-    let storage: GraphStorage // Removed 'private'
+    let storage: GraphStorage
     public var physicsEngine: PhysicsEngine
 
     public var hiddenNodeIDs: Set<NodeID> {
+        print("Computing hiddenNodeIDs; nodes count: \(nodes.count)")  // NEW: Optional, for debug
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
 
@@ -36,7 +37,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
             toHide.append(contentsOf: children)
         }
 
-        let adj = buildAdjacencyList(for: EdgeType.hierarchy) // Changed to EdgeType.hierarchy
+        let adj = buildAdjacencyList(for: EdgeType.hierarchy)
         while !toHide.isEmpty {
             let current = toHide.removeLast()
             if hidden.insert(current).inserted {
@@ -48,7 +49,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         return hidden
     }
 
-    lazy var simulator: GraphSimulator = { // Removed 'private'
+    lazy var simulator: GraphSimulator = {
         GraphSimulator(
             getNodes: { [weak self] in self?.nodes.map { $0.unwrapped } ?? [] },
             setNodes: { [weak self] newNodes in
@@ -88,6 +89,8 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
         self.storage = storage
         self.physicsEngine = physicsEngine
+        print("GraphModel initialized with storage: \(type(of: storage))")  // NEW: Log init
+        
     }
 }
 
