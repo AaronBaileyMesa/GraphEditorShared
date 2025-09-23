@@ -1,7 +1,30 @@
 import Testing
 import Foundation  // For UUID, JSONEncoder, JSONDecoder
 import CoreGraphics  // For CGPoint
-import GraphEditorShared
+@testable import GraphEditorShared
+
+class MockGraphStorage: GraphStorage {
+    var nodes: [any NodeProtocol] = []
+    var edges: [GraphEdge] = []
+    
+    func save(nodes: [any NodeProtocol], edges: [GraphEdge]) throws {
+        self.nodes = nodes
+        self.edges = edges
+    }
+    
+    func load() throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
+        (nodes, edges)
+    }
+    
+    func clear() throws {
+        nodes = []
+        edges = []
+    }
+}
+
+func approximatelyEqual(_ lhs: CGPoint, _ rhs: CGPoint, accuracy: CGFloat) -> Bool {
+    return hypot(lhs.x - rhs.x, lhs.y - rhs.y) < accuracy
+}
 
 struct GraphEditorSharedTests {
     @Test func testQuadtreeInitialization() {
@@ -61,7 +84,6 @@ struct GraphEditorSharedTests {
         quadtree.insert(node1)
         quadtree.insert(node2)
         let force = quadtree.computeForce(on: node1)
-        // Expect non-zero force away from node2 (direction from node2 to node1: negative x/y)
         #expect(force.x < 0 && force.y < 0, "Force should repel away from node2")
     }
 
@@ -82,14 +104,13 @@ struct GraphEditorSharedTests {
     @Test func testQuadtreeMaxDepthAndMinSize() {
         let bounds = CGRect(x: 0, y: 0, width: Constants.Physics.minQuadSize * 2, height: Constants.Physics.minQuadSize * 2)
         let quadtree = Quadtree(bounds: bounds)
-        // Insert enough to force subdivision up to max depth
         for i in 0..<10 {
             quadtree.insert(Node(id: UUID(), label: i, position: CGPoint(x: 1, y: 1)))
         }
         #expect(quadtree.children != nil, "Initial subdivision occurs")
         #expect(quadtree.totalMass == 10, "Total mass should be 10")
-        // Assuming max depth prevents infinite recursion; test doesn't crash
     }
+    
     
     @Test func testNodeInitializationAndEquality() {
         let id = UUID()
@@ -321,26 +342,363 @@ struct GraphEditorSharedTests {
         #expect(abs(nodes[0].position.x - 0) < 1, "From node position unchanged in asymmetric")
         #expect(nodes[1].position.x < 200, "To node pulled towards from")
     }
-}
+    
+    // Tests for GraphModel+Visibility.swift
+    // Tests for GraphModel+Visibility.swift
 
-struct PerformanceTests {
+    @MainActor @Test func testVisibleNodesAndEdges() async {
+        let storage = MockGraphStorage()
+        let parentID = UUID()
+        let childID = UUID()
+        let otherID = UUID()
+        let parent = ToggleNode(id: parentID, label: 1, position: CGPoint.zero, isExpanded: false)
+        let child = Node(id: childID, label: 2, position: CGPoint.zero)
+        let other = Node(id: otherID, label: 3, position: CGPoint.zero)
+        storage.nodes = [parent, child, other]
+        storage.edges = [
+            GraphEdge(from: parentID, target: childID, type: EdgeType.hierarchy),
+            GraphEdge(from: parentID, target: otherID, type: EdgeType.association),
+            GraphEdge(from: otherID, target: childID, type: EdgeType.association)
+        ]
+        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+        let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+        await model.load()  // Calls syncCollapsedPositions internally
 
-    @available(watchOS 9.0, *)  // Guard for availability
-    @Test func testSimulationPerformance() {
-        let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
-        var nodes: [any NodeProtocol] = (1...100).map { Node(label: $0, position: CGPoint(x: CGFloat.random(in: 0...300), y: CGFloat.random(in: 0...300))) }
-        let edges: [GraphEdge] = []
+        let visibleNodes = model.visibleNodes()
+        #expect(visibleNodes.count == 2, "Child should be hidden when parent collapsed")
+        #expect(visibleNodes.map { $0.id }.contains(parentID), "Parent visible")
+        #expect(visibleNodes.map { $0.id }.contains(otherID), "Other visible")
 
-        let start = Date()
-        for _ in 0..<10 {
-            let (updatedNodes, _) = engine.simulationStep(nodes: nodes, edges: edges)
-            nodes = updatedNodes
-        }
-        let duration = Date().timeIntervalSince(start)
-
-        print("Duration for 10 simulation steps with 100 nodes: \(duration) seconds")
-
-        #expect(duration < 0.5, "Simulation should be performant")
+        let visibleEdges = model.visibleEdges()
+        #expect(visibleEdges.count == 1, "Only edge between visible nodes")
+        #expect(visibleEdges[0].from == parentID && visibleEdges[0].target == otherID, "Association edge visible")
     }
     
-}
+        @MainActor @Test func testBoundingBox() {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1 = Node(id: UUID(), label: 1, position: CGPoint(x: 0, y: 0))
+            let node2 = Node(id: UUID(), label: 2, position: CGPoint(x: 100, y: 100))
+            model.nodes = [AnyNode(node1), AnyNode(node2)]
+
+            let box = model.boundingBox()
+            let r = node1.radius  // Or hardcode if known
+            #expect(box.minX == -r && box.minY == -r && box.maxX == 100 + r && box.maxY == 100 + r, "Bounding box should encompass all nodes")
+        }
+
+        @MainActor @Test func testCenterGraph() {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 200, height: 200))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1 = Node(id: UUID(), label: 1, position: CGPoint(x: 0, y: 0))
+            let node2 = Node(id: UUID(), label: 2, position: CGPoint(x: 100, y: 100))
+            model.nodes = [AnyNode(node1), AnyNode(node2)]
+
+            model.centerGraph()
+            let centeredNodes = model.nodes.map { $0.position }
+            let avgX = (centeredNodes[0].x + centeredNodes[1].x) / 2
+            let avgY = (centeredNodes[0].y + centeredNodes[1].y) / 2
+            #expect(avgX == 100 && avgY == 100, "Nodes should be centered in bounds")
+        }
+
+        @MainActor @Test func testExpandAllRoots() async {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let root1 = ToggleNode(id: UUID(), label: 1, position: CGPoint.zero, isExpanded: false)
+            let root2 = ToggleNode(id: UUID(), label: 2, position: CGPoint.zero, isExpanded: false)
+            let child = Node(id: UUID(), label: 3, position: CGPoint.zero)
+            model.nodes = [AnyNode(root1), AnyNode(root2), AnyNode(child)]
+            model.edges = [GraphEdge(from: root1.id, target: child.id, type: EdgeType.hierarchy)]
+
+            await model.expandAllRoots()
+            #expect((model.nodes[0].unwrapped as? ToggleNode)?.isExpanded == true, "Root1 should be expanded")
+            #expect((model.nodes[1].unwrapped as? ToggleNode)?.isExpanded == true, "Root2 should be expanded")
+        }
+
+        // Tests for GraphModel+EdgesNodes.swift
+
+        @MainActor @Test func testWouldCreateCycle() {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1ID = UUID()
+            let node2ID = UUID()
+            let node3ID = UUID()
+            model.nodes = [
+                AnyNode(Node(id: node1ID, label: 1, position: CGPoint.zero)),
+                AnyNode(Node(id: node2ID, label: 2, position: CGPoint.zero)),
+                AnyNode(Node(id: node3ID, label: 3, position: CGPoint.zero))
+            ]
+            model.edges = [
+                GraphEdge(from: node1ID, target: node2ID, type: EdgeType.hierarchy),
+                GraphEdge(from: node2ID, target: node3ID, type: EdgeType.hierarchy)
+            ]
+
+            #expect(model.wouldCreateCycle(withNewEdgeFrom: node3ID, target: node1ID, type: EdgeType.hierarchy) == true, "Should detect cycle")
+            #expect(model.wouldCreateCycle(withNewEdgeFrom: node1ID, target: node3ID, type: EdgeType.hierarchy) == false, "No cycle")
+            #expect(model.wouldCreateCycle(withNewEdgeFrom: node1ID, target: node2ID, type: EdgeType.association) == false, "Non-hierarchy ignores cycle check")
+        }
+
+        @MainActor @Test func testAddAndDeleteEdge() async {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1ID = UUID()
+            let node2ID = UUID()
+            model.nodes = [
+                AnyNode(Node(id: node1ID, label: 1, position: CGPoint.zero)),
+                AnyNode(Node(id: node2ID, label: 2, position: CGPoint.zero))
+            ]
+
+            await model.addEdge(from: node1ID, target: node2ID, type: EdgeType.hierarchy)
+            #expect(model.edges.count == 1, "Edge should be added")
+
+            let edgeID = model.edges[0].id
+            await model.deleteEdge(withID: edgeID)
+            #expect(model.edges.isEmpty, "Edge should be deleted")
+        }
+
+        @MainActor @Test func testAddNodeAndAddToggleNode() async {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            model.nextNodeLabel = 1
+
+            await model.addNode(at: CGPoint.zero)
+            #expect(model.nodes.count == 1, "Node added")
+            #expect(model.nodes[0].unwrapped.label == 1, "Label set correctly")
+            #expect(model.nextNodeLabel == 2, "Label incremented")
+
+            await model.addToggleNode(at: CGPoint.zero)
+            #expect(model.nodes.count == 2, "ToggleNode added")
+            #expect(model.nodes[1].unwrapped.label == 2, "Label set correctly")
+            #expect(model.nextNodeLabel == 3, "Label incremented")
+        }
+
+        @MainActor @Test func testAddChildAndDeleteNode() async {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let parentID = UUID()
+            model.nodes = [AnyNode(Node(id: parentID, label: 1, position: CGPoint.zero))]
+            model.nextNodeLabel = 2
+
+            await model.addChild(to: parentID)
+            #expect(model.nodes.count == 2, "Child added")
+            #expect(model.edges.count == 1, "Hierarchy edge added")
+            #expect(model.edges[0].type == EdgeType.hierarchy, "Correct edge type")
+            #expect(model.nextNodeLabel == 3, "Label incremented")
+
+            let childID = model.nodes[1].id
+            await model.deleteNode(withID: childID)
+            #expect(model.nodes.count == 1, "Child deleted")
+            #expect(model.edges.isEmpty, "Edge removed")
+        }
+
+    /*
+    @MainActor @Test func testUpdateNodeContent() async {
+        let storage = MockGraphStorage()
+        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+        let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+        let nodeID = UUID()
+        model.nodes = [AnyNode(Node(id: nodeID, label: 1, position: CGPoint.zero))]
+
+        let json = "{\"text\":\"Test\"}".data(using: .utf8)!
+        let newContent = try! JSONDecoder().decode(NodeContent.self, from: json)
+        await model.updateNodeContent(withID: nodeID, newContent: newContent)
+        #expect(model.nodes[0].unwrapped.content == newContent, "Content updated")
+    }*/
+    
+        // Tests for GraphModel+Storage.swift
+        @MainActor @Test func testLoadAndSaveWithMockStorage() async throws {
+            let mockStorage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: mockStorage, physicsEngine: physicsEngine)
+            let node = Node(id: UUID(), label: 1, position: CGPoint.zero)
+            let edge = GraphEdge(from: node.id, target: UUID())
+            mockStorage.nodes = [node]
+            mockStorage.edges = [edge]
+
+            await model.load()
+            #expect(model.nodes.count == 1, "Loaded nodes")
+            #expect(model.edges.count == 1, "Loaded edges")
+            #expect(model.nextNodeLabel == 2, "Next label set")
+
+            let newNode = Node(id: UUID(), label: 2, position: CGPoint.zero)
+            model.nodes.append(AnyNode(newNode))
+            await model.save()
+            #expect(mockStorage.nodes.count == 2, "Saved nodes")
+            #expect(mockStorage.edges.count == 1, "Saved edges")
+        }
+
+        @MainActor @Test func testClearGraphWithMockStorage() async throws {
+            let mockStorage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: mockStorage, physicsEngine: physicsEngine)
+            model.nodes = [AnyNode(Node(id: UUID(), label: 1, position: CGPoint.zero))]
+            model.edges = [GraphEdge(from: UUID(), target: UUID())]
+            model.nextNodeLabel = 5
+
+            await model.clearGraph()
+            #expect(model.nodes.isEmpty, "Nodes cleared")
+            #expect(model.edges.isEmpty, "Edges cleared")
+            #expect(model.nextNodeLabel == 1, "Label reset")
+            #expect(mockStorage.nodes.isEmpty, "Storage cleared")
+            #expect(mockStorage.edges.isEmpty, "Storage cleared")
+        }
+
+    @MainActor @Test func testSyncCollapsedPositions() async {
+        let storage = MockGraphStorage()
+        let parentID = UUID()
+        let child1ID = UUID()
+        let child2ID = UUID()
+        let parent = ToggleNode(id: parentID, label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false)
+        let child1 = Node(id: child1ID, label: 2, position: CGPoint.zero)
+        let child2 = Node(id: child2ID, label: 3, position: CGPoint.zero)
+        storage.nodes = [parent, child1, child2]
+        storage.edges = [
+            GraphEdge(from: parentID, target: child1ID, type: EdgeType.hierarchy),
+            GraphEdge(from: parentID, target: child2ID, type: EdgeType.hierarchy)
+        ]
+        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+        let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+        await model.load()  // Calls syncCollapsedPositions internally
+        #expect(approximatelyEqual(model.nodes[1].position, model.nodes[0].position, accuracy: 6), "Child1 close to parent")
+        #expect(approximatelyEqual(model.nodes[2].position, model.nodes[0].position, accuracy: 6), "Child2 close to parent")
+        #expect(model.nodes[1].velocity == .zero, "Velocity reset")
+    }
+    
+        // Tests for GraphModel+Helpers.swift
+        @MainActor @Test func testBuildAdjacencyList() {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1ID = UUID()
+            let node2ID = UUID()
+            let node3ID = UUID()
+            model.nodes = [
+                AnyNode(Node(id: node1ID, label: 1, position: CGPoint.zero)),
+                AnyNode(Node(id: node2ID, label: 2, position: CGPoint.zero)),
+                AnyNode(Node(id: node3ID, label: 3, position: CGPoint.zero))
+            ]
+            model.edges = [
+                GraphEdge(from: node1ID, target: node2ID, type: EdgeType.hierarchy),
+                GraphEdge(from: node1ID, target: node3ID, type: EdgeType.association),
+                GraphEdge(from: node2ID, target: node3ID, type: EdgeType.hierarchy)
+            ]
+
+            let allAdj = model.buildAdjacencyList()
+            #expect(allAdj[node1ID]?.count == 2, "All edges from node1")
+            #expect(allAdj[node2ID]?.count == 1, "All edges from node2")
+
+            let hierarchyAdj = model.buildAdjacencyList(for: EdgeType.hierarchy)
+            #expect(hierarchyAdj[node1ID]?.count == 1, "Only hierarchy from node1")
+            #expect(hierarchyAdj[node1ID]?[0] == node2ID, "Correct target")
+        }
+
+        @MainActor @Test func testIsBidirectionalBetween() {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1ID = UUID()
+            let node2ID = UUID()
+            let node3ID = UUID()
+            model.edges = [
+                GraphEdge(from: node1ID, target: node2ID),
+                GraphEdge(from: node2ID, target: node1ID),
+                GraphEdge(from: node1ID, target: node3ID)
+            ]
+
+            #expect(model.isBidirectionalBetween(node1ID, node2ID) == true, "Bidirectional")
+            #expect(model.isBidirectionalBetween(node1ID, node3ID) == false, "Unidirectional")
+        }
+
+        @MainActor @Test func testEdgesBetween() {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1ID = UUID()
+            let node2ID = UUID()
+            let edge1 = GraphEdge(from: node1ID, target: node2ID)
+            let edge2 = GraphEdge(from: node2ID, target: node1ID)
+            model.edges = [edge1, edge2, GraphEdge(from: node1ID, target: UUID())]
+
+            let edges = model.edgesBetween(node1ID, node2ID)
+            #expect(edges.count == 2, "Both directions")
+            #expect(edges.contains { $0.id == edge1.id }, "Includes edge1")
+            #expect(edges.contains { $0.id == edge2.id }, "Includes edge2")
+        }
+
+        @MainActor @Test func testHandleTapOnToggleNode() async {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let parentID = UUID()
+            let childID = UUID()
+            let parent = ToggleNode(id: parentID, label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false)
+            let child = Node(id: childID, label: 2, position: CGPoint.zero)
+            model.nodes = [AnyNode(parent), AnyNode(child)]
+            model.edges = [GraphEdge(from: parentID, target: childID, type: EdgeType.hierarchy)]
+
+            await model.handleTap(on: parentID)
+            let updatedParent = model.nodes[0].unwrapped as? ToggleNode
+            #expect(updatedParent?.isExpanded == true, "Toggled to expanded")
+            #expect(model.nodes[1].position != CGPoint.zero, "Child position offset")
+            #expect(model.nodes[1].velocity == .zero, "Velocity reset")
+        }
+
+        @MainActor @Test func testGraphDescription() {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+            let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+            let node1ID = UUID()
+            let node2ID = UUID()
+            let node3ID = UUID()
+            let edgeID = UUID()
+            model.nodes = [
+                AnyNode(Node(id: node1ID, label: 1, position: CGPoint.zero)),
+                AnyNode(Node(id: node2ID, label: 2, position: CGPoint.zero)),
+                AnyNode(Node(id: node3ID, label: 3, position: CGPoint.zero))
+            ]
+            model.edges = [
+                GraphEdge(id: edgeID, from: node1ID, target: node2ID),
+                GraphEdge(from: node2ID, target: node3ID),
+                GraphEdge(from: node3ID, target: node1ID)
+            ]
+
+            let noSelection = model.graphDescription(selectedID: Optional<NodeID>.none, selectedEdgeID: Optional<UUID>.none)
+            #expect(noSelection.contains("3 nodes and 3 directed edges"), "Basic description")
+            #expect(noSelection.contains("No node or edge selected"), "No selection")
+
+            let nodeSelection = model.graphDescription(selectedID: node1ID, selectedEdgeID: Optional<UUID>.none)
+            #expect(nodeSelection.contains("Node 1 selected"), "Node selected")
+            #expect(nodeSelection.contains("outgoing to: 2"), "Outgoing")
+            #expect(nodeSelection.contains("incoming from: 3"), "Incoming")
+
+            let edgeSelection = model.graphDescription(selectedID: Optional<NodeID>.none, selectedEdgeID: edgeID)
+            #expect(edgeSelection.contains("Directed edge from node 1 to node 2 selected"), "Edge selected")
+        }
+    }
+
+    struct PerformanceTests {
+
+        @available(watchOS 9.0, *)  // Guard for availability
+        @Test func testSimulationPerformance() {
+            let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+            var nodes: [any NodeProtocol] = (1...100).map { Node(label: $0, position: CGPoint(x: CGFloat.random(in: 0...300), y: CGFloat.random(in: 0...300))) }
+            let edges: [GraphEdge] = []
+
+            let start = Date()
+            for _ in 0..<10 {
+                let (updatedNodes, _) = engine.simulationStep(nodes: nodes, edges: edges)
+                nodes = updatedNodes
+            }
+            let duration = Date().timeIntervalSince(start)
+
+            print("Duration for 10 simulation steps with 100 nodes: \(duration) seconds")
+
+            #expect(duration < 0.5, "Simulation should be performant")
+        }
+    }
