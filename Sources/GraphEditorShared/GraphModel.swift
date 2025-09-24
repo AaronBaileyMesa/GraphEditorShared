@@ -20,7 +20,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     var simulationTimer: Timer?
     var undoStack: [GraphState] = []
     var redoStack: [GraphState] = []
-    let maxUndo = 10
+    public var maxUndo: Int = 10
 
     public var nextNodeLabel = 1
 

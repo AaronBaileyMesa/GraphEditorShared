@@ -19,16 +19,21 @@ extension GraphModel {
     }
 
     public func undo() async {
-        print("undo() called; undoStack size: \(undoStack.count)")  // Add for debugging
-        guard let state = undoStack.popLast() else { return }
-        redoStack.append(GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges))
+        print("undo() called; undoStack size: \(undoStack.count)")  // Debugging
+        guard !undoStack.isEmpty else { return }
+        redoStack.append(GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges))  // Append current first
+        _ = undoStack.removeLast()  // Discard the redundant top snapshot
+        guard let state = undoStack.last else {  // Peek at previous (WITHOUT removing via removeLast())
+            print("undo() early return: no previous state after discard")
+            return
+        }
         nodes = state.nodes.map { AnyNode($0) }
         edges = state.edges
         objectWillChange.send()
-        await save()  // NEW: Optional auto-save after undo
-        print("undo() completed; nodes: \(nodes.count)")  // Add for debugging
+        await save()  // Auto-save
+        print("undo() completed; nodes: \(nodes.count), undoStack size: \(undoStack.count), redoStack size: \(redoStack.count)")  // Debugging
     }
-
+    
     public func redo() async {
         print("redo() called; redoStack size: \(redoStack.count)")  // Add for debugging
         guard let state = redoStack.popLast() else { return }

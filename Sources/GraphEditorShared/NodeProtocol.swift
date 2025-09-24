@@ -82,7 +82,12 @@ public enum NodeContent: Codable, Equatable {
     public var displayText: String {
         switch self {
         case .string(let str): return str.prefix(10) + (str.count > 10 ? "…" : "")
-        case .date(let date): return DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .none)
+        case .date(let date):
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .none
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)  // Use UTC for consistency
+            return formatter.string(from: date)
         case .number(let num): return String(format: "%.1f", num)
         }
     }

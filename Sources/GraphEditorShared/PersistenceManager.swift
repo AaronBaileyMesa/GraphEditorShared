@@ -18,10 +18,9 @@ public enum GraphStorageError: Error {
 /// File-based JSON persistence conforming to GraphStorage.
 @available(iOS 16.0, watchOS 6.0, *)
 public class PersistenceManager: GraphStorage {
-    private let fileName = "graphState.json"
-    private let fileURL: URL
+    public let fileURL: URL
     
-    public init() {
+    public init(fileName: String = "graphState.json") {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         fileURL = documents.appendingPathComponent(fileName)
     }
@@ -42,8 +41,12 @@ public class PersistenceManager: GraphStorage {
         }
         let state = SavedState(nodes: wrapped, edges: edges, viewState: nil)  // Add viewState if passed
         do {
+            // Ensure directory exists
+            let directory = fileURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            
             let data = try JSONEncoder().encode(state)
-            try data.write(to: fileURL)
+            try data.write(to: fileURL, options: .atomic)  // Ensures full overwrite
             logger.debug("Saved \(wrapped.count) nodes and \(edges.count) edges")
         } catch let error as EncodingError {
             logger.error("Encoding failed: \(error.localizedDescription)")
