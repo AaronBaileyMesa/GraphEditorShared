@@ -28,7 +28,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     public var physicsEngine: PhysicsEngine
 
     public var hiddenNodeIDs: Set<NodeID> {
-        print("Computing hiddenNodeIDs; nodes count: \(nodes.count)")  // NEW: Optional, for debug
+        // Removed debug print to avoid side effects; add os_log if needed for production logging.
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
 

@@ -20,29 +20,31 @@ extension GraphModel {
 
     public func undo() async {
         print("undo() called; undoStack size: \(undoStack.count)")  // Debugging
-        guard !undoStack.isEmpty else { return }
-        redoStack.append(GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges))  // Append current first
-        _ = undoStack.removeLast()  // Discard the redundant top snapshot
-        guard let state = undoStack.last else {  // Peek at previous (WITHOUT removing via removeLast())
-            print("undo() early return: no previous state after discard")
+        guard undoStack.count > 1 else {
+            print("undo() early return: cannot undo further")
             return
         }
-        nodes = state.nodes.map { AnyNode($0) }
-        edges = state.edges
-        objectWillChange.send()
-        await save()  // Auto-save
-        print("undo() completed; nodes: \(nodes.count), undoStack size: \(undoStack.count), redoStack size: \(redoStack.count)")  // Debugging
+        if let popped = undoStack.popLast() {
+            redoStack.append(popped)
+            if let previous = undoStack.last {
+                nodes = previous.nodes.map { AnyNode($0) }
+                edges = previous.edges
+                objectWillChange.send()
+                await save()  // Auto-save
+                print("undo() completed; nodes: \(nodes.count), undoStack size: \(undoStack.count), redoStack size: \(redoStack.count)")  // Debugging
+            }
+        }
     }
     
     public func redo() async {
-        print("redo() called; redoStack size: \(redoStack.count)")  // Add for debugging
+        print("redo() called; redoStack size: \(redoStack.count)")  // Debugging
         guard let state = redoStack.popLast() else { return }
-        undoStack.append(GraphState(nodes: nodes.map { $0.unwrapped }, edges: edges))
         nodes = state.nodes.map { AnyNode($0) }
         edges = state.edges
+        undoStack.append(state)
         objectWillChange.send()
-        await save()  // NEW: Optional auto-save after redo
-        print("redo() completed; nodes: \(nodes.count)")  // Add for debugging
+        await save()  // Auto-save
+        print("redo() completed; nodes: \(nodes.count), undoStack size: \(undoStack.count), redoStack size: \(redoStack.count)")  // Debugging (updated to include stacks)
     }
 
     public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) async throws {

@@ -10,10 +10,12 @@ import WatchKit  // Only if using haptics; otherwise remove
 @available(iOS 16.0, watchOS 6.0, *)
 /// Manages physics simulation loops for graph updates.
 class GraphSimulator {
-    private var simulationTask: Task<Void, Never>?
-    private var recentVelocities: [CGFloat] = []
-    private let velocityChangeThreshold: CGFloat = 0.01
-    private let velocityHistoryCount = 5
+    private(set) var simulationTask: Task<Void, Never>?  // Exposed for testing
+    private(set) var recentVelocities: [CGFloat] = []  // Exposed for testing
+    
+    let velocityChangeThreshold: CGFloat
+    let velocityHistoryCount: Int
+    let baseInterval: TimeInterval  // Now configurable
     
     let physicsEngine: PhysicsEngine
     private let getVisibleNodes: () -> [any NodeProtocol]
@@ -30,7 +32,10 @@ class GraphSimulator {
          getVisibleNodes: @escaping () -> [any NodeProtocol],
          getVisibleEdges: @escaping () -> [GraphEdge],
          physicsEngine: PhysicsEngine,
-         onStable: (() -> Void)? = nil) {  // New parameter
+         onStable: (() -> Void)? = nil,
+         baseInterval: TimeInterval = 1.0 / 30.0,  // Default value
+         velocityChangeThreshold: CGFloat = 0.01,
+         velocityHistoryCount: Int = 5) {
         self.getNodes = getNodes
         self.setNodes = setNodes
         self.getEdges = getEdges
@@ -39,6 +44,10 @@ class GraphSimulator {
         
         self.getVisibleNodes = getVisibleNodes
         self.getVisibleEdges = getVisibleEdges
+        
+        self.baseInterval = baseInterval
+        self.velocityChangeThreshold = velocityChangeThreshold
+        self.velocityHistoryCount = velocityHistoryCount
     }
     
     struct SimulationStepResult {
@@ -58,36 +67,47 @@ class GraphSimulator {
         let nodeCount = getNodes().count
         if nodeCount < 5 { return }
         
-        var baseInterval: TimeInterval = nodeCount < 20 ? 1.0 / 30.0 : (nodeCount < 50 ? 1.0 / 15.0 : 1.0 / 10.0)
+        var adjustedInterval = baseInterval
+        if nodeCount >= 20 {
+            adjustedInterval = nodeCount < 50 ? 1.0 / 15.0 : 1.0 / 10.0
+        }
         if ProcessInfo.processInfo.isLowPowerModeEnabled {
-            baseInterval *= 2.0
+            adjustedInterval *= 2.0
         }
         
         simulationTask = Task {
-            await self.runSimulationLoop(baseInterval: baseInterval, nodeCount: nodeCount)
+            await self.runSimulationLoop(baseInterval: adjustedInterval, nodeCount: nodeCount)
         }
         await simulationTask?.value
     }
     
     private func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
         while !Task.isCancelled {
-            #if os(watchOS)
-            if await WKApplication.shared().applicationState != .active { break }
-            #endif
-            
-            let result: SimulationStepResult = await Task.detached {
-                return self.computeSimulationStep()
-            }.value
-            
-            self.setNodes(result.updatedNodes)
-            
-            if self.shouldStopSimulation(result: result, nodeCount: nodeCount) {
+            let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
+            if !shouldContinue {
                 break
             }
-            
-            try? await Task.sleep(for: .seconds(baseInterval))
         }
         self.onStable?()
+    }
+    
+    private func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
+        #if os(watchOS)
+        if await WKApplication.shared().applicationState != .active { return false }
+        #endif
+        
+        let result: SimulationStepResult = await Task.detached {
+            return self.computeSimulationStep()
+        }.value
+        
+        self.setNodes(result.updatedNodes)
+        
+        if self.shouldStopSimulation(result: result, nodeCount: nodeCount) {
+            return false
+        }
+        
+        try? await Task.sleep(for: .seconds(baseInterval))
+        return true
     }
     
     private nonisolated func computeSimulationStep() -> SimulationStepResult {
