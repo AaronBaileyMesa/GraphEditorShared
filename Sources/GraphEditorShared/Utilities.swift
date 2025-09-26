@@ -15,13 +15,6 @@ public extension CGFloat {
     }
 }
 
-public extension CGFloat {
-    func rounded(to decimalPlaces: Int) -> CGFloat {
-        let divisor = pow(10.0, CGFloat(decimalPlaces))
-        return (self * divisor).rounded() / divisor
-    }
-}
-
 public extension CGPoint {
     func normalized() -> CGPoint {
             let len = hypot(x, y)
@@ -109,62 +102,4 @@ public func centroid(of nodes: [any NodeProtocol]) -> CGPoint? {
         (x: acc.x + node.position.x, y: acc.y + node.position.y)
     }
     return CGPoint(x: totals.x / CGFloat(nodes.count), y: totals.y / CGFloat(nodes.count))
-}
-
-import SwiftUI  // For GeometryProxy if needed
-
-public struct CoordinateTransformer {
-    
-    public static func screenToModel(
-        _ screenPos: CGPoint,
-        effectiveCentroid: CGPoint,
-        zoomScale: CGFloat,
-        offset: CGSize,
-        viewSize: CGSize
-        // geometry: GeometryProxy? = nil  // Optional: Pass if you need safe area adjustments
-    ) -> CGPoint {
-        let safeZoom = max(zoomScale, 0.001)  // Tighter min to avoid div-by-zero; adjust based on your minZoom
-        let viewCenter = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
-        let panOffset = CGPoint(x: offset.width, y: offset.height)
-        
-        let translated = screenPos - viewCenter - panOffset
-        
-        // Optional: Adjust for safe areas (e.g., rounded corners on watchOS). Uncomment if touches miss near edges.
-        // if let geo = geometry {
-        //     translated.x -= geo.safeAreaInsets.leading
-        //     translated.y -= geo.safeAreaInsets.top
-        // }
-        
-        let unscaled = translated / safeZoom
-        let modelPos = effectiveCentroid + unscaled
-        
-        #if DEBUG
-        print("screenToModel: Screen \(screenPos) -> Model \(modelPos), Zoom \(safeZoom), Offset \(panOffset), Centroid \(effectiveCentroid), ViewSize \(viewSize)")
-        #endif
-        
-        // New: Round to 3 decimals to eliminate floating-point drift
-        return CGPoint(x: modelPos.x.rounded(to: 3), y: modelPos.y.rounded(to: 3))
-    }
-    
-    public static func modelToScreen(
-        _ modelPos: CGPoint,
-        effectiveCentroid: CGPoint,
-        zoomScale: CGFloat,
-        offset: CGSize,
-        viewSize: CGSize
-        // geometry: GeometryProxy? = nil  // Optional for consistency
-    ) -> CGPoint {
-        let viewCenter = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
-        let relativePos = modelPos - effectiveCentroid
-        let scaledPos = relativePos * zoomScale
-        let screenPos = viewCenter + scaledPos + CGPoint(x: offset.width, y: offset.height)
-        
-        // Optional: Adjust for safe areas (symmetric to screenToModel)
-        // if let geo = geometry {
-        //     screenPos.x += geo.safeAreaInsets.leading
-        //     screenPos.y += geo.safeAreaInsets.top
-        // }
-        
-        return screenPos
-    }
 }
