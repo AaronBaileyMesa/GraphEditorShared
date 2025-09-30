@@ -289,7 +289,8 @@ struct ClampingAndMiscTests {
         #expect(model.undoStack.count == 2, "Undo stack updated")
     }
     
-    @MainActor @Test func testSaveAndLoadViewState() async throws {
+    @MainActor @Test(.timeLimit(.minutes(1)))
+    func testSaveAndLoadViewState() async throws {
         let storage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)

@@ -46,7 +46,8 @@ struct PersistenceAndModelTests {
     }
   
     // Tests for GraphModel+Storage.swift
-    @MainActor @Test func testLoadAndSaveWithMockStorage() async throws {
+    @MainActor @Test(.timeLimit(.minutes(1)))
+    func testLoadAndSaveWithMockStorage() async throws {
         let mockStorage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
         let model = GraphModel(storage: mockStorage, physicsEngine: physicsEngine)
@@ -67,7 +68,8 @@ struct PersistenceAndModelTests {
         #expect(mockStorage.edges.count == 1, "Saved edges")
     }
     
-    @MainActor @Test func testClearGraphWithMockStorage() async throws {
+    @MainActor @Test(.timeLimit(.minutes(1)))
+    func testClearGraphWithMockStorage() async throws {
         let mockStorage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
         let model = GraphModel(storage: mockStorage, physicsEngine: physicsEngine)

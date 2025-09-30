@@ -13,7 +13,8 @@ import Testing
 struct PerformanceTests {
     
     @available(watchOS 9.0, *)  // Guard for availability
-    @Test func testSimulationPerformance() {
+    @Test(.timeLimit(.minutes(1)))
+    func testSimulationPerformance() {
         let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
         var nodes: [any NodeProtocol] = (1...100).map { Node(label: $0, position: CGPoint(x: CGFloat.random(in: 0...300), y: CGFloat.random(in: 0...300))) }
         let edges: [GraphEdge] = []

@@ -32,6 +32,7 @@ extension GraphModel {
     }
 
     public func startSimulation() async {
+        
         isStable = false
         simulationError = nil
         isSimulating = true

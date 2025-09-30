@@ -104,7 +104,7 @@ public struct HitTestHelper {
     }
     
     // Helper: Distance from point to line segment (extracted for clarity; add if not already in utilities)
-    private static func pointToLineDistance(point: CGPoint, from: CGPoint, target: CGPoint) -> CGFloat {
+    public static func pointToLineDistance(point: CGPoint, from: CGPoint, target: CGPoint) -> CGFloat {
         let lineVec = CGVector(dx: target.x - from.x, dy: target.y - from.y)
         let pointVec = CGVector(dx: point.x - from.x, dy: point.y - from.y)
         let lineLen = hypot(lineVec.dx, lineVec.dy)
