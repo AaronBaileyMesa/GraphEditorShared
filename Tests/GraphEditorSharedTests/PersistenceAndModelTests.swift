@@ -15,15 +15,18 @@ import CoreGraphics  // For CGPoint
 struct PersistenceAndModelTests {
     // Tests for PersistenceManager.swift
     @Test func testPersistenceManagerSaveAndLoad() async throws {
-        let manager = PersistenceManager(fileName: "testSaveAndLoad.json")  // Unique file
-        try await manager.clear()  // Clear any existing for safety
+        let dirName = "Test-SaveAndLoad"
+        let manager = PersistenceManager(directoryName: dirName)
+        do { try await manager.clear() } catch GraphStorageError.graphNotFound(_) { /* ignore if not present */ }
         let node = Node(id: UUID(), label: 1, position: .zero)
         let toggleNode = ToggleNode(id: UUID(), label: 2, position: .zero, isExpanded: false)
         let edge = GraphEdge(from: node.id, target: toggleNode.id)
         try await manager.save(nodes: [node, toggleNode], edges: [edge])
         
         let fileManager = FileManager.default
-        #expect(fileManager.fileExists(atPath: manager.fileURL.path), "File created")
+        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = documents.appendingPathComponent(dirName).appendingPathComponent("graph-default.json")
+        #expect(fileManager.fileExists(atPath: fileURL.path), "File created")
         
         let (loadedNodes, loadedEdges) = try await manager.load()
         #expect(loadedNodes.count == 2, "Nodes loaded")
@@ -33,16 +36,25 @@ struct PersistenceAndModelTests {
     }
     
     @Test func testPersistenceManagerClear() async throws {
-        let manager = PersistenceManager(fileName: "testClear.json")  // Unique file
-        try await manager.clear()  // Start clean
+        let dirName = "Test-Clear"
+        let manager = PersistenceManager(directoryName: dirName)
+        do { try await manager.clear() } catch GraphStorageError.graphNotFound(_) { /* ignore if not present */ }
         try await manager.save(nodes: [Node(id: UUID(), label: 1, position: .zero)], edges: [])
-        #expect(FileManager.default.fileExists(atPath: manager.fileURL.path), "File exists before clear")
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = documents.appendingPathComponent(dirName).appendingPathComponent("graph-default.json")
+        #expect(FileManager.default.fileExists(atPath: fileURL.path), "File exists before clear")
         
         try await manager.clear()
-        #expect(!FileManager.default.fileExists(atPath: manager.fileURL.path), "File removed after clear")
+        #expect(!FileManager.default.fileExists(atPath: fileURL.path), "File removed after clear")
         
-        let (nodes, edges) = try await manager.load()
-        #expect(nodes.isEmpty && edges.isEmpty, "Load returns empty after clear")
+        do {
+            _ = try await manager.load()
+            #expect(false, "Load should throw graphNotFound after clear")
+        } catch GraphStorageError.graphNotFound(_) {
+            #expect(true, "Load throws not found as expected")
+        } catch {
+            #expect(false, "Unexpected error: \(error)")
+        }
     }
   
     // Tests for GraphModel+Storage.swift
@@ -106,3 +118,4 @@ struct PersistenceAndModelTests {
         #expect(model.nodes[1].velocity == .zero, "Velocity reset")
     }
 }
+

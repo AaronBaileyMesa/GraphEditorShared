@@ -5,13 +5,14 @@
 //  Created by handcart on 9/19/25.
 //
 import Foundation
+import CoreGraphics
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    private func loadFromStorage() async throws {
-        print("loadFromStorage started")  // Existing
-        let (loadedNodes, loadedEdges) = try await storage.load()
-        print("loadFromStorage: loaded \(loadedNodes.count) nodes, \(loadedEdges.count) edges")  // NEW for consistency
+    private func loadFromStorage(for name: String) async throws {
+        print("loadFromStorage started for \(name)")  // Updated
+        let (loadedNodes, loadedEdges) = try await storage.load(for: name)
+        print("loadFromStorage: loaded \(loadedNodes.count) nodes, \(loadedEdges.count) edges for \(name)")  // Updated
         self.nodes = loadedNodes.map { AnyNode($0) }
         self.edges = loadedEdges
         self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
@@ -20,9 +21,9 @@ extension GraphModel {
     public func load() async {
         print("GraphModel.load() called")  // Existing
         do {
-            try await loadFromStorage()
+            try await loadFromStorage(for: currentGraphName)
             syncCollapsedPositions()
-            if let viewState = try await loadViewState() {  // NEW: Load view state during graph load
+            if let viewState = try storage.loadViewState(for: currentGraphName) {  // Updated to named (note: throws, but no await as per storage)
                 // Apply view state if needed (e.g., publish or set properties)
                 print("Loaded view state: offset \(viewState.offset), zoom \(viewState.zoomScale)")
             }
@@ -35,7 +36,7 @@ extension GraphModel {
     public func save() async {
         print("GraphModel.save() called; nodes: \(nodes.count), edges: \(edges.count)")  // Existing
         do {
-            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges)
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges, for: currentGraphName)
             print("GraphModel.save() succeeded")  // Existing
         } catch {
             print("GraphModel.save() failed: \(error.localizedDescription)")  // Existing
@@ -62,17 +63,82 @@ extension GraphModel {
     }
     
     public func clearGraph() async {
-            print("clearGraph called")  // NEW
+        print("clearGraph called")  // NEW
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
+        do {
+            try await storage.deleteGraph(name: currentGraphName)  // Updated to multi-graph clear (delete)
+            print("clearGraph succeeded")  // Existing
+        } catch {
+            print("clearGraph failed: \(error.localizedDescription)")  // Existing
+        }
+        objectWillChange.send()
+    }
+    
+    // Multi-graph methods (integrated into Storage extension)
+    /// Loads the current graph (based on currentGraphName); defaults to empty if not found.
+    public func loadGraph() async throws {
+        do {
+            try await loadFromStorage(for: currentGraphName)
+            print("Loaded graph '\(currentGraphName)' with \(nodes.count) nodes and \(edges.count) edges")
+            objectWillChange.send()
+        } catch GraphStorageError.graphNotFound(_) {
+            // Graph doesn't exist: Treat as new/empty
             nodes = []
             edges = []
-            nextNodeLabel = 1
-            do {
-                try await storage.clear()
-                try await storage.saveViewState(ViewState(offset: .zero, zoomScale: 1.0, selectedNodeID: nil, selectedEdgeID: nil))  // NEW: Clear view state too
-                print("clearGraph succeeded")  // Existing
-            } catch {
-                print("clearGraph failed: \(error.localizedDescription)")  // Existing
-            }
-            objectWillChange.send()
+            print("Graph '\(currentGraphName)' not found; starting empty")
+        } catch {
+            throw error
         }
     }
+    
+    /// Saves the current graph state under currentGraphName.
+    public func saveGraph() async throws {
+        try await save()
+    }
+    
+    /// Creates a new empty graph with the given name and switches to it.
+    public func createNewGraph(name: String) async throws {
+        try await storage.createNewGraph(name: name)
+        currentGraphName = name
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
+        undoStack = []
+        redoStack = []
+        objectWillChange.send()
+        print("Created and switched to new graph '\(name)'")
+    }
+    
+    /// Loads a specific graph by name and switches to it.
+    public func loadGraph(name: String) async throws {
+        currentGraphName = name
+        try await loadGraph()
+    }
+    
+    /// Deletes the graph with the given name (if not current, no change to model).
+    public func deleteGraph(name: String) async throws {
+        try await storage.deleteGraph(name: name)
+        if name == currentGraphName {
+            // Reset to default if current is deleted
+            currentGraphName = "default"
+            try await loadGraph()
+        }
+        print("Deleted graph '\(name)'")
+    }
+    
+    /// Lists all available graph names.
+    public func listGraphNames() async throws -> [String] {
+        try await storage.listGraphNames()
+    }
+    
+    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) async throws {
+        let viewState = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
+        try storage.saveViewState(viewState, for: currentGraphName)
+    }
+
+    public func loadViewState() async throws -> ViewState? {
+        try storage.loadViewState(for: currentGraphName)
+    }
+}

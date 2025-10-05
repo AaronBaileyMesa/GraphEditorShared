@@ -1,9 +1,14 @@
+//
+//  GraphTypes.swift
+//  GraphEditorShared
+//
+//  Created by handcart on 2025-09-19 13:45:29
+
 import SwiftUI
 import Foundation
 
 public typealias NodeID = UUID
 
-// Replace the entire Node struct in GraphTypes.swift with this corrected version
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct Node: NodeProtocol, Equatable {
@@ -30,98 +35,8 @@ public struct Node: NodeProtocol, Equatable {
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
         Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content)
     }
-    
-    public func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self {
-        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content ?? self.content)
-    }
-    
-    public func handlingTap() -> Self { self }  // No-op for basic Node
-    
-    public func shouldHideChildren() -> Bool { false }  // Basic nodes don't hide children
-    
-    @available(iOS 15.0, *)
-    @available(watchOS 9.0, *)
-    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-        AnyView(Circle().fill(.red).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))  // Simple default
-    }
-    
-    @available(iOS 15.0, *)
-    @available(watchOS 9.0, *)
-    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        let scaledRadius = radius * zoomScale
-        let borderWidth: CGFloat = isSelected ? max(3.0, 4 * zoomScale) : 0
-        let borderRadius = scaledRadius + borderWidth / 2
-
-        // Draw border if selected
-        if borderWidth > 0 {
-            let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
-            context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
-        }
-
-        // Draw node circle
-        let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
-        context.fill(innerPath, with: .color(fillColor))
-
-        // Draw label above node
-        let labelFontSize = max(8.0, 12.0 * zoomScale)
-        let labelResolved = context.resolve(Text("\(label)").foregroundColor(.white).font(.system(size: labelFontSize)))
-        let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
-        context.draw(labelResolved, at: labelPosition, anchor: .center)
-
-        // Draw content below node if present and zoomed in
-        if let content = content, zoomScale > 0.5 {
-            let contentFontSize = max(6.0, 8.0 * zoomScale)
-            let contentResolved = context.resolve(Text(content.displayText).foregroundColor(.gray).font(.system(size: contentFontSize)))
-            let contentPosition = CGPoint(x: position.x, y: position.y + (scaledRadius + 10 * zoomScale))
-            context.draw(contentResolved, at: contentPosition, anchor: .center)
-        }
-    }
-    
-    // Codable conformance
-    enum CodingKeys: String, CodingKey {
-        case id, label, radius, isExpanded, content
-        case positionX, positionY
-        case velocityX, velocityY
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(NodeID.self, forKey: .id)
-        label = try container.decode(Int.self, forKey: .label)
-        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? 10.0
-        isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
-        content = try container.decodeIfPresent(NodeContent.self, forKey: .content)
-        let posX = try container.decode(CGFloat.self, forKey: .positionX)
-        let posY = try container.decode(CGFloat.self, forKey: .positionY)
-        position = CGPoint(x: posX, y: posY)
-        let velX = try container.decode(CGFloat.self, forKey: .velocityX)
-        let velY = try container.decode(CGFloat.self, forKey: .velocityY)
-        velocity = CGPoint(x: velX, y: velY)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(label, forKey: .label)
-        try container.encode(radius, forKey: .radius)
-        try container.encode(isExpanded, forKey: .isExpanded)
-        try container.encodeIfPresent(content, forKey: .content)
-        try container.encode(position.x, forKey: .positionX)
-        try container.encode(position.y, forKey: .positionY)
-        try container.encode(velocity.x, forKey: .velocityX)
-        try container.encode(velocity.y, forKey: .velocityY)
-    }
-    
-    public static func == (lhs: Node, rhs: Node) -> Bool {
-        lhs.id == rhs.id &&
-        lhs.label == rhs.label &&
-        lhs.position == rhs.position &&
-        lhs.velocity == rhs.velocity &&
-        lhs.radius == rhs.radius &&
-        lhs.isExpanded == rhs.isExpanded &&
-        lhs.content == rhs.content
-    }
 }
+
 
 // New: EdgeType enum
 public enum EdgeType: String, Codable {

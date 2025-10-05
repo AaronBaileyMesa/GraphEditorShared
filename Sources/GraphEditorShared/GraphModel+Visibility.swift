@@ -10,7 +10,7 @@ import Foundation
 extension GraphModel {
     public func visibleNodes() -> [any NodeProtocol] {
         let hidden = hiddenNodeIDs
-        return nodes.filter { !hidden.contains($0.id) }.map { $0.unwrapped }
+        return nodes.map { $0.unwrapped }.filter { !hidden.contains($0.id) }
     }
 
     public func visibleEdges() -> [GraphEdge] {

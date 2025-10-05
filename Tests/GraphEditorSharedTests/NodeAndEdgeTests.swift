@@ -11,32 +11,108 @@ import CoreGraphics  // For CGPoint
 @testable import GraphEditorShared
 
 class MockGraphStorage: GraphStorage {
+    // In-memory single-graph (default) storage for convenience in tests
     var nodes: [any NodeProtocol] = []
     var edges: [GraphEdge] = []
-    var savedViewState: ViewState?  // New: In-memory storage
-    
-    func save(nodes: [any NodeProtocol], edges: [GraphEdge]) throws {
+    var savedViewState: ViewState?
+
+    // In-memory multi-graph storage
+    private var graphs: [String: (nodes: [any NodeProtocol], edges: [GraphEdge])] = [:]
+    private var viewStates: [String: ViewState] = [:]
+    private let defaultName = "default"
+
+    // MARK: - Single-graph (default) methods
+    func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
         self.nodes = nodes
         self.edges = edges
+        // Keep default graph in sync
+        graphs[defaultName] = (nodes, edges)
     }
-    
-    func load() throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
-        (nodes, edges)
+
+    func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
+        return (nodes, edges)
     }
-    
-    func clear() throws {
+
+    func clear() async throws {
         nodes = []
         edges = []
-        savedViewState = nil  // Clear view state too
+        savedViewState = nil
+        graphs[defaultName] = ([], [])
+        viewStates.removeValue(forKey: defaultName)
     }
-    
-    // New methods
+
     func saveViewState(_ viewState: ViewState) async throws {
         savedViewState = viewState
+        viewStates[defaultName] = viewState
     }
-    
+
     func loadViewState() async throws -> ViewState? {
-        savedViewState
+        return savedViewState
+    }
+
+    // MARK: - Multi-graph methods
+    func listGraphNames() async throws -> [String] {
+        // Always include default; plus any explicitly created graphs
+        var names = Set(graphs.keys)
+        names.insert(defaultName)
+        return Array(names).sorted()
+    }
+
+    func createNewGraph(name: String) async throws {
+        if graphs[name] != nil {
+            throw GraphStorageError.graphExists(name)
+        }
+        graphs[name] = ([], [])
+        viewStates.removeValue(forKey: name)
+    }
+
+    func save(nodes: [any NodeProtocol], edges: [GraphEdge], for name: String) async throws {
+        graphs[name] = (nodes, edges)
+        if name == defaultName {
+            // Keep convenience properties in sync for tests that set/read directly
+            self.nodes = nodes
+            self.edges = edges
+        }
+    }
+
+    func load(for name: String) async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
+        if name == defaultName {
+            return (nodes, edges)
+        }
+        if let state = graphs[name] {
+            return state
+        }
+        throw GraphStorageError.graphNotFound(name)
+    }
+
+    func deleteGraph(name: String) async throws {
+        if name == defaultName {
+            nodes = []
+            edges = []
+            savedViewState = nil
+            graphs[defaultName] = ([], [])
+            viewStates.removeValue(forKey: defaultName)
+            return
+        }
+        guard graphs.removeValue(forKey: name) != nil else {
+            throw GraphStorageError.graphNotFound(name)
+        }
+        viewStates.removeValue(forKey: name)
+    }
+
+    // MARK: - View state per graph (synchronous variants required by protocol)
+    func saveViewState(_ viewState: ViewState, for name: String) throws {
+        viewStates[name] = viewState
+        if name == defaultName {
+            savedViewState = viewState
+        }
+    }
+
+    func loadViewState(for name: String) throws -> ViewState? {
+        if name == defaultName {
+            return savedViewState ?? viewStates[name]
+        }
+        return viewStates[name]
     }
 }
 
@@ -268,14 +344,14 @@ struct NodeAndEdgeTests {
         let parentID = UUID()
         let childID = UUID()
         let parent = ToggleNode(id: parentID, label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false)
-        let child = Node(id: childID, label: 2, position: CGPoint.zero)
+        let child = Node(id: childID, label: 2, position: .zero)
         model.nodes = [AnyNode(parent), AnyNode(child)]
         model.edges = [GraphEdge(from: parentID, target: childID, type: EdgeType.hierarchy)]
         
         await model.handleTap(on: parentID)
         let updatedParent = model.nodes[0].unwrapped as? ToggleNode
         #expect(updatedParent?.isExpanded == true, "Toggled to expanded")
-        #expect(model.nodes[1].position != CGPoint.zero, "Child position offset")
+        #expect(model.nodes[1].position != .zero, "Child position offset")
         #expect(model.nodes[1].velocity == .zero, "Velocity reset")
     }
 }

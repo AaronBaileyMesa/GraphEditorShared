@@ -9,8 +9,8 @@ import Foundation
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     public func wouldCreateCycle(withNewEdgeFrom from: NodeID, target: NodeID, type: EdgeType) -> Bool {
-        guard type == EdgeType.hierarchy else { return false } // Changed to EdgeType.hierarchy
-        var tempEdges = edges.filter { $0.type == EdgeType.hierarchy } // Changed to EdgeType.hierarchy
+        guard type == .hierarchy else { return false }
+        var tempEdges = edges.filter { $0.type == .hierarchy }
         tempEdges.append(GraphEdge(from: from, target: target, type: type))
         return !isAcyclic(edges: tempEdges)
     }
@@ -37,65 +37,96 @@ extension GraphModel {
     }
 
     public func addEdge(from: NodeID, target: NodeID, type: EdgeType) async {
-            if wouldCreateCycle(withNewEdgeFrom: from, target: target, type: type) {
-                print("Cannot add edge: Would create cycle in hierarchy")
-                return
-            }
-            edges.append(GraphEdge(from: from, target: target, type: type))
-            objectWillChange.send()
-            await startSimulation()
+        if wouldCreateCycle(withNewEdgeFrom: from, target: target, type: type) {
+            print("Cannot add edge: Would create cycle in hierarchy")
+            return
         }
+        pushUndo()
+        edges.append(GraphEdge(from: from, target: target, type: type))
+        objectWillChange.send()
+        await resumeSimulation()
+    }
 
     public func deleteEdge(withID id: UUID) async {
+        pushUndo()
         edges.removeAll { $0.id == id }
         objectWillChange.send()
-        await startSimulation()
+        await resumeSimulation()
     }
 
     public func addNode(at position: CGPoint) async {
+        pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
         let newNode = AnyNode(Node(label: newLabel, position: position))
         nodes.append(newNode)
         objectWillChange.send()
-        await startSimulation()
+        await resumeSimulation()
     }
 
     public func addToggleNode(at position: CGPoint) async {
+        pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
         let newNode = AnyNode(ToggleNode(label: newLabel, position: position))
         nodes.append(newNode)
         objectWillChange.send()
-        await startSimulation()
+        await resumeSimulation()
     }
 
     public func addChild(to parentID: NodeID) async {
-            let newLabel = nextNodeLabel
-            nextNodeLabel += 1
-            guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }) else { return }
-            let parentPosition = nodes[parentIndex].position
-            let offsetX = CGFloat.random(in: -50...50)
-            let offsetY = CGFloat.random(in: -50...50)
-            let newPosition = parentPosition + CGPoint(x: offsetX, y: offsetY)
-            let newNode = AnyNode(Node(label: newLabel, position: newPosition))
-            nodes.append(newNode)
-            await addEdge(from: parentID, target: newNode.id, type: EdgeType.hierarchy) // Changed to EdgeType.hierarchy
-        }
+        pushUndo()
+        let newLabel = nextNodeLabel
+        nextNodeLabel += 1
+        guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }) else { return }
+        let parentPosition = nodes[parentIndex].position
+        let offsetX = CGFloat.random(in: -50...50)
+        let offsetY = CGFloat.random(in: -50...50)
+        let newPosition = parentPosition + CGPoint(x: offsetX, y: offsetY)
+        let newNode = AnyNode(Node(label: newLabel, position: newPosition))
+        nodes.append(newNode)
+        edges.append(GraphEdge(from: parentID, target: newNode.id, type: .hierarchy))
+        objectWillChange.send()
+        await resumeSimulation()
+    }
 
     public func deleteNode(withID id: NodeID) async {
+        pushUndo()
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.target == id }
         objectWillChange.send()
-        await startSimulation()
+        await resumeSimulation()
     }
 
     public func updateNodeContent(withID id: NodeID, newContent: NodeContent?) async {
+        pushUndo()
         if let index = nodes.firstIndex(where: { $0.id == id }) {
             var updated = nodes[index].unwrapped
             updated.content = newContent
             nodes[index] = AnyNode(updated)
             objectWillChange.send()
+            await resumeSimulation()
         }
+    }
+
+    public func deleteSelected(selectedNodeID: NodeID?, selectedEdgeID: UUID?) async {
+        pushUndo()
+        if let id = selectedEdgeID {
+            edges.removeAll { $0.id == id }
+        } else if let id = selectedNodeID {
+            nodes.removeAll { $0.id == id }
+            edges.removeAll { $0.from == id || $0.target == id }
+        }
+        objectWillChange.send()
+        await resumeSimulation()
+    }
+
+    public func toggleExpansion(for nodeID: NodeID) async {
+        pushUndo()
+        guard let idx = nodes.firstIndex(where: { $0.id == nodeID }), let toggle = nodes[idx].unwrapped as? ToggleNode else { return }
+        let updated = toggle.handlingTap()
+        nodes[idx] = AnyNode(updated)
+        objectWillChange.send()
+        await resumeSimulation()
     }
 }

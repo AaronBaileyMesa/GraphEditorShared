@@ -1,3 +1,10 @@
+//
+//  GraphModel.swift
+//  GraphEditorShared
+//
+//  Created by handcart on 10/3/25.
+//
+
 import os.log
 import SwiftUI
 import Combine
@@ -11,6 +18,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
 
 @available(iOS 16.0, watchOS 6.0, *)
 @MainActor public class GraphModel: ObservableObject {
+    @Published public var currentGraphName: String = "default"  // Standardized to "default" for consistency
     @Published public var nodes: [AnyNode] = []
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
@@ -18,13 +26,13 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     @Published public var simulationError: Error?
 
     var simulationTimer: Timer?
-    var undoStack: [GraphState] = []
-    var redoStack: [GraphState] = []
+    var undoStack: [UndoGraphState] = []
+    var redoStack: [UndoGraphState] = []
     public var maxUndo: Int = 10
 
     public var nextNodeLabel = 1
 
-    let storage: GraphStorage
+    public let storage: GraphStorage
     public var physicsEngine: PhysicsEngine
 
     public var hiddenNodeIDs: Set<NodeID> {
@@ -37,7 +45,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
             toHide.append(contentsOf: children)
         }
 
-        let adj = buildAdjacencyList(for: EdgeType.hierarchy)
+        let adj = buildAdjacencyList(for: .hierarchy)
         while !toHide.isEmpty {
             let current = toHide.removeLast()
             if hidden.insert(current).inserted {
@@ -91,13 +99,24 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         self.physicsEngine = physicsEngine
         print("GraphModel initialized with storage: \(type(of: storage))")  // NEW: Log init
         
+        // Load default graph on init
+        Task {
+            do {
+                try await self.loadGraph()
+            } catch {
+                print("Failed to load default graph: \(error)")
+                // Fallback to empty if load fails
+                self.nodes = []
+                self.edges = []
+            }
+        }
     }
-}
-
-@available(iOS 16.0, watchOS 6.0, *)
-public struct GraphViewState {
-    public var offset: CGPoint
-    public var zoomScale: CGFloat
-    public var selectedNodeID: UUID?
-    public var selectedEdgeID: UUID?
+    
+    func buildAdjacencyList(for type: EdgeType) -> [NodeID: [NodeID]] {
+        var adj: [NodeID: [NodeID]] = [:]
+        for edge in edges where edge.type == type {
+            adj[edge.from, default: []].append(edge.target)
+        }
+        return adj
+    }
 }
