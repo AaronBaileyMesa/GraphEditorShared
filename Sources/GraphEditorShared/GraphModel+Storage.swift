@@ -95,7 +95,7 @@ extension GraphModel {
     
     /// Saves the current graph state under currentGraphName.
     public func saveGraph() async throws {
-        try await save()
+        await save()
     }
     
     /// Creates a new empty graph with the given name and switches to it.

@@ -37,7 +37,6 @@ public struct Node: NodeProtocol, Equatable {
     }
 }
 
-
 // New: EdgeType enum
 public enum EdgeType: String, Codable {
     case hierarchy  // DAG-enforced, directed

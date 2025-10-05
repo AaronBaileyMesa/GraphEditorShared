@@ -49,11 +49,11 @@ struct PersistenceAndModelTests {
         
         do {
             _ = try await manager.load()
-            #expect(false, "Load should throw graphNotFound after clear")
+            #expect(Bool(false), "Load should throw graphNotFound after clear")
         } catch GraphStorageError.graphNotFound(_) {
             #expect(true, "Load throws not found as expected")
         } catch {
-            #expect(false, "Unexpected error: \(error)")
+            #expect(Bool(false), "Unexpected error: \(error)")
         }
     }
   
@@ -118,4 +118,3 @@ struct PersistenceAndModelTests {
         #expect(model.nodes[1].velocity == .zero, "Velocity reset")
     }
 }
-
