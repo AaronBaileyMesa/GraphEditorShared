@@ -277,7 +277,7 @@ struct ClampingAndMiscTests {
         let initialNode = AnyNode(Node(id: UUID(), label: 1, position: .zero))
         model.nodes = [initialNode]
         
-        await model.pushUndo()  // Push pre-mutation state (replaces first snapshot; assumes @testable import)
+        model.pushUndo()  // Push pre-mutation state (replaces first snapshot; assumes @testable import)
         
         let newNode = AnyNode(Node(id: UUID(), label: 2, position: .zero))
         model.nodes.append(newNode)
@@ -375,4 +375,3 @@ struct ClampingAndMiscTests {
         #expect(edgeSelection.contains("Directed edge from node 1 to node 2 selected"), "Edge selected")
     }
 }
-
