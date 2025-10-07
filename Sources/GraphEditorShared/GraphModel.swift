@@ -98,18 +98,6 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
         self.storage = storage
         self.physicsEngine = physicsEngine
         print("GraphModel initialized with storage: \(type(of: storage))")  // NEW: Log init
-        
-        // Load default graph on init
-        Task {
-            do {
-                try await self.loadGraph()
-            } catch {
-                print("Failed to load default graph: \(error)")
-                // Fallback to empty if load fails
-                self.nodes = []
-                self.edges = []
-            }
-        }
     }
     
     func buildAdjacencyList(for type: EdgeType) -> [NodeID: [NodeID]] {

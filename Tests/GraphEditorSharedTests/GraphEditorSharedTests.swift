@@ -271,22 +271,25 @@ struct ClampingAndMiscTests {
         let storage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
+        
+        try? await model.loadGraph()  // Explicit load to start empty; handles any defaults
+        
         let initialNode = AnyNode(Node(id: UUID(), label: 1, position: .zero))
         model.nodes = [initialNode]
-        await model.snapshot()  // Save initial
+        
+        await model.pushUndo()  // Push pre-mutation state (replaces first snapshot; assumes @testable import)
         
         let newNode = AnyNode(Node(id: UUID(), label: 2, position: .zero))
         model.nodes.append(newNode)
-        await model.snapshot()  // Save with 2 nodes
         
         await model.undo()  // Back to 1 node
-        #expect(model.nodes.count == 1, "Undo removes node")
-        #expect(model.nodes[0].id == initialNode.id, "Initial state restored")
-        #expect(model.redoStack.count == 1, "Redo stack populated")
+        #expect(await model.nodes.count == 1, "Undo removes node")
+        #expect(await model.nodes[0].id == initialNode.id, "Initial state restored")
+        #expect(await model.redoStack.count == 1, "Redo stack populated")
         
         await model.redo()  // Forward to 2 nodes
-        #expect(model.nodes.count == 2, "Redo adds node")
-        #expect(model.undoStack.count == 2, "Undo stack updated")
+        #expect(await model.nodes.count == 2, "Redo adds node")
+        #expect(await model.undoStack.count == 1, "Undo stack updated")  // Corrected to 1 (post-redo appends pre-redo state)
     }
     
     @MainActor @Test(.timeLimit(.minutes(1)))
@@ -372,3 +375,4 @@ struct ClampingAndMiscTests {
         #expect(edgeSelection.contains("Directed edge from node 1 to node 2 selected"), "Edge selected")
     }
 }
+
