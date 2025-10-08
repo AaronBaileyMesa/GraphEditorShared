@@ -35,6 +35,9 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     // Data payload for the node
     var content: NodeContent? { get set }
     
+    /// Mass for physics calculations (default: 1.0).
+    var mass: CGFloat { get }
+    
     /// Creates a copy with updated position and velocity.
     func with(position: CGPoint, velocity: CGPoint) -> Self
     
@@ -89,90 +92,85 @@ public enum NodeContent: Codable, Equatable {
             formatter.timeZone = TimeZone(secondsFromGMT: 0)  // Use UTC for consistency
             formatter.locale = Locale(identifier: "en_US")  // Set locale for consistent output
             return formatter.string(from: date)
-        case .number(let num): return String(format: "%.1f", num)
+        case .number(let num): return String(format: "%.2f", num)
         }
     }
 }
 
-/// Extension providing default implementations for non-rendering behaviors.
-/// These can be overridden in conformers for custom logic.
-@available(iOS 16.0, *)
-@available(watchOS 9.0, *)
-public extension NodeProtocol {
-    /// Default: No change on tap.
-    func handlingTap() -> Self { self }
+extension NodeProtocol {
+    public var isVisible: Bool { true }  // Default visible
     
-    /// Default: Node is always visible.
-    var isVisible: Bool { true }
+    public var fillColor: Color { .blue }  // Default fill
     
-    var fillColor: Color { .red }  // Default to red for all nodes
+    public var mass: CGFloat { 1.0 }  // Default mass
     
-    var isExpanded: Bool {
-        true  // Default: Always expanded (non-toggle nodes ignore)
-    }
+    public func shouldHideChildren() -> Bool { false }  // Default: show children
     
-    func shouldHideChildren() -> Bool {
-        !isExpanded  // Default: Hide if not expanded
-    }
+    public func handlingTap() -> Self { self }  // Default: no-op
     
-    var content: NodeContent? {
-       nil
-    }
-    
-    func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self {
-        with(position: position, velocity: velocity)  // Default: Ignore content
-    }
-    
-    @available(iOS 15.0, *)
-    @available(watchOS 9.0, *)
-    func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-        AnyView(Text("Node \(label)"))  // Default simple view
-    }
-    
-    @available(iOS 15.0, *)
-    @available(watchOS 9.0, *)
-    func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        let scaledRadius = radius * zoomScale
-        let borderWidth: CGFloat = isSelected ? max(3.0, 4 * zoomScale) : 0
-        let borderRadius = scaledRadius + borderWidth / 2
-
-        // Draw border if selected
-        if borderWidth > 0 {
-            let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
-            context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
+    public func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> Self {
+        var newSelf = self
+        newSelf.position = position
+        newSelf.velocity = velocity
+        if let content = content {
+            newSelf.content = content
         }
-
-        // Draw node circle
-        let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
-        context.fill(innerPath, with: .color(fillColor))
-
-        // Draw label above node
-        let labelFontSize = max(8.0, 12.0 * zoomScale)
-        let labelResolved = context.resolve(Text("\(label)").foregroundColor(.white).font(.system(size: labelFontSize)))
-        let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
-        context.draw(labelResolved, at: labelPosition, anchor: .center)
-
-        // Draw content below node if present and zoomed in
-        if let content = content, zoomScale > 0.5 {
-            let contentKey = "\(content.displayText)-\(zoomScale)"
-            let contentResolved: GraphicsContext.ResolvedText
-            if let cached = nodeTextCache[contentKey] {
+        return newSelf
+    }
+    
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
+    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
+        let scaledRadius = radius * zoomScale
+        return AnyView(
+            Circle()
+                .fill(fillColor)
+                .frame(width: scaledRadius * 2, height: scaledRadius * 2)
+                .overlay(
+                    Circle()
+                        .stroke(isSelected ? Color.green : Color.white, lineWidth: 2 * zoomScale)
+                )
+                .overlay(
+                    Text("\(label)")
+                        .font(.system(size: 12 * zoomScale))
+                        .foregroundColor(.white)
+                )
+                .accessibilityLabel("Node \(label)")
+        )
+    }
+    
+    @available(iOS 15.0, *)
+    @available(watchOS 9.0, *)
+    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
+        let scaledRadius = radius * zoomScale
+        let path = CGPath(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: scaledRadius * 2, height: scaledRadius * 2), transform: nil)
+        context.fill(Path(path), with: .color(fillColor))
+        context.stroke(Path(path), with: .color(isSelected ? Color.green : Color.white), lineWidth: 2 * zoomScale)
+        
+        let textKey = "\(label)_\(zoomScale)"
+        var contentResolved: GraphicsContext.ResolvedText?
+        nodeCacheQueue.sync {
+            if let cached = nodeTextCache[textKey] {
                 contentResolved = cached
             } else {
-                let text = Text(content.displayText).foregroundColor(.gray).font(.system(size: max(6.0, 8.0 * zoomScale)))
+                let text = Text("\(label)").font(.system(size: 12 * zoomScale)).foregroundColor(.white)
                 let resolved = context.resolve(text)
-                nodeCacheQueue.async(flags: .barrier) {
-                    nodeTextCache[contentKey] = resolved
-                    insertionOrder.append(contentKey)
-                    if nodeTextCache.count > maxCacheSize {
-                        let oldestKey = insertionOrder.removeFirst()
-                        nodeTextCache.removeValue(forKey: oldestKey)
-                    }
+                nodeTextCache[textKey] = resolved
+                insertionOrder.append(textKey)
+                if nodeTextCache.count > maxCacheSize {
+                    let oldestKey = insertionOrder.removeFirst()
+                    nodeTextCache.removeValue(forKey: oldestKey)
                 }
                 contentResolved = resolved
             }
+        }
+        context.draw(contentResolved!, at: position, anchor: .center)
+        
+        if let content = content, !content.displayText.isEmpty {
+            let contentText = Text(content.displayText).font(.system(size: 8 * zoomScale)).foregroundColor(.gray)
+            let resolved = context.resolve(contentText)
             let contentPosition = CGPoint(x: position.x, y: position.y + (scaledRadius + 5 * zoomScale))
-            context.draw(contentResolved, at: contentPosition, anchor: .center)
+            context.draw(resolved, at: contentPosition, anchor: .center)
         }
     }
 }
@@ -208,6 +206,7 @@ public struct AnyNode: NodeProtocol {
     }
     public var isVisible: Bool { base.isVisible }
     public var fillColor: Color { base.fillColor }
+    public var mass: CGFloat { base.mass }
     
     public init(_ base: any NodeProtocol) {
         self.base = base

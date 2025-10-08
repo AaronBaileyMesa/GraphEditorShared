@@ -72,38 +72,46 @@ struct PositionUpdater {
                 }
                 avgPos /= CGFloat(collapsedParents.count)
                 newPosition = avgPos
-                newVelocity = .zero
+                newVelocity = .zero  // Override velocity for collapsed children
             }
         }
         return (newPosition, newVelocity)
     }
 
     func updatePositionsAndVelocities(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge], quadtree: Quadtree?) -> ([any NodeProtocol], Bool) {
+        let timeStep: CGFloat = Constants.Physics.timeStep  // Updated: Use constant
         var tentativeUpdates: [NodeID: (position: CGPoint, velocity: CGPoint)] = [:]
+        var isActive = false
+
         for node in nodes {
             let force = forces[node.id] ?? .zero
-            var newVelocity = CGPoint(x: node.velocity.x + force.x * Constants.Physics.timeStep, y: node.velocity.y + force.y * Constants.Physics.timeStep)
-            newVelocity = CGPoint(x: newVelocity.x * Constants.Physics.damping, y: newVelocity.y * Constants.Physics.damping)
-            var newPosition = CGPoint(x: node.position.x + newVelocity.x * Constants.Physics.timeStep, y: node.position.y + newVelocity.y * Constants.Physics.timeStep)
-            (newPosition, newVelocity) = clampedPositionAndBouncedVelocity(for: newPosition, with: newVelocity)
+            var newVelocity = node.velocity + force / node.mass * timeStep
+            var newPosition = node.position + newVelocity * timeStep
+
+            newVelocity *= Constants.Physics.damping  // Apply global damping
+
+            let (clampedPosition, bouncedVelocity) = clampedPositionAndBouncedVelocity(for: newPosition, with: newVelocity)
+            newPosition = clampedPosition
+            newVelocity = bouncedVelocity
+
             newPosition = adjustPositionForCollisions(newPosition, excluding: node.id, using: quadtree, allNodes: nodes)
+
+            if hypot(newVelocity.x, newVelocity.y) > 0.001 {
+                isActive = true
+            }
+
             tentativeUpdates[node.id] = (newPosition, newVelocity)
         }
 
         let parentMap = buildParentMap(from: edges)
-        let isExpandedMap: [NodeID: Bool] = nodes.reduce(into: [:]) { $0[$1.id] = $1.isExpanded }
-
+        let isExpandedMap = nodes.reduce(into: [NodeID: Bool]()) { $0[$1.id] = $1.isExpanded }
         var updatedNodes: [any NodeProtocol] = []
-        var totalVelocity: CGFloat = 0.0
+
         for node in nodes {
             let tentative = tentativeUpdates[node.id]!
-            let (newPosition, newVelocity) = finalPositionAndVelocity(for: node.id, tentative: tentative, parentMap: parentMap, isExpandedMap: isExpandedMap, tentativeUpdates: tentativeUpdates)
-            let updatedNode = node.with(position: newPosition, velocity: newVelocity)
-            updatedNodes.append(updatedNode)
-            totalVelocity += hypot(newVelocity.x, newVelocity.y)
+            let (finalPosition, finalVelocity) = finalPositionAndVelocity(for: node.id, tentative: tentative, parentMap: parentMap, isExpandedMap: isExpandedMap, tentativeUpdates: tentativeUpdates)
+            updatedNodes.append(node.with(position: finalPosition, velocity: finalVelocity))
         }
-
-        let isActive = totalVelocity >= Constants.Physics.velocityThreshold * CGFloat(nodes.count)
 
         return (updatedNodes, isActive)
     }

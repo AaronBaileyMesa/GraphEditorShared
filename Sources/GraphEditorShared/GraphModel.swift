@@ -59,13 +59,31 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
 
     lazy var simulator: GraphSimulator = {
         GraphSimulator(
-            getNodes: { [weak self] in self?.nodes.map { $0.unwrapped } ?? [] },
-            setNodes: { [weak self] newNodes in
-                self?.nodes = newNodes.map { AnyNode($0) }
+            getNodes: { [weak self] in
+                await MainActor.run {
+                    self?.nodes.map { $0.unwrapped } ?? []
+                }
             },
-            getEdges: { [weak self] in self?.edges ?? [] },
-            getVisibleNodes: { [weak self] in self?.visibleNodes() ?? [] },
-            getVisibleEdges: { [weak self] in self?.visibleEdges() ?? [] },
+            setNodes: { [weak self] newNodes in
+                await MainActor.run {
+                    self?.nodes = newNodes.map { AnyNode($0) }
+                }
+            },
+            getEdges: { [weak self] in
+                await MainActor.run {
+                    self?.edges ?? []
+                }
+            },
+            getVisibleNodes: { [weak self] in
+                await MainActor.run {
+                    self?.visibleNodes() ?? []
+                }
+            },
+            getVisibleEdges: { [weak self] in
+                await MainActor.run {
+                    self?.visibleEdges() ?? []
+                }
+            },
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
                 guard let self = self, !self.isStable else { return }
@@ -75,10 +93,12 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
                     let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
                     self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
                     self.isStable = true
-                    Task {
+                    Task.detached {
                         await self.stopSimulation()
                         try? await Task.sleep(nanoseconds: 500_000_000)
-                        self.isStable = false
+                        await MainActor.run {
+                            self.isStable = false
+                        }
                     }
                     self.objectWillChange.send()
                 }

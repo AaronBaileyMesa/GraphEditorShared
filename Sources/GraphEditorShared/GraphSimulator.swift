@@ -1,4 +1,9 @@
-// Sources/GraphEditorShared/GraphSimulator.swift
+//
+//  GraphSimulator.swift
+//  GraphEditorShared
+//
+//  Created by handcart on 8/12/25.
+//
 
 import Foundation
 import os.log  // For logging if needed
@@ -11,25 +16,25 @@ import WatchKit  // Only if using haptics; otherwise remove
 /// Manages physics simulation loops for graph updates.
 class GraphSimulator {
     var simulationTask: Task<Void, Never>?  // Exposed for testing
-    internal var recentVelocities: [CGFloat] = []  // Explicit internal for test access    
+    internal var recentVelocities: [CGFloat] = []  // Explicit internal for test access
     let velocityChangeThreshold: CGFloat
     let velocityHistoryCount: Int
     let baseInterval: TimeInterval  // Now configurable
     
     let physicsEngine: PhysicsEngine
-    private let getVisibleNodes: () -> [any NodeProtocol]
-    private let getVisibleEdges: () -> [GraphEdge]
+    private let getVisibleNodes: () async -> [any NodeProtocol]
+    private let getVisibleEdges: () async -> [GraphEdge]
     
-    internal let getNodes: () -> [any NodeProtocol]  // Changed from private to internal
-    private let setNodes: ([any NodeProtocol]) -> Void  // Updated: Polymorphic
-    private let getEdges: () -> [GraphEdge]
-    private let onStable: (() -> Void)?  // New: Optional callback
+    internal let getNodes: () async -> [any NodeProtocol]  // Changed from private to internal
+    internal let setNodes: ([any NodeProtocol]) async -> Void  // Updated: Polymorphic
+    private let getEdges: () async -> [GraphEdge]
+    internal let onStable: (() -> Void)?  // New: Optional callback
     
-    init(getNodes: @escaping () -> [any NodeProtocol],
-         setNodes: @escaping ([any NodeProtocol]) -> Void,
-         getEdges: @escaping () -> [GraphEdge],
-         getVisibleNodes: @escaping () -> [any NodeProtocol],
-         getVisibleEdges: @escaping () -> [GraphEdge],
+    init(getNodes: @escaping () async -> [any NodeProtocol],
+         setNodes: @escaping ([any NodeProtocol]) async -> Void,
+         getEdges: @escaping () async -> [GraphEdge],
+         getVisibleNodes: @escaping () async -> [any NodeProtocol],
+         getVisibleEdges: @escaping () async -> [GraphEdge],
          physicsEngine: PhysicsEngine,
          onStable: (() -> Void)? = nil,
          baseInterval: TimeInterval = 1.0 / 30.0,  // Default value
@@ -57,13 +62,13 @@ class GraphSimulator {
     
     @MainActor
     func startSimulation() async {
-#if os(watchOS)
+    #if os(watchOS)
         guard WKApplication.shared().applicationState == .active else { return }
-#endif
+    #endif
         physicsEngine.resetSimulation()
         recentVelocities.removeAll()
         
-        let nodeCount = getNodes().count
+        let nodeCount = await getNodes().count
         if nodeCount < 5 {
             onStable?()  // NEW: Call here to handle "already stable" cases
             return
@@ -79,8 +84,14 @@ class GraphSimulator {
         
         simulationTask = Task {
             await self.runSimulationLoop(baseInterval: adjustedInterval, nodeCount: nodeCount)
+            self.simulationTask = nil  // Clear after completion (moved inside Task)
         }
+    }
+    
+    func stopSimulation() async {
+        simulationTask?.cancel()
         await simulationTask?.value
+        simulationTask = nil  // Added: Clear task after stop
     }
     
     internal func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
@@ -89,6 +100,7 @@ class GraphSimulator {
         let maxIterations = 500
         while !Task.isCancelled && iterations < maxIterations {
             let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
+            physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)  // New: Decay alpha
             iterations += 1
             print("Iteration \(iterations): shouldContinue = \(shouldContinue)")  // NEW: Per-iter log
             if !shouldContinue {
@@ -102,74 +114,47 @@ class GraphSimulator {
         self.onStable?()
     }
     
-    private func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
+    internal func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
 #if os(watchOS)
         if await WKApplication.shared().applicationState != .active { return false }
 #endif
         
+        if physicsEngine.isPaused { return false } // Added: Stop loop if paused to prevent infinite loop
+        
         let result: SimulationStepResult = await Task.detached {
-            return self.computeSimulationStep()
+            await self.computeSimulationStep()
         }.value
         print("Step: Total velocity = \(result.totalVelocity)")
-        self.setNodes(result.updatedNodes)
-        
-        if self.shouldStopSimulation(result: result, nodeCount: nodeCount) {
-            return false
-        }
-        
-        try? await Task.sleep(for: .seconds(baseInterval))
-        return true
-    }
-    
-    nonisolated func computeSimulationStep() -> SimulationStepResult {
-        let nodes = self.getNodes()
-        let visibleNodes = self.getVisibleNodes()
-        let visibleEdges = self.getVisibleEdges()
-        let (forces, quadtree) = self.physicsEngine.repulsionCalculator.computeRepulsions(nodes: visibleNodes)
-        var updatedForces = forces
-        updatedForces = self.physicsEngine.attractionCalculator.applyAttractions(forces: updatedForces, edges: visibleEdges, nodes: visibleNodes)
-        updatedForces = self.physicsEngine.centeringCalculator.applyCentering(forces: updatedForces, nodes: visibleNodes)
-        
-        var tempNodes = nodes
-        var stepActive = false
-        let subSteps = nodes.count < 5 ? 2 : (nodes.count < 10 ? 5 : (nodes.count < 30 ? 3 : 1))
-        for _ in 0..<subSteps {
-            let (updated, active) = self.physicsEngine.positionUpdater.updatePositionsAndVelocities(nodes: tempNodes, forces: updatedForces, edges: self.getEdges(), quadtree: quadtree)
-            tempNodes = updated
-            stepActive = stepActive || active
-        }
-        
-        let totalVel = tempNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
-        return SimulationStepResult(updatedNodes: tempNodes, shouldContinue: stepActive, totalVelocity: totalVel)
-    }
-    
-    func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) -> Bool {
-        print("Check stop: totalVel = \(result.totalVelocity), threshold = \(Constants.Physics.velocityThreshold * CGFloat(nodeCount)), shouldContinue = \(result.shouldContinue)")  // NEW
-        if !result.shouldContinue || result.totalVelocity < Constants.Physics.velocityThreshold * CGFloat(nodeCount) {
-            return true
-        }
+        await self.setNodes(result.updatedNodes)
         
         recentVelocities.append(result.totalVelocity)
         if recentVelocities.count > velocityHistoryCount {
             recentVelocities.removeFirst()
         }
         
-        if recentVelocities.count == velocityHistoryCount {
-            let maxVel = recentVelocities.max() ?? 1.0
-            let minVel = recentVelocities.min() ?? 0.0
-            let relativeChange = (maxVel > 0) ? (maxVel - minVel) / maxVel : 0.0  // Guard zero-divide
-            print("Relative change: \(relativeChange) (threshold: \(velocityChangeThreshold))")  // NEW
-            if relativeChange < velocityChangeThreshold {
-                return true
-            }
-        }
+        let velocityChange = recentVelocities.max()! - recentVelocities.min()!
+        let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
         
-        return false
+        return !isStable
     }
     
-    func stopSimulation() async {
-        simulationTask?.cancel()
-        await simulationTask?.value  // Await to ensure clean stop
-        simulationTask = nil
+    internal func computeSimulationStep() async -> SimulationStepResult {
+        let nodes = await getNodes()
+        let edges = await getEdges()
+        
+        let (updatedNodes, isActive) = physicsEngine.simulationStep(nodes: nodes, edges: edges)
+        let totalVelocity = updatedNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+        
+        return SimulationStepResult(updatedNodes: updatedNodes, shouldContinue: isActive, totalVelocity: totalVelocity)
+    }
+    
+    internal func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) -> Bool {
+        recentVelocities.append(result.totalVelocity)
+        if recentVelocities.count > velocityHistoryCount {
+            recentVelocities.removeFirst()
+        }
+        let velocityChange = recentVelocities.max()! - recentVelocities.min()!
+        let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
+        return isStable  // True if should stop (stable and low velocity)
     }
 }

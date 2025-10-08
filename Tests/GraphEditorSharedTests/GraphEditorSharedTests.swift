@@ -338,7 +338,7 @@ struct ClampingAndMiscTests {
     @available(iOS 15.0, watchOS 9.0, *)
     @Test func testNodeContentDisplayText() {
         #expect(NodeContent.string("LongStringHere").displayText == "LongString…", "Truncates long string")
-        #expect(NodeContent.number(3.14159).displayText == "3.1", "Formats number")
+        #expect(NodeContent.number(3.14159).displayText == "3.14", "Formats number")
         let date = Date(timeIntervalSince1970: 0)
         #expect(NodeContent.date(date).displayText == "1/1/70", "Formats date consistently")
     }

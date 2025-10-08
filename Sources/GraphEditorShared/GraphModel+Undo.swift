@@ -24,25 +24,29 @@ extension GraphModel {
         UndoGraphState(nodes: nodes, edges: edges, nextLabel: nextNodeLabel)
     }
     
-    public func undo() async {
+    public func undo(resume: Bool = true) async {
         if let state = undoStack.popLast() {
             redoStack.append(currentState())
             nodes = state.nodes
             edges = state.edges
             nextNodeLabel = state.nextLabel
             objectWillChange.send()
-            await resumeSimulation()
+            if resume {
+                await resumeSimulation()
+            }
         }
     }
     
-    public func redo() async {
+    public func redo(resume: Bool = true) async {
         if let state = redoStack.popLast() {
             undoStack.append(currentState())
             nodes = state.nodes
             edges = state.edges
             nextNodeLabel = state.nextLabel
             objectWillChange.send()
-            await resumeSimulation()
+            if resume {
+                await resumeSimulation()
+            }
         }
     }
     

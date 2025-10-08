@@ -14,7 +14,7 @@ import CoreGraphics
 @available(watchOS 9.0, *)
 public class PhysicsEngine {
     private let physicsLogger = OSLog(subsystem: "io.handcart.GraphEditor", category: "physics")
-    let simulationBounds: CGSize
+    var simulationBounds: CGSize
     private var stepCount: Int = 0
     private let maxNodesForQuadtree = 200
     private let symmetricFactor: CGFloat = 0.5
@@ -24,6 +24,7 @@ public class PhysicsEngine {
     internal let centeringCalculator: CenteringCalculator
     internal let positionUpdater: PositionUpdater
     public var useAsymmetricAttraction: Bool = false
+    public var alpha: CGFloat = 1.0  // New: Cooling parameter
     
     public init(simulationBounds: CGSize) {
         self.simulationBounds = simulationBounds
@@ -42,6 +43,7 @@ public class PhysicsEngine {
     public func resetSimulation() {
         simulationSteps = 0
         stepCount = 0
+        alpha = 1.0  // New: Reset alpha
     }
     
     public var isPaused: Bool = false
@@ -55,8 +57,14 @@ public class PhysicsEngine {
         var updatedForces = attractionCalculator.applyAttractions(forces: forces, edges: edges, nodes: nodes)
         updatedForces = centeringCalculator.applyCentering(forces: updatedForces, nodes: nodes)
         
+        // New: Scale forces by alpha
+        for id in updatedForces.keys {
+            updatedForces[id]! *= alpha
+        }
+        
         let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
-        var updatedNodes = tempNodes.map { node in
+       
+        let updatedNodes = tempNodes.map { node in
             var clamped = node
             if hypot(clamped.velocity.x, clamped.velocity.y) < 0.001 {
                 clamped.velocity = .zero
@@ -65,17 +73,19 @@ public class PhysicsEngine {
         }
 
         // New: Reset velocities if stable
-        let resetNodes = isActive ? tempNodes : tempNodes.map { $0.with(position: $0.position, velocity: CGPoint.zero) }         // NEW: Apply boosted damping if active
-//        var updatedNodes = resetNodes
+        var resetNodes = isActive ? updatedNodes : updatedNodes.map { $0.with(position: $0.position, velocity: CGPoint.zero) }
+
+        // NEW: Apply boosted damping if active
         if dampingBoostSteps > 0 {
-            let extraDamping = Constants.Physics.damping * 1.2  // 20% boost; adjust as needed
-            updatedNodes = updatedNodes.map { node in
+            let extraDamping = Constants.Physics.damping * 1.2
+            resetNodes = resetNodes.map { node in
                 var boostedNode = node
                 boostedNode.velocity *= extraDamping
                 return boostedNode
             }
             dampingBoostSteps -= 1
         }
+        
         if stepCount % 10 == 0 {  // Reduced logging frequency
             let totalVel = resetNodes.reduce(0.0) { $0 + $1.velocity.magnitude }
             os_log("Step %d: Total velocity = %.2f", log: physicsLogger, type: .debug, stepCount, totalVel)
