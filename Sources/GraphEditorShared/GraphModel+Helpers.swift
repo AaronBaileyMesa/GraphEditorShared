@@ -89,8 +89,8 @@ extension GraphModel {
             let outgoingLabels = edges
                 .filter { $0.from == selectedID }
                 .compactMap { edge in
-                    let toID = edge.target
-                    return nodes.first { $0.id == toID }?.unwrapped.label
+                    let targetID = edge.target
+                    return nodes.first { $0.id == targetID }?.unwrapped.label
                 }
                 .sorted()
                 .map { String($0) }

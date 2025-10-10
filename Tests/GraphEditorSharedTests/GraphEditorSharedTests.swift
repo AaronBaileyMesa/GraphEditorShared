@@ -150,10 +150,10 @@ struct ClampingAndMiscTests {
         let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
         engine.useAsymmetricAttraction = true  // Assumes this property is added (see implementation below)
         let fromID = UUID()
-        let toID = UUID()
+        let targetID = UUID()
         var nodes: [any NodeProtocol] = [Node(id: fromID, label: 1, position: CGPoint(x: 0, y: 0)),
-                                         Node(id: toID, label: 2, position: CGPoint(x: 200, y: 0))]
-        let edges = [GraphEdge(from: fromID, target: toID)]
+                                         Node(id: targetID, label: 2, position: CGPoint(x: 200, y: 0))]
+        let edges = [GraphEdge(from: fromID, target: targetID)]
         let (updatedNodes, _) = engine.simulationStep(nodes: nodes, edges: edges)
         nodes = updatedNodes
         #expect(abs(nodes[0].position.x - 0) < 1, "From node position unchanged in asymmetric")
@@ -283,13 +283,15 @@ struct ClampingAndMiscTests {
         model.nodes.append(newNode)
         
         await model.undo()  // Back to 1 node
-        #expect(await model.nodes.count == 1, "Undo removes node")
-        #expect(await model.nodes[0].id == initialNode.id, "Initial state restored")
-        #expect(await model.redoStack.count == 1, "Redo stack populated")
+        #expect(model.nodes.count == 1, "Undo removes node")
+        #expect(model.nodes[0].id == initialNode.id, "Initial state restored")
+        #expect(model.redoStack.count == 1, "Redo stack populated")
         
         await model.redo()  // Forward to 2 nodes
-        #expect(await model.nodes.count == 2, "Redo adds node")
-        #expect(await model.undoStack.count == 1, "Undo stack updated")  // Corrected to 1 (post-redo appends pre-redo state)
+        #expect(
+            model.nodes.count == 2, "Redo adds node")
+        #expect(
+            model.undoStack.count == 1, "Undo stack updated")  // Corrected to 1 (post-redo appends pre-redo state)
     }
     
     @MainActor @Test(.timeLimit(.minutes(1)))

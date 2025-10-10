@@ -27,7 +27,7 @@ struct GraphSimulatorTests {
             let nodeCount = await getNodes().count  // Added await
             if nodeCount < 5 {
                 onStable?()  // Call here for low count (stable by default)
-                let _ = await getNodes()  // Dummy await to ensure async operation
+                _ = await getNodes()  // Dummy await to ensure async operation
                 return
             }
             
@@ -72,7 +72,7 @@ struct GraphSimulatorTests {
         // NEW: Override to bypass app state check in tests
         override func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
             // Removed #if os(watchOS) guard for WKApplication state to allow simulation in unit tests
-            if await physicsEngine.isPaused { return false }
+            if physicsEngine.isPaused { return false }
             
             let result = await computeSimulationStep()  // Changed to synchronous call for test reliability
             
