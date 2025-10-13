@@ -2,6 +2,17 @@
 
 import Foundation
 import CoreGraphics
+import os
+
+public struct LogManager {
+    static var isEnabled: Bool {
+#if DEBUG
+        return true
+#else
+        return false
+#endif
+    }
+}
 
 public extension Double {
     func clamped(to range: ClosedRange<Double>) -> Double {
@@ -17,9 +28,9 @@ public extension CGFloat {
 
 public extension CGPoint {
     func normalized() -> CGPoint {
-            let len = hypot(x, y)
-            return len > 0 ? self / len : .zero
-        }
+        let len = hypot(x, y)
+        return len > 0 ? self / len : .zero
+    }
     
     static func + (lhs: CGPoint, rhs: CGPoint) -> CGPoint {
         CGPoint(x: lhs.x + rhs.x, y: lhs.y + rhs.y)
@@ -58,9 +69,9 @@ public extension CGPoint {
     }
     
     static func /= (lhs: inout CGPoint, rhs: CGFloat) {
-            lhs.x /= rhs
-            lhs.y /= rhs
-        }
+        lhs.x /= rhs
+        lhs.y /= rhs
+    }
     
     var magnitude: CGFloat {
         hypot(x, y)
@@ -104,10 +115,24 @@ public func centroid(of nodes: [any NodeProtocol]) -> CGPoint? {
     return CGPoint(x: totals.x / CGFloat(nodes.count), y: totals.y / CGFloat(nodes.count))
 }
 
-import os
-
 extension Logger {
     static func forCategory(_ category: String) -> Logger {
         Logger(subsystem: "io.handcart.GraphEditor", category: category)
+    }
+    
+    func debugLog(_ message: String) {
+        if LogManager.isEnabled {
+            self.debug("\(message)")
+        }
+    }
+    
+    func infoLog(_ message: String) {
+        if LogManager.isEnabled {
+            self.info("\(message)")
+        }
+    }
+    
+    func errorLog(_ message: String) {
+        self.error("\(message)")  // Always log errors
     }
 }
