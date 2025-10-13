@@ -95,14 +95,18 @@ class GraphSimulator {
     }
     
     internal func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
-        print("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")  // NEW: Confirm entry
+        print("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")
         var iterations = 0
         let maxIterations = 500
         while !Task.isCancelled && iterations < maxIterations {
+            if physicsEngine.isPaused {
+                try? await Task.sleep(for: .milliseconds(100))  // Poll every 100ms; ignore cancellation errors
+                continue
+            }
             let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
-            physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)  // New: Decay alpha
+            physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)
             iterations += 1
-            print("Iteration \(iterations): shouldContinue = \(shouldContinue)")  // NEW: Per-iter log
+            print("Iteration \(iterations): shouldContinue = \(shouldContinue)")
             if !shouldContinue {
                 print("Simulation stabilized after \(iterations) iterations")
                 break
