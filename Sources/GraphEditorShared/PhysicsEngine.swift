@@ -5,7 +5,7 @@
 //  Created by handcart on 8/1/25.
 //
 
-import os.log
+import os
 import SwiftUI
 import Foundation
 import CoreGraphics
@@ -13,7 +13,7 @@ import CoreGraphics
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public class PhysicsEngine {
-    private let physicsLogger = OSLog(subsystem: "io.handcart.GraphEditor", category: "physics")
+    private static let logger = Logger.forCategory("physics")
     var simulationBounds: CGSize
     private var stepCount: Int = 0
     private let maxNodesForQuadtree = 200
@@ -88,7 +88,7 @@ public class PhysicsEngine {
         
         if stepCount % 10 == 0 {  // Reduced logging frequency
             let totalVel = resetNodes.reduce(0.0) { $0 + $1.velocity.magnitude }
-            os_log("Step %d: Total velocity = %.2f", log: physicsLogger, type: .debug, stepCount, totalVel)
+            Self.logger.debugLog("Step \(stepCount): Total velocity = \(String(format: "%.2f", totalVel))")
         }
         
         return (resetNodes, isActive)
