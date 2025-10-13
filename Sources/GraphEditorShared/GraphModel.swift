@@ -25,6 +25,8 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
 
+    internal let logger = Logger.forCategory("graphmodel-storage")  // Added: Consistent logger
+
     var simulationTimer: Timer?
     var undoStack: [UndoGraphState] = []
     var redoStack: [UndoGraphState] = []

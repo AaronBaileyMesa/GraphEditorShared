@@ -6,40 +6,41 @@
 //
 import Foundation
 import CoreGraphics
+import os  // Added for Logger
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     private func loadFromStorage(for name: String) async throws {
-        print("loadFromStorage started for \(name)")  // Updated
+        logger.infoLog("loadFromStorage started for \(name)")  // Updated to infoLog
         let (loadedNodes, loadedEdges) = try await storage.load(for: name)
-        print("loadFromStorage: loaded \(loadedNodes.count) nodes, \(loadedEdges.count) edges for \(name)")  // Updated
+        logger.infoLog("loadFromStorage: loaded \(loadedNodes.count) nodes, \(loadedEdges.count) edges for \(name)")  // Updated to infoLog
         self.nodes = loadedNodes.map { AnyNode($0) }
         self.edges = loadedEdges
         self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
     }
     
     public func load() async {
-        print("GraphModel.load() called")  // Existing
+        logger.infoLog("GraphModel.load() called")  // Updated to infoLog
         do {
             try await loadFromStorage(for: currentGraphName)
             syncCollapsedPositions()
             if let viewState = try storage.loadViewState(for: currentGraphName) {  // Updated to named (note: throws, but no await as per storage)
                 // Apply view state if needed (e.g., publish or set properties)
-                print("Loaded view state: offset \(viewState.offset), zoom \(viewState.zoomScale)")
+                logger.infoLog("Loaded view state: offset \(viewState.offset), zoom \(viewState.zoomScale)")  // Updated to infoLog
             }
-            print("GraphModel.load() succeeded; nodes: \(nodes.count), edges: \(edges.count)")  // NEW
+            logger.infoLog("GraphModel.load() succeeded; nodes: \(nodes.count), edges: \(edges.count)")  // Updated to infoLog
         } catch {
-            print("GraphModel.load() failed: \(error.localizedDescription)")  // Enhanced
+            logger.errorLog("GraphModel.load() failed: \(error.localizedDescription)")  // Updated to errorLog
         }
     }
     
     public func save() async {
-        print("GraphModel.save() called; nodes: \(nodes.count), edges: \(edges.count)")  // Existing
+        logger.infoLog("GraphModel.save() called; nodes: \(nodes.count), edges: \(edges.count)")  // Updated to infoLog
         do {
             try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges, for: currentGraphName)
-            print("GraphModel.save() succeeded")  // Existing
+            logger.infoLog("GraphModel.save() succeeded")  // Updated to infoLog
         } catch {
-            print("GraphModel.save() failed: \(error.localizedDescription)")  // Existing
+            logger.errorLog("GraphModel.save() failed: \(error.localizedDescription)")  // Updated to errorLog
         }
     }
     
@@ -63,15 +64,15 @@ extension GraphModel {
     }
     
     public func clearGraph() async {
-        print("clearGraph called")  // NEW
+        logger.infoLog("clearGraph called")  // Updated to infoLog
         nodes = []
         edges = []
         nextNodeLabel = 1
         do {
             try await storage.deleteGraph(name: currentGraphName)  // Updated to multi-graph clear (delete)
-            print("clearGraph succeeded")  // Existing
+            logger.infoLog("clearGraph succeeded")  // Updated to infoLog
         } catch {
-            print("clearGraph failed: \(error.localizedDescription)")  // Existing
+            logger.errorLog("clearGraph failed: \(error.localizedDescription)")  // Updated to errorLog
         }
         objectWillChange.send()
     }
@@ -81,13 +82,13 @@ extension GraphModel {
     public func loadGraph() async throws {
         do {
             try await loadFromStorage(for: currentGraphName)
-            print("Loaded graph '\(currentGraphName)' with \(nodes.count) nodes and \(edges.count) edges")
+            logger.infoLog("Loaded graph '\(currentGraphName)' with \(nodes.count) nodes and \(edges.count) edges")  // Updated to infoLog
             objectWillChange.send()
         } catch GraphStorageError.graphNotFound(_) {
             // Graph doesn't exist: Treat as new/empty
             nodes = []
             edges = []
-            print("Graph '\(currentGraphName)' not found; starting empty")
+            logger.infoLog("Graph '\(currentGraphName)' not found; starting empty")  // Updated to infoLog
         } catch {
             throw error
         }
@@ -108,7 +109,7 @@ extension GraphModel {
         undoStack = []
         redoStack = []
         objectWillChange.send()
-        print("Created and switched to new graph '\(name)'")
+        logger.infoLog("Created and switched to new graph '\(name)'")  // Updated to infoLog
     }
     
     /// Loads a specific graph by name and switches to it.
@@ -125,7 +126,7 @@ extension GraphModel {
             currentGraphName = "default"
             try await loadGraph()
         }
-        print("Deleted graph '\(name)'")
+        logger.infoLog("Deleted graph '\(name)'")  // Updated to infoLog
     }
     
     /// Lists all available graph names.
