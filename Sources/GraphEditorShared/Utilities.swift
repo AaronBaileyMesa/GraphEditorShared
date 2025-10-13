@@ -103,3 +103,11 @@ public func centroid(of nodes: [any NodeProtocol]) -> CGPoint? {
     }
     return CGPoint(x: totals.x / CGFloat(nodes.count), y: totals.y / CGFloat(nodes.count))
 }
+
+import os
+
+extension Logger {
+    static func forCategory(_ category: String) -> Logger {
+        Logger(subsystem: "io.handcart.GraphEditor", category: category)
+    }
+}
