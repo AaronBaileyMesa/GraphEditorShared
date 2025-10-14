@@ -14,8 +14,6 @@ import Foundation
 import WatchKit
 #endif
 
-private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "storage")
-
 @available(iOS 16.0, watchOS 6.0, *)
 @MainActor public class GraphModel: ObservableObject {
     @Published public var currentGraphName: String = "default"  // Standardized to "default" for consistency
@@ -91,7 +89,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
                 guard let self = self, !self.isStable else { return }
                 let velocities = self.nodes.map { hypot($0.velocity.x, $0.velocity.y) }
                 if velocities.allSatisfy({ $0 < 0.001 }) {
-                    print("Simulation stable: Centering nodes")
+                    self.logger.infoLog("Simulation stable: Centering nodes")  // Replace print with logger
                     let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
                     self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
                     self.isStable = true
@@ -119,7 +117,7 @@ private let logger = OSLog(subsystem: "io.handcart.GraphEditor", category: "stor
     public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
         self.storage = storage
         self.physicsEngine = physicsEngine
-        print("GraphModel initialized with storage: \(type(of: storage))")  // NEW: Log init
+        logger.infoLog("GraphModel initialized with storage: \(type(of: storage))")  // Replace print with logger
     }
     
     func buildAdjacencyList(for type: EdgeType) -> [NodeID: [NodeID]] {
