@@ -10,41 +10,6 @@ import os  // Added for Logger
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    private func loadFromStorage(for name: String) async throws {
-        logger.infoLog("loadFromStorage started for \(name)")  // Updated to infoLog
-        let (loadedNodes, loadedEdges) = try await storage.load(for: name)
-        logger.infoLog("loadFromStorage: loaded \(loadedNodes.count) nodes, \(loadedEdges.count) edges for \(name)")  // Updated to infoLog
-        self.nodes = loadedNodes.map { AnyNode($0) }
-        self.edges = loadedEdges
-        self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
-    }
-    
-    public func load() async {
-        logger.infoLog("GraphModel.load() called")  // Updated to infoLog
-        do {
-            try await loadFromStorage(for: currentGraphName)
-            syncCollapsedPositions()
-            if let viewState = try storage.loadViewState(for: currentGraphName) {  // Updated to named (note: throws, but no await as per storage)
-                // Apply view state if needed (e.g., publish or set properties)
-                logger.infoLog("Loaded view state: offset \(viewState.offset), zoom \(viewState.zoomScale)")  // Updated to infoLog
-            }
-            logger.infoLog("GraphModel.load() succeeded; nodes: \(nodes.count), edges: \(edges.count)")  // Updated to infoLog
-        } catch {
-            logger.errorLog("GraphModel.load() failed: \(error.localizedDescription)", error: error)  // Updated to errorLog with error
-        }
-    }
-    
-    public func save() async throws {
-        logger.infoLog("GraphModel.save() called; nodes: \(nodes.count), edges: \(edges.count)")  // Updated to infoLog
-        do {
-            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges, for: currentGraphName)
-            logger.infoLog("GraphModel.save() succeeded")  // Updated to infoLog
-        } catch {
-            logger.errorLog("GraphModel.save() failed: \(error.localizedDescription)", error: error)  // Updated to errorLog with error
-            throw error  // Re-throw for caller handling
-        }
-    }
-    
     private func syncCollapsedPositions() {
         for parentIndex in 0..<nodes.count {
             if let toggle = nodes[parentIndex].unwrapped as? ToggleNode, !toggle.isExpanded {
@@ -63,17 +28,56 @@ extension GraphModel {
         }
         objectWillChange.send()
     }
+
+    private func loadFromStorage(for name: String) async throws {
+        logger.infoLog("loadFromStorage started for \(name)")
+        do {
+            let (loadedNodes, loadedEdges) = try await storage.load(for: name)
+            logger.infoLog("loadFromStorage: loaded \(loadedNodes.count) nodes, \(loadedEdges.count) edges for \(name)")
+            self.nodes = loadedNodes.map { AnyNode($0) }
+            self.edges = loadedEdges
+            self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
+        } catch {
+            logger.errorLog("loadFromStorage failed for \(name)", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation with custom error
+        }
+    }
     
+    public func load() async {
+        logger.infoLog("GraphModel.load() called")
+        do {
+            try await loadFromStorage(for: currentGraphName)
+            syncCollapsedPositions()
+            if let viewState = try storage.loadViewState(for: currentGraphName) {
+                logger.infoLog("Loaded view state: offset \(viewState.offset), zoom \(viewState.zoomScale)")
+            }
+            logger.infoLog("GraphModel.load() succeeded; nodes: \(nodes.count), edges: \(edges.count)")
+        } catch {
+            logger.errorLog("GraphModel.load() failed: \(error.localizedDescription)", error: error)
+        }
+    }
+    
+    public func save() async throws {
+        logger.infoLog("GraphModel.save() called; nodes: \(nodes.count), edges: \(edges.count)")
+        do {
+            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges, for: currentGraphName)
+            logger.infoLog("GraphModel.save() succeeded")
+        } catch {
+            logger.errorLog("GraphModel.save() failed: \(error.localizedDescription)", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+        }
+    }
+
     public func clearGraph() async {
-        logger.infoLog("clearGraph called")  // Updated to infoLog
+        logger.infoLog("clearGraph called")
         nodes = []
         edges = []
         nextNodeLabel = 1
         do {
-            try await storage.deleteGraph(name: currentGraphName)  // Updated to multi-graph clear (delete)
-            logger.infoLog("clearGraph succeeded")  // Updated to infoLog
+            try await storage.deleteGraph(name: currentGraphName)
+            logger.infoLog("clearGraph succeeded")
         } catch {
-            logger.errorLog("clearGraph failed: \(error.localizedDescription)", error: error)  // Updated to errorLog with error
+            logger.errorLog("clearGraph failed: \(error.localizedDescription)", error: error)
         }
         objectWillChange.send()
     }
@@ -88,11 +92,11 @@ extension GraphModel {
         } catch GraphStorageError.graphNotFound(_) {
             nodes = []
             edges = []
-            logger.warning("Graph '\(self.currentGraphName)' not found; starting empty")  // Use warning for recoverable
+            logger.warning("Graph '\(self.currentGraphName)' not found; starting empty")
         } catch {
             logger.errorLog("Failed to load graph '\(self.currentGraphName)'", error: error)
-            nodes = []  // Fallback: Start empty
-            throw GraphError.storageFailure(error.localizedDescription)  // Use custom error
+            nodes = []
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
@@ -103,21 +107,26 @@ extension GraphModel {
             logger.infoLog("Saved graph '\(self.currentGraphName)'")
         } catch {
             logger.errorLog("Failed to save graph '\(self.currentGraphName)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Use custom error
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
     /// Creates a new empty graph with the given name and switches to it.
     public func createNewGraph(name: String) async throws {
-        try await storage.createNewGraph(name: name)
-        currentGraphName = name
-        nodes = []
-        edges = []
-        nextNodeLabel = 1
-        undoStack = []
-        redoStack = []
-        objectWillChange.send()
-        logger.infoLog("Created and switched to new graph '\(name)'")  // Updated to infoLog
+        do {
+            try await storage.createNewGraph(name: name)
+            currentGraphName = name
+            nodes = []
+            edges = []
+            nextNodeLabel = 1
+            undoStack = []
+            redoStack = []
+            objectWillChange.send()
+            logger.infoLog("Created and switched to new graph '\(name)'")
+        } catch {
+            logger.errorLog("Failed to create graph '\(name)'", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+        }
     }
     
     /// Loads a specific graph by name and switches to it.
@@ -128,26 +137,45 @@ extension GraphModel {
     
     /// Deletes the graph with the given name (if not current, no change to model).
     public func deleteGraph(name: String) async throws {
-        try await storage.deleteGraph(name: name)
-        if name == currentGraphName {
-            // Reset to default if current is deleted
-            currentGraphName = "default"
-            try await loadGraph()
+        do {
+            try await storage.deleteGraph(name: name)
+            if name == currentGraphName {
+                currentGraphName = "default"
+                try await loadGraph()
+            }
+            logger.infoLog("Deleted graph '\(name)'")
+        } catch {
+            logger.errorLog("Failed to delete graph '\(name)'", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
-        logger.infoLog("Deleted graph '\(name)'")  // Updated to infoLog
     }
     
     /// Lists all available graph names.
     public func listGraphNames() async throws -> [String] {
-        try await storage.listGraphNames()
+        do {
+            return try await storage.listGraphNames()
+        } catch {
+            logger.errorLog("Failed to list graph names", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+        }
     }
     
     public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) async throws {
         let viewState = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
-        try storage.saveViewState(viewState, for: currentGraphName)
+        do {
+            try storage.saveViewState(viewState, for: currentGraphName)
+        } catch {
+            logger.errorLog("Failed to save view state for '\(currentGraphName)'", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+        }
     }
 
     public func loadViewState() async throws -> ViewState? {
-        try storage.loadViewState(for: currentGraphName)
+        do {
+            return try storage.loadViewState(for: currentGraphName)
+        } catch {
+            logger.errorLog("Failed to load view state for '\(currentGraphName)'", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+        }
     }
 }

@@ -89,7 +89,7 @@ import WatchKit
                 guard let self = self, !self.isStable else { return }
                 let velocities = self.nodes.map { hypot($0.velocity.x, $0.velocity.y) }
                 if velocities.allSatisfy({ $0 < 0.001 }) {
-                    self.logger.infoLog("Simulation stable: Centering nodes")  // Replace print with logger
+                    self.logger.infoLog("Simulation stable: Centering nodes")  // Replaced print
                     let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
                     self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
                     self.isStable = true
@@ -105,7 +105,7 @@ import WatchKit
             }
         )
     }()
-
+    
     public var canUndo: Bool {
         !undoStack.isEmpty
     }
@@ -117,7 +117,7 @@ import WatchKit
     public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
         self.storage = storage
         self.physicsEngine = physicsEngine
-        logger.infoLog("GraphModel initialized with storage: \(type(of: storage))")  // Replace print with logger
+        logger.infoLog("GraphModel initialized with storage: \(type(of: storage))")  // Existing, already good
     }
     
     func buildAdjacencyList(for type: EdgeType) -> [NodeID: [NodeID]] {

@@ -38,7 +38,7 @@ extension GraphModel {
 
     public func addEdge(from: NodeID, target: NodeID, type: EdgeType) async {
         if wouldCreateCycle(withNewEdgeFrom: from, target: target, type: type) {
-            print("Cannot add edge: Would create cycle in hierarchy")
+            logger.warning("Cannot add edge: Would create cycle in hierarchy")  // Replaced print with warning log
             return
         }
         pushUndo()
@@ -48,6 +48,7 @@ extension GraphModel {
     }
 
     public func deleteEdge(withID id: UUID) async {
+        logger.debugLog("Deleting edge with ID: \(id.uuidString.prefix(8))")  // Added debug log
         pushUndo()
         edges.removeAll { $0.id == id }
         objectWillChange.send()
@@ -55,6 +56,7 @@ extension GraphModel {
     }
 
     public func addNode(at position: CGPoint) async {
+        logger.debugLog("Adding node at position: x=\(position.x), y=\(position.y)")  // Added debug log
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
@@ -65,6 +67,7 @@ extension GraphModel {
     }
 
     public func addToggleNode(at position: CGPoint) async {
+        logger.debugLog("Adding toggle node at position: x=\(position.x), y=\(position.y)")  // Added debug log
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
@@ -75,6 +78,7 @@ extension GraphModel {
     }
 
     public func addChild(to parentID: NodeID) async {
+        logger.debugLog("Adding child to parent ID: \(parentID.uuidString.prefix(8))")  // Added debug log
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
@@ -91,6 +95,7 @@ extension GraphModel {
     }
 
     public func deleteNode(withID id: NodeID) async {
+        logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Added debug log
         pushUndo()
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.target == id }
@@ -99,6 +104,7 @@ extension GraphModel {
     }
 
     public func updateNodeContent(withID id: NodeID, newContent: NodeContent?) async {
+        logger.debugLog("Updating content for node ID: \(id.uuidString.prefix(8))")  // Added debug log
         pushUndo()
         if let index = nodes.firstIndex(where: { $0.id == id }) {
             var updated = nodes[index].unwrapped
@@ -110,6 +116,7 @@ extension GraphModel {
     }
 
     public func deleteSelected(selectedNodeID: NodeID?, selectedEdgeID: UUID?) async {
+        logger.debugLog("Deleting selected: node=\(selectedNodeID?.uuidString.prefix(8) ?? "nil"), edge=\(selectedEdgeID?.uuidString.prefix(8) ?? "nil")")  // Added debug log
         pushUndo()
         if let id = selectedEdgeID {
             edges.removeAll { $0.id == id }
@@ -122,6 +129,7 @@ extension GraphModel {
     }
 
     public func toggleExpansion(for nodeID: NodeID) async {
+        logger.debugLog("Toggling expansion for node ID: \(nodeID.uuidString.prefix(8))")  // Added debug log
         pushUndo()
         guard let idx = nodes.firstIndex(where: { $0.id == nodeID }), let toggle = nodes[idx].unwrapped as? ToggleNode else { return }
         let updated = toggle.handlingTap()

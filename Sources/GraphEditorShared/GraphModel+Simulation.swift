@@ -9,24 +9,27 @@ import Foundation
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     public func startSimulation() async {
-        // Remove await stopSimulation() to avoid always canceling; caller should stop explicitly if needed
+        logger.infoLog("Starting simulation")  // Added info log
         isSimulating = true
         isStable = false
         await simulator.startSimulation()
     }
-    
+
     public func pauseSimulation() async {
-        physicsEngine.isPaused = true  // Set flag to pause loop without canceling task
+        logger.debugLog("Pausing simulation")  // Added debug log
+        physicsEngine.isPaused = true
     }
-    
+
     public func resumeSimulation() async {
-        physicsEngine.isPaused = false  // Unpause; loop will continue if task exists
+        logger.debugLog("Resuming simulation")  // Added debug log
+        physicsEngine.isPaused = false
         if simulator.simulationTask == nil {
-            await startSimulation()  // Start new if no task (e.g., after full stop or initial)
+            await startSimulation()
         }
     }
-    
+
     public func stopSimulation() async {
+        logger.infoLog("Stopping simulation")  // Added info log
         await simulator.stopSimulation()
         isSimulating = false
     }

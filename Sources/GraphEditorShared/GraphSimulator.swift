@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import os.log  // For logging if needed
+import os  // For logging if needed
 
 #if os(watchOS)
 import WatchKit  // Only if using haptics; otherwise remove
@@ -15,6 +15,8 @@ import WatchKit  // Only if using haptics; otherwise remove
 @available(iOS 16.0, watchOS 6.0, *)
 /// Manages physics simulation loops for graph updates.
 class GraphSimulator {
+    private let logger = Logger.forCategory("graphsimulator")  // Added: Define logger instance
+
     var simulationTask: Task<Void, Never>?  // Exposed for testing
     internal var recentVelocities: [CGFloat] = []  // Explicit internal for test access
     let velocityChangeThreshold: CGFloat
@@ -95,40 +97,42 @@ class GraphSimulator {
     }
     
     internal func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
-        print("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")
+        let startTime = Date()  // Added for perf logging
+        logger.debugLog("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")  // Replaced print
         var iterations = 0
         let maxIterations = 500
         while !Task.isCancelled && iterations < maxIterations {
             if physicsEngine.isPaused {
-                try? await Task.sleep(for: .milliseconds(100))  // Poll every 100ms; ignore cancellation errors
+                try? await Task.sleep(for: .milliseconds(100))
                 continue
             }
             let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
             physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)
             iterations += 1
-            print("Iteration \(iterations): shouldContinue = \(shouldContinue)")
+            logger.debugLog("Iteration \(iterations): shouldContinue = \(shouldContinue)")  // Replaced print
             if !shouldContinue {
-                print("Simulation stabilized after \(iterations) iterations")
+                logger.infoLog("Simulation stabilized after \(iterations) iterations")  // Replaced print
                 break
             }
         }
+        let duration = Date().timeIntervalSince(startTime)  // Added for perf
         if iterations >= maxIterations {
-            print("Simulation timed out after \(iterations) iterations; recent velocities: \(recentVelocities)")
+            logger.warning("Simulation timed out after \(iterations) iterations; recent velocities: \(self.recentVelocities); duration: \(duration)s")  // Replaced print with warning
         }
         self.onStable?()
     }
-    
+
     internal func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
-#if os(watchOS)
+    #if os(watchOS)
         if await WKApplication.shared().applicationState != .active { return false }
-#endif
+    #endif
         
-        if physicsEngine.isPaused { return false } // Added: Stop loop if paused to prevent infinite loop
+        if physicsEngine.isPaused { return false }
         
         let result: SimulationStepResult = await Task.detached {
             await self.computeSimulationStep()
         }.value
-        print("Step: Total velocity = \(result.totalVelocity)")
+        logger.debugLog("Step: Total velocity = \(result.totalVelocity)")  // Replaced print
         await self.setNodes(result.updatedNodes)
         
         recentVelocities.append(result.totalVelocity)
