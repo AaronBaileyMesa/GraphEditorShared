@@ -89,7 +89,7 @@ struct GraphSimulatorTests {
     }
     
     public func createSimulator(nodeCount: Int = 5, withVisible: Bool = true, withEdges: Bool = false, physicsEngine: PhysicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 3000, height: 3000)), forTesting: Bool = false, onStable: (() -> Void)? = nil) -> GraphSimulator {
-        let bounds = physicsEngine.simulationBounds
+        _ = physicsEngine.simulationBounds
         let range: CGFloat = 500  // Smaller range for better initial spacing
         var nodes: [any NodeProtocol] = (1...nodeCount).map { Node(label: $0, position: CGPoint(x: CGFloat.random(in: 0...range), y: CGFloat.random(in: 0...range))) }
         var edges: [GraphEdge] = []
@@ -208,7 +208,7 @@ struct GraphSimulatorTests {
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
         
-        let bounds = physicsEngine.simulationBounds
+        _ = physicsEngine.simulationBounds
         let range: CGFloat = 300  // Match bounds for spread
         let nodesToAssign = (1...nodeCount).map { Node(label: $0, position: CGPoint(x: CGFloat.random(in: 0...range), y: CGFloat.random(in: 0...range))) }
         model.nodes = nodesToAssign.map(AnyNode.init)
