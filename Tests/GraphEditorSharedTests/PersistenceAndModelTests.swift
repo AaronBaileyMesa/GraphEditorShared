@@ -75,7 +75,7 @@ struct PersistenceAndModelTests {
         
         let newNode = Node(id: UUID(), label: 2, position: CGPoint.zero)
         model.nodes.append(AnyNode(newNode))
-        await model.save()
+        try await model.save()  // Add 'try' here to handle the throwing call
         #expect(mockStorage.nodes.count == 2, "Saved nodes")
         #expect(mockStorage.edges.count == 1, "Saved edges")
     }

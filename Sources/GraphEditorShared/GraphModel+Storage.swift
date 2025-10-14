@@ -34,7 +34,7 @@ extension GraphModel {
         }
     }
     
-    public func save() async {
+    public func save() async throws {
         logger.infoLog("GraphModel.save() called; nodes: \(nodes.count), edges: \(edges.count)")  // Updated to infoLog
         do {
             try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges, for: currentGraphName)
@@ -80,23 +80,32 @@ extension GraphModel {
     // Multi-graph methods (integrated into Storage extension)
     /// Loads the current graph (based on currentGraphName); defaults to empty if not found.
     public func loadGraph() async throws {
+        let logger = Logger.forCategory("graphmodel")
         do {
             try await loadFromStorage(for: currentGraphName)
-            logger.infoLog("Loaded graph '\(currentGraphName)' with \(nodes.count) nodes and \(edges.count) edges")  // Updated to infoLog
+            logger.infoLog("Loaded graph '\(currentGraphName)' with \(nodes.count) nodes and \(edges.count) edges")
             objectWillChange.send()
         } catch GraphStorageError.graphNotFound(_) {
-            // Graph doesn't exist: Treat as new/empty
             nodes = []
             edges = []
-            logger.infoLog("Graph '\(currentGraphName)' not found; starting empty")  // Updated to infoLog
+            logger.infoLog("Graph '\(currentGraphName)' not found; starting empty")
         } catch {
-            throw error
+            logger.errorLog("Failed to load graph '\(currentGraphName)'", error: error)
+            nodes = []  // Fallback: Start empty
+            throw error  // Re-throw for UI handling
         }
     }
     
     /// Saves the current graph state under currentGraphName.
     public func saveGraph() async throws {
-        await save()
+        let logger = Logger.forCategory("graphmodel")
+        do {
+            try await save()
+            logger.infoLog("Saved graph '\(currentGraphName)'")
+        } catch {
+            logger.errorLog("Failed to save graph '\(currentGraphName)'", error: error)
+            throw error  // Allow caller to handle
+        }
     }
     
     /// Creates a new empty graph with the given name and switches to it.

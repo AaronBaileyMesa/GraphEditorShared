@@ -5,6 +5,7 @@
 //  Created by handcart on 9/19/25.
 //
 import Foundation
+import os
 
 struct UndoGraphState {
     let nodes: [AnyNode]
@@ -56,7 +57,16 @@ extension GraphModel {
         undoStack.append(state)
         if undoStack.count > maxUndo { undoStack.removeFirst() }
         redoStack.removeAll()
-        await save()  // NEW: Auto-save graph data on snapshot (triggered by mutations)
+        
+        // Handle auto-save with error logging (fixes warning on await save())
+        do {
+            try await save()  // Use 'try await' here
+        } catch {
+            let logger = Logger.forCategory("graphmodel")  // From your standardized logging
+            logger.errorLog("Auto-save failed during snapshot", error: error)
+            // Optional: If you want user feedback, set viewModel.errorMessage here (e.g., via NotificationCenter)
+        }
+        
         print("snapshot() completed; undoStack size: \(undoStack.count)")  // Add for debugging
     }
 }

@@ -116,23 +116,26 @@ public func centroid(of nodes: [any NodeProtocol]) -> CGPoint? {
 }
 
 extension Logger {
+    static let subsystem = "io.handcart.GraphEditor"
+    
     static func forCategory(_ category: String) -> Logger {
-        Logger(subsystem: "io.handcart.GraphEditor", category: category)
+        Logger(subsystem: subsystem, category: category)
     }
     
     func debugLog(_ message: String) {
-        if LogManager.isEnabled {
-            self.debug("\(message)")
-        }
+#if DEBUG
+        self.debug("\(message)")
+#endif
     }
     
     func infoLog(_ message: String) {
-        if LogManager.isEnabled {
-            self.info("\(message)")
-        }
+#if DEBUG
+        self.info("\(message)")
+#endif
     }
     
-    func errorLog(_ message: String) {
-        self.error("\(message)")  // Always log errors
+    func errorLog(_ message: String, error: Error? = nil) {
+        let errorDesc = error?.localizedDescription ?? ""
+        self.error("\(message) \(errorDesc)")
     }
 }
