@@ -54,7 +54,7 @@ extension GraphModel {
     }
     
     public func snapshot() async {
-        logger.debug("snapshot() called from: \(#function), nodes: \(self.nodes.count), edges: \(self.edges.count)")  // Use debug for transient info
+        Self.logger.debug("snapshot() called from: \(#function), nodes: \(self.nodes.count), edges: \(self.edges.count)")  // Use debug for transient info
         let state = UndoGraphState(nodes: nodes, edges: edges, nextLabel: nextNodeLabel)
         undoStack.append(state)
         if undoStack.count > maxUndo { undoStack.removeFirst() }
@@ -69,6 +69,6 @@ extension GraphModel {
             // Optional: If you want user feedback, set viewModel.errorMessage here (e.g., via NotificationCenter)
         }
         
-        logger.debug("snapshot() completed; undoStack size: \(self.undoStack.count)")
+        Self.logger.debug("snapshot() completed; undoStack size: \(self.undoStack.count)")
     }
 }
