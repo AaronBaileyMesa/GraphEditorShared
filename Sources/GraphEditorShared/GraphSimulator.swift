@@ -98,7 +98,7 @@ class GraphSimulator {
     
     internal func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
         let startTime = Date()  // Added for perf logging
-        logger.debugLog("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")  // Replaced print
+        logger.debug("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")
         var iterations = 0
         let maxIterations = 500
         while !Task.isCancelled && iterations < maxIterations {
@@ -109,15 +109,15 @@ class GraphSimulator {
             let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
             physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)
             iterations += 1
-            logger.debugLog("Iteration \(iterations): shouldContinue = \(shouldContinue)")  // Replaced print
+            logger.debug("Iteration \(iterations): shouldContinue = \(shouldContinue)")
             if !shouldContinue {
-                logger.infoLog("Simulation stabilized after \(iterations) iterations")  // Replaced print
+                logger.info("Simulation stabilized after \(iterations) iterations")
                 break
             }
         }
         let duration = Date().timeIntervalSince(startTime)  // Added for perf
         if iterations >= maxIterations {
-            logger.warning("Simulation timed out after \(iterations) iterations; recent velocities: \(self.recentVelocities); duration: \(duration)s")  // Replaced print with warning
+            logger.warning("Simulation timed out after \(iterations) iterations; recent velocities: \(self.recentVelocities); duration: \(duration)s")
         }
         self.onStable?()
     }
@@ -132,7 +132,7 @@ class GraphSimulator {
         let result: SimulationStepResult = await Task.detached {
             await self.computeSimulationStep()
         }.value
-        logger.debugLog("Step: Total velocity = \(result.totalVelocity)")  // Replaced print
+        logger.debug("Step: Total velocity = \(result.totalVelocity)")
         await self.setNodes(result.updatedNodes)
         
         recentVelocities.append(result.totalVelocity)
