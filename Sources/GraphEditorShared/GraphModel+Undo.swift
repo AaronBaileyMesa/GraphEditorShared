@@ -15,6 +15,8 @@ struct UndoGraphState {
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
+    private static let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "graphmodel_undo")
+    
     internal func pushUndo() {
         undoStack.append(currentState())
         if undoStack.count > maxUndo { undoStack.removeFirst() }
@@ -52,7 +54,7 @@ extension GraphModel {
     }
     
     public func snapshot() async {
-        print("snapshot() called from: \(#function), nodes: \(nodes.count), edges: \(edges.count)")  // Add for debugging
+        logger.debug("snapshot() called from: \(#function), nodes: \(self.nodes.count), edges: \(self.edges.count)")  // Use debug for transient info
         let state = UndoGraphState(nodes: nodes, edges: edges, nextLabel: nextNodeLabel)
         undoStack.append(state)
         if undoStack.count > maxUndo { undoStack.removeFirst() }
@@ -67,6 +69,6 @@ extension GraphModel {
             // Optional: If you want user feedback, set viewModel.errorMessage here (e.g., via NotificationCenter)
         }
         
-        print("snapshot() completed; undoStack size: \(undoStack.count)")  // Add for debugging
+        logger.debug("snapshot() completed; undoStack size: \(self.undoStack.count)")
     }
 }
