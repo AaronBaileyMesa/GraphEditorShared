@@ -7,9 +7,11 @@
 
 import CoreGraphics
 import SwiftUI  // For GeometryProxy if enabled
+import os
 
 /// Utility for converting between model (graph) coordinates and screen (view) coordinates.
 public struct CoordinateTransformer {
+    private static let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "coordinatetransformer")
     
     /// Converts a model position to screen coordinates.
     /// - Parameters:
@@ -39,9 +41,9 @@ public struct CoordinateTransformer {
         //     screenPos.y += geo.safeAreaInsets.top
         // }
         
-        #if DEBUG
-        print("modelToScreen: Model \(modelPos) -> Screen \(screenPos), Zoom \(zoomScale), Offset \(offset), Centroid \(effectiveCentroid), ViewSize \(viewSize)")
-        #endif
+#if DEBUG
+        Self.logger.debug("modelToScreen: Model (\(modelPos.x), \(modelPos.y)) -> Screen (\(screenPos.x), \(screenPos.y)), Zoom \(zoomScale), Offset (\(offset.width), \(offset.height)), Centroid (\(effectiveCentroid.x), \(effectiveCentroid.y)), ViewSize (\(viewSize.width), \(viewSize.height))")
+#endif
         
         return screenPos
     }
@@ -78,19 +80,11 @@ public struct CoordinateTransformer {
         let unscaled = translated / safeZoom
         let modelPos = effectiveCentroid + unscaled
         
-        #if DEBUG
-        print("screenToModel: Screen \(screenPos) -> Model \(modelPos), Zoom \(safeZoom), Offset \(panOffset), Centroid \(effectiveCentroid), ViewSize \(viewSize)")
-        #endif
+#if DEBUG
+        Self.logger.debug("screenToModel: Screen (\(screenPos.x), \(screenPos.y)) -> Model (\(modelPos.x), \(modelPos.y)), Zoom \(safeZoom), Offset (\(panOffset.x), \(panOffset.y)), Centroid (\(effectiveCentroid.x), \(effectiveCentroid.y)), ViewSize (\(viewSize.width), \(viewSize.height))")
+#endif
         
         // Round to 3 decimals to eliminate floating-point drift
         return CGPoint(x: modelPos.x.rounded(to: 3), y: modelPos.y.rounded(to: 3))
-    }
-}
-
-// Extension for rounding (if not already in Utilities.swift)
-private extension CGFloat {
-    func rounded(to decimalPlaces: Int) -> CGFloat {
-        let divisor = pow(10.0, CGFloat(decimalPlaces))
-        return (self * divisor).rounded() / divisor
     }
 }

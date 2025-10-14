@@ -139,3 +139,11 @@ extension Logger {
         self.error("\(message) \(errorDesc)")
     }
 }
+
+// Add any other shared helpers here (e.g., the CGFloat rounding extension if not already placed)
+extension CGFloat {
+    func rounded(to decimalPlaces: Int) -> CGFloat {
+        let divisor = pow(10.0, CGFloat(decimalPlaces))
+        return (self * divisor).rounded() / divisor
+    }
+}

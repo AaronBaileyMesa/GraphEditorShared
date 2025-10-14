@@ -2,6 +2,7 @@
 
 import SwiftUI
 import Foundation
+import os
 
 @available(iOS 15.0, *)
 private var nodeTextCache: [String: GraphicsContext.ResolvedText] = [:]
@@ -14,6 +15,8 @@ private var insertionOrder: [String] = []  // New: Track order
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeID {
+    // REMOVED: Logger declaration here (invalid in protocols)
+    
     /// Unique identifier for the node.
     var id: NodeID { get }
     
@@ -81,7 +84,7 @@ public enum NodeContent: Codable, Equatable {
     case string(String)
     case date(Date)
     case number(Double)
-
+    
     public var displayText: String {
         switch self {
         case .string(let str): return str.prefix(10) + (str.count > 10 ? "…" : "")
@@ -177,6 +180,9 @@ extension NodeProtocol {
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct AnyNode: NodeProtocol {
+    // NEW: Add the static logger here (moved from protocol)
+    private static let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "nodeprotocol")
+    
     private var base: any NodeProtocol  // var for mutability
     
     public var content: NodeContent? {
@@ -246,9 +252,9 @@ public struct AnyNode: NodeProtocol {
     @available(iOS 15.0, *)
     @available(watchOS 9.0, *)
     public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        #if DEBUG
-        print("Drawing node \(label) at \(position), isSelected: \(isSelected), zoom: \(zoomScale)")
-        #endif
+#if DEBUG
+        Self.logger.debug("Drawing node \(label) at (\(position.x), \(position.y)), isSelected: \(isSelected), zoom: \(zoomScale)")
+#endif
         base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
     }
     
