@@ -86,19 +86,22 @@ extension GraphModel {
     
     // Multi-graph methods (integrated into Storage extension)
     /// Loads the current graph (based on currentGraphName); defaults to empty if not found.
-    public func loadGraph() async throws {
+    public func loadGraph() async {
         do {
             try await loadFromStorage(for: currentGraphName)
+            nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
             Self.logger.infoLog("Loaded graph '\(self.currentGraphName)' with \(self.nodes.count) nodes and \(self.edges.count) edges")
             objectWillChange.send()
         } catch GraphStorageError.graphNotFound(_) {
             nodes = []
             edges = []
+            nextNodeLabel = 1
             Self.logger.warning("Graph '\(self.currentGraphName)' not found; starting empty")
         } catch {
-            Self.logger.errorLog("Failed to load graph '\(self.currentGraphName)'", error: error)
             nodes = []
-            throw GraphError.storageFailure(error.localizedDescription)
+            edges = []
+            nextNodeLabel = 1
+            Self.logger.errorLog("Failed to load graph '\(self.currentGraphName)'", error: error)
         }
     }
     
@@ -132,9 +135,9 @@ extension GraphModel {
     }
     
     /// Loads a specific graph by name and switches to it.
-    public func loadGraph(name: String) async throws {
+    public func loadGraph(name: String) async {
         currentGraphName = name
-        try await loadGraph()
+        await loadGraph()
     }
     
     /// Deletes the graph with the given name (if not current, no change to model).
@@ -143,7 +146,7 @@ extension GraphModel {
             try await storage.deleteGraph(name: name)
             if name == currentGraphName {
                 currentGraphName = "default"
-                try await loadGraph()
+                await loadGraph()
             }
             Self.logger.infoLog("Deleted graph '\(name)'")
         } catch {
