@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import os  // For logging if needed
+import os  // For logging and signposts
 
 #if os(watchOS)
 import WatchKit  // Only if using haptics; otherwise remove
@@ -16,6 +16,14 @@ import WatchKit  // Only if using haptics; otherwise remove
 /// Manages physics simulation loops for graph updates.
 class GraphSimulator {
     private let logger = Logger.forCategory("graphsimulator")  // Added: Define logger instance
+    
+    // NEW: Signposter for performance tracing
+    #if DEBUG
+    private let signposter: OSSignposter = {
+        let subsystem = "io.handcart.GraphEditor"  // Match your app's subsystem
+        return OSSignposter(subsystem: subsystem, category: "graphsimulator")
+    }()
+    #endif
 
     var simulationTask: Task<Void, Never>?  // Exposed for testing
     internal var recentVelocities: [CGFloat] = []  // Explicit internal for test access
@@ -97,6 +105,10 @@ class GraphSimulator {
     }
     
     internal func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
+        #if DEBUG
+        let loopState = signposter.beginInterval("SimulationLoop", "Nodes: \(nodeCount)")
+        #endif
+        
         let startTime = Date()  // Added for perf logging
         logger.debug("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")
         var iterations = 0
@@ -112,12 +124,19 @@ class GraphSimulator {
             logger.debug("Iteration \(iterations): shouldContinue = \(shouldContinue)")
             if !shouldContinue {
                 logger.info("Simulation stabilized after \(iterations) iterations")
+                #if DEBUG
+                signposter.endInterval("SimulationLoop", loopState, "Stabilized after \(iterations) iterations")
+                #endif
                 break
             }
         }
         let duration = Date().timeIntervalSince(startTime)  // Added for perf
         if iterations >= maxIterations {
             logger.warning("Simulation timed out after \(iterations) iterations; recent velocities: \(self.recentVelocities); duration: \(duration)s")
+            #if DEBUG
+            signposter.endInterval("SimulationLoop", loopState, "Timed out after \(iterations) iterations")
+            signposter.emitEvent("SimulationTimeout", "Recent velocities: \(self.recentVelocities)")
+            #endif
         }
         self.onStable?()
     }
@@ -128,6 +147,10 @@ class GraphSimulator {
     #endif
         
         if physicsEngine.isPaused { return false }
+        
+        #if DEBUG
+        let stepState = signposter.beginInterval("SimulationStep", "Nodes: \(nodeCount)")
+        #endif
         
         let result: SimulationStepResult = await Task.detached {
             await self.computeSimulationStep()
@@ -142,6 +165,10 @@ class GraphSimulator {
         
         let velocityChange = recentVelocities.max()! - recentVelocities.min()!
         let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
+        
+        #if DEBUG
+        signposter.endInterval("SimulationStep", stepState, "Total velocity: \(result.totalVelocity), Stable: \(isStable)")
+        #endif
         
         return !isStable
     }
