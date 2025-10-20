@@ -112,4 +112,8 @@ extension GraphModel {
         }
         return desc
     }
+    
+    public var centroid: CGPoint? {
+        GraphEditorShared.centroid(of: visibleNodes())
+    }
 }
