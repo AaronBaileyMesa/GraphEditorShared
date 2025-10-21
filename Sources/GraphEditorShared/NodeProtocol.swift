@@ -85,6 +85,7 @@ public enum NodeContent: Codable, Equatable {
     case string(String)
     case date(Date)
     case number(Double)
+    case boolean(Bool)  // NEW: Boolean case
     
     public var displayText: String {
         switch self {
@@ -94,9 +95,9 @@ public enum NodeContent: Codable, Equatable {
             formatter.dateStyle = .short
             formatter.timeStyle = .none
             formatter.timeZone = TimeZone(secondsFromGMT: 0)  // Use UTC for consistency
-            formatter.locale = Locale(identifier: "en_US")  // Set locale for consistent output
             return formatter.string(from: date)
-        case .number(let num): return String(format: "%.2f", num)
+        case .number(let num): return "\(num)"
+        case .boolean(let bool): return bool ? "True" : "False"  // NEW
         }
     }
 }
