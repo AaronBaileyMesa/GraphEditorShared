@@ -18,22 +18,26 @@ public struct Node: NodeProtocol, Equatable {
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
     public var isExpanded: Bool = true  // Satisfy protocol (always true for basic Node)
-    public var content: NodeContent?
+    public var contents: [NodeContent] = []  // NEW: Ordered list, default empty
     public var fillColor: Color { .red }  // Explicit red for basic nodes
 
     // Init with all params
-    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true, content: NodeContent? = nil) {
+    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true, contents: [NodeContent] = []) {
         self.id = id
         self.label = label
         self.position = position
         self.velocity = velocity
         self.radius = radius
         self.isExpanded = isExpanded
-        self.content = content
+        self.contents = contents
     }
     
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content)
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
+    }
+    
+    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
     }
 }
 

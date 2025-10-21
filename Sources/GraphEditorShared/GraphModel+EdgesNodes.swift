@@ -111,13 +111,13 @@ extension GraphModel {
         await resumeSimulation()
     }
 
-    public func updateNodeContent(withID id: NodeID, newContent: NodeContent?) async {
+    public func updateNodeContents(withID id: NodeID, newContents: [NodeContent]) async {
         // CHANGED: Qualified
-        Self.logger.debugLog("Updating content for node ID: \(id.uuidString.prefix(8))")  // Added debug log
+        Self.logger.debugLog("Updating contents for node ID: \(id.uuidString.prefix(8))")  // Added debug log
         pushUndo()
         if let index = nodes.firstIndex(where: { $0.id == id }) {
             var updated = nodes[index].unwrapped
-            updated.content = newContent
+            updated.contents = newContents
             nodes[index] = AnyNode(updated)
             objectWillChange.send()
             await resumeSimulation()

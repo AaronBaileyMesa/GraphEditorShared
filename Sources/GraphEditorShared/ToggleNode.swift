@@ -17,25 +17,25 @@ public struct ToggleNode: NodeProtocol, Equatable {
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = Constants.App.nodeModelRadius  // Use constant for consistency
     public var isExpanded: Bool = true
-    public var content: NodeContent?
+    public var contents: [NodeContent] = []  // NEW: Ordered list, default empty
     public var fillColor: Color { isExpanded ? .green : .red }
 
-    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, content: NodeContent? = nil) {
+    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, contents: [NodeContent] = []) {
         self.id = id
         self.label = label
         self.position = position
         self.velocity = velocity
         self.radius = radius
         self.isExpanded = isExpanded
-        self.content = content
+        self.contents = contents
     }
 
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content)
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
     }
 
-    public func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self {
-        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, content: content ?? self.content)
+    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
     }
 
     public func handlingTap() -> Self {
@@ -84,18 +84,15 @@ public struct ToggleNode: NodeProtocol, Equatable {
         let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
         context.draw(labelResolved, at: labelPosition, anchor: .center)
 
-        // Draw content below node if present and zoomed in
-        if let content = content, zoomScale > 0.5 {
-            let contentFontSize = max(6.0, 8.0 * zoomScale)
-            let contentResolved = context.resolve(Text(content.displayText).foregroundColor(.gray).font(.system(size: contentFontSize)))
-            let contentPosition = CGPoint(x: position.x, y: position.y + (scaledRadius + 10 * zoomScale))
-            context.draw(contentResolved, at: contentPosition, anchor: .center)
+        // TEMP: Placeholder for contents list drawing (full impl in Step 3)
+        if !contents.isEmpty && zoomScale > 0.5 {
+            // Add drawing code later
         }
     }
 
-    // Codable conformance (ensure completeness)
+    // Codable conformance (updated for contents array)
     enum CodingKeys: String, CodingKey {
-        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, content
+        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, contents  // Updated key
     }
 
     public init(from decoder: Decoder) throws {
@@ -104,7 +101,7 @@ public struct ToggleNode: NodeProtocol, Equatable {
         label = try container.decode(Int.self, forKey: .label)
         radius = try container.decode(CGFloat.self, forKey: .radius)
         isExpanded = try container.decode(Bool.self, forKey: .isExpanded)
-        content = try container.decodeIfPresent(NodeContent.self, forKey: .content)
+        contents = try container.decode([NodeContent].self, forKey: .contents)  // NEW: Decode array
         let posX = try container.decode(CGFloat.self, forKey: .positionX)
         let posY = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: posX, y: posY)
@@ -119,7 +116,7 @@ public struct ToggleNode: NodeProtocol, Equatable {
         try container.encode(label, forKey: .label)
         try container.encode(radius, forKey: .radius)
         try container.encode(isExpanded, forKey: .isExpanded)
-        try container.encodeIfPresent(content, forKey: .content)
+        try container.encode(contents, forKey: .contents)  // NEW: Encode array
         try container.encode(position.x, forKey: .positionX)
         try container.encode(position.y, forKey: .positionY)
         try container.encode(velocity.x, forKey: .velocityX)
@@ -133,6 +130,6 @@ public struct ToggleNode: NodeProtocol, Equatable {
         lhs.velocity == rhs.velocity &&
         lhs.radius == rhs.radius &&
         lhs.isExpanded == rhs.isExpanded &&
-        lhs.content == rhs.content
+        lhs.contents == rhs.contents  // Updated for array
     }
 }

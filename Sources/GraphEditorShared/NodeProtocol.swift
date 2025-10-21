@@ -15,7 +15,6 @@ private var insertionOrder: [String] = []  // New: Track order
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeID {
-    // REMOVED: Logger declaration here (invalid in protocols)
     
     /// Unique identifier for the node.
     var id: NodeID { get }
@@ -36,7 +35,8 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     var isExpanded: Bool { get set }
     
     // Data payload for the node
-    var content: NodeContent? { get set }
+    // Ordered list of data payloads for the node (replaces single optional content)
+    var contents: [NodeContent] { get set }
     
     /// Mass for physics calculations (default: 1.0).
     var mass: CGFloat { get }
@@ -44,7 +44,8 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     /// Creates a copy with updated position and velocity.
     func with(position: CGPoint, velocity: CGPoint) -> Self
     
-    func with(position: CGPoint, velocity: CGPoint, content: NodeContent?) -> Self
+    /// Creates a copy with updated position, velocity, and optional new contents list.
+    func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self
     
     /// Renders the node as a SwiftUI view, customizable by zoom and selection.
     /// - Parameters:
@@ -111,35 +112,25 @@ extension NodeProtocol {
     
     public func handlingTap() -> Self { self }  // Default: no-op
     
-    public func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> Self {
+    public func with(position: CGPoint, velocity: CGPoint) -> Self {
         var newSelf = self
         newSelf.position = position
         newSelf.velocity = velocity
-        if let content = content {
-            newSelf.content = content
-        }
+        return newSelf
+    }
+    
+    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
+        var newSelf = self
+        newSelf.position = position
+        newSelf.velocity = velocity
+        newSelf.contents = contents
         return newSelf
     }
     
     @available(iOS 15.0, *)
     @available(watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-        let scaledRadius = radius * zoomScale
-        return AnyView(
-            Circle()
-                .fill(fillColor)
-                .frame(width: scaledRadius * 2, height: scaledRadius * 2)
-                .overlay(
-                    Circle()
-                        .stroke(isSelected ? Color.green : Color.white, lineWidth: 2 * zoomScale)
-                )
-                .overlay(
-                    Text("\(label)")
-                        .font(.system(size: 12 * zoomScale))
-                        .foregroundColor(.white)
-                )
-                .accessibilityLabel("Node \(label)")
-        )
+        AnyView(Circle().fill(fillColor).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))
     }
     
     @available(iOS 15.0, *)
@@ -151,10 +142,10 @@ extension NodeProtocol {
         context.stroke(Path(path), with: .color(isSelected ? Color.green : Color.white), lineWidth: 2 * zoomScale)
         
         let textKey = "\(label)_\(zoomScale)"
-        var contentResolved: GraphicsContext.ResolvedText?
+        var labelResolved: GraphicsContext.ResolvedText?
         nodeCacheQueue.sync {
             if let cached = nodeTextCache[textKey] {
-                contentResolved = cached
+                labelResolved = cached
             } else {
                 let text = Text("\(label)").font(.system(size: 12 * zoomScale)).foregroundColor(.white)
                 let resolved = context.resolve(text)
@@ -164,19 +155,18 @@ extension NodeProtocol {
                     let oldestKey = insertionOrder.removeFirst()
                     nodeTextCache.removeValue(forKey: oldestKey)
                 }
-                contentResolved = resolved
+                labelResolved = resolved
             }
         }
-        context.draw(contentResolved!, at: position, anchor: .center)
+        context.draw(labelResolved!, at: position, anchor: .center)
         
-        if let content = content, !content.displayText.isEmpty {
-            let contentText = Text(content.displayText).font(.system(size: 8 * zoomScale)).foregroundColor(.gray)
-            let resolved = context.resolve(contentText)
-            let contentPosition = CGPoint(x: position.x, y: position.y + (scaledRadius + 5 * zoomScale))
-            context.draw(resolved, at: contentPosition, anchor: .center)
+        // TEMP: Placeholder for contents list drawing (full impl in Step 3)
+        if !contents.isEmpty && zoomScale > 0.5 {
+            // Add drawing code later
         }
     }
 }
+
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct AnyNode: NodeProtocol {
@@ -185,9 +175,9 @@ public struct AnyNode: NodeProtocol {
     
     private var base: any NodeProtocol  // var for mutability
     
-    public var content: NodeContent? {
-        get { base.content }
-        set { base.content = newValue }
+    public var contents: [NodeContent] {
+        get { base.contents }
+        set { base.contents = newValue }
     }
     
     public var unwrapped: any NodeProtocol { base }
@@ -225,13 +215,11 @@ public struct AnyNode: NodeProtocol {
         return AnyNode(newBase)
     }
     
-    public func with(position: CGPoint, velocity: CGPoint, content: NodeContent? = nil) -> AnyNode {
+    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
         var newBase = base
         newBase.position = position
         newBase.velocity = velocity
-        if let content = content {
-            newBase.content = content
-        }
+        newBase.contents = contents
         return AnyNode(newBase)
     }
     
@@ -260,7 +248,7 @@ public struct AnyNode: NodeProtocol {
     
     public static func == (lhs: AnyNode, rhs: AnyNode) -> Bool {
         lhs.id == rhs.id && lhs.position == rhs.position && lhs.velocity == rhs.velocity &&
-        lhs.isExpanded == rhs.isExpanded && lhs.content == rhs.content
+        lhs.isExpanded == rhs.isExpanded && lhs.contents == rhs.contents  // Updated for array
     }
     
     public init(from decoder: Decoder) throws {
