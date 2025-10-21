@@ -323,13 +323,13 @@ struct ClampingAndMiscTests {
     }
     
     @available(iOS 15.0, watchOS 9.0, *)
-    @Test func testAnyNodeMutabilityAndCoding() throws {
-        let base = ToggleNode(id: UUID(), label: 1, position: .zero, isExpanded: false, content: .string("Test"))
+    @MainActor @Test func testAnyNodeMutabilityAndCoding() throws {
+        let base = ToggleNode(id: UUID(), label: 1, position: .zero, isExpanded: false, contents: [.string("Test")])
         var anyNode = AnyNode(base)
         anyNode.position = CGPoint(x: 10, y: 20)
-        anyNode.content = .number(42.0)
+        anyNode.contents = [.number(42.0)]
         #expect(anyNode.position == CGPoint(x: 10, y: 20), "Position mutable")
-        #expect(anyNode.content == .number(42.0), "Content mutable")
+        #expect(anyNode.contents == [.number(42.0)], "Contents mutable")
         
         let data = try JSONEncoder().encode(anyNode)
         let decoded = try JSONDecoder().decode(AnyNode.self, from: data)

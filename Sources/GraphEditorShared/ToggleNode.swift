@@ -84,9 +84,23 @@ public struct ToggleNode: NodeProtocol, Equatable {
         let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
         context.draw(labelResolved, at: labelPosition, anchor: .center)
 
-        // TEMP: Placeholder for contents list drawing (full impl in Step 3)
-        if !contents.isEmpty && zoomScale > 0.5 {
-            // Add drawing code later
+        // NEW: Draw contents list vertically below node
+        if !contents.isEmpty && zoomScale > 0.5 {  // Only if zoomed
+            var yOffset = scaledRadius + 5 * zoomScale  // Start below node
+            let contentFontSize = max(6.0, 8.0 * zoomScale)
+            let maxItems = 3  // Limit for watchOS
+            for content in contents.prefix(maxItems) {
+                let contentText = Text(content.displayText).font(.system(size: contentFontSize)).foregroundColor(.gray)
+                let resolved = context.resolve(contentText)
+                let contentPosition = CGPoint(x: position.x, y: position.y + yOffset)
+                context.draw(resolved, at: contentPosition, anchor: .center)
+                yOffset += 10 * zoomScale  // Line spacing
+            }
+            if contents.count > maxItems {
+                let moreText = Text("+\(contents.count - maxItems) more").font(.system(size: contentFontSize * 0.75)).foregroundColor(.gray)
+                let resolved = context.resolve(moreText)
+                context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
+            }
         }
     }
 

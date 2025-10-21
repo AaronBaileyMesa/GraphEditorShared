@@ -10,6 +10,71 @@ private let maxCacheSize = 100  // Arbitrary limit; adjust based on testing
 private let nodeCacheQueue = DispatchQueue(label: "nodeTextCache", attributes: .concurrent)
 private var insertionOrder: [String] = []  // New: Track order
 
+// NEW: Define NodeContent enum here (was missing; added with all primitives)
+public enum NodeContent: Codable, Equatable {
+    case string(String)
+    case date(Date)
+    case number(Double)
+    case boolean(Bool)
+    
+    public var displayText: String {
+        switch self {
+        case .string(let value): return value.prefix(10) + (value.count > 10 ? "…" : "")
+        case .date(let value):
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .none
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)  // Force UTC for consistent output
+            return formatter.string(from: value)
+        case .number(let value): return String(format: "%.2f", value)  // Format to 2 decimal places
+        case .boolean(let value): return value ? "True" : "False"
+        }
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case type, value
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        switch type {
+        case "string":
+            let value = try container.decode(String.self, forKey: .value)
+            self = .string(value)
+        case "date":
+            let value = try container.decode(Date.self, forKey: .value)
+            self = .date(value)
+        case "number":
+            let value = try container.decode(Double.self, forKey: .value)
+            self = .number(value)
+        case "boolean":
+            let value = try container.decode(Bool.self, forKey: .value)
+            self = .boolean(value)
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown NodeContent type")
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .string(let value):
+            try container.encode("string", forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .date(let value):
+            try container.encode("date", forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .number(let value):
+            try container.encode("number", forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .boolean(let value):
+            try container.encode("boolean", forKey: .type)
+            try container.encode(value, forKey: .value)
+        }
+    }
+}
+
 /// Protocol for graph nodes, enabling polymorphism for types like standard or toggleable nodes.
 /// Conformers must provide core properties; defaults are available for common behaviors.
 @available(iOS 16.0, *)
@@ -81,27 +146,6 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool)
 }
 
-public enum NodeContent: Codable, Equatable {
-    case string(String)
-    case date(Date)
-    case number(Double)
-    case boolean(Bool)  // NEW: Boolean case
-    
-    public var displayText: String {
-        switch self {
-        case .string(let str): return str.prefix(10) + (str.count > 10 ? "…" : "")
-        case .date(let date):
-            let formatter = DateFormatter()
-            formatter.dateStyle = .short
-            formatter.timeStyle = .none
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)  // Use UTC for consistency
-            return formatter.string(from: date)
-        case .number(let num): return "\(num)"
-        case .boolean(let bool): return bool ? "True" : "False"  // NEW
-        }
-    }
-}
-
 extension NodeProtocol {
     public var isVisible: Bool { true }  // Default visible
     
@@ -161,9 +205,23 @@ extension NodeProtocol {
         }
         context.draw(labelResolved!, at: position, anchor: .center)
         
-        // TEMP: Placeholder for contents list drawing (full impl in Step 3)
-        if !contents.isEmpty && zoomScale > 0.5 {
-            // Add drawing code later
+        // NEW: Draw contents list vertically below node
+        if !contents.isEmpty && zoomScale > 0.5 {  // Only if zoomed
+            var yOffset = scaledRadius + 5 * zoomScale  // Start below node
+            let contentFontSize = max(6.0, 8.0 * zoomScale)
+            let maxItems = 3  // Limit for watchOS
+            for content in contents.prefix(maxItems) {
+                let contentText = Text(content.displayText).font(.system(size: contentFontSize)).foregroundColor(.gray)
+                let resolved = context.resolve(contentText)
+                let contentPosition = CGPoint(x: position.x, y: position.y + yOffset)
+                context.draw(resolved, at: contentPosition, anchor: .center)
+                yOffset += 10 * zoomScale  // Line spacing
+            }
+            if contents.count > maxItems {
+                let moreText = Text("+\(contents.count - maxItems) more").font(.system(size: contentFontSize * 0.75)).foregroundColor(.gray)
+                let resolved = context.resolve(moreText)
+                context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
+            }
         }
     }
 }
