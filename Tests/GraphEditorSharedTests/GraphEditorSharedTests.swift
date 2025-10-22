@@ -272,7 +272,7 @@ struct ClampingAndMiscTests {
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
         
-        try? await model.loadGraph()  // Explicit load to start empty; handles any defaults
+        await model.loadGraph()  // Explicit load to start empty; handles any defaults
         
         let initialNode = AnyNode(Node(id: UUID(), label: 1, position: .zero))
         model.nodes = [initialNode]
