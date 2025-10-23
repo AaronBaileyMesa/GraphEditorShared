@@ -8,7 +8,17 @@ import Foundation
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    func buildAdjacencyList(for edgeType: EdgeType? = nil) -> [NodeID: [NodeID]] { 
+    public func resetGraph() async {
+        nodes.removeAll()
+        edges.removeAll()
+        nextNodeLabel = 1  // Reset label counter
+        undoStack.removeAll()
+        redoStack.removeAll()
+        objectWillChange.send()
+        await startSimulation()  // Or resume if needed
+    }
+    
+    func buildAdjacencyList(for edgeType: EdgeType? = nil) -> [NodeID: [NodeID]] {
         var adj = [NodeID: [NodeID]]()
         let filteredEdges = edgeType != nil ? edges.filter { $0.type == edgeType! } : edges
         for edge in filteredEdges {
