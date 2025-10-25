@@ -117,4 +117,21 @@ struct PersistenceAndModelTests {
         #expect(approximatelyEqual(model.nodes[2].position, model.nodes[0].position, accuracy: 6), "Child2 close to parent")
         #expect(model.nodes[1].velocity == .zero, "Velocity reset")
     }
+    
+    @MainActor @Test func testVisibleNodesWithRecursiveHiding() async {
+        let storage = MockGraphStorage()
+        let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+        let model = GraphModel(storage: storage, physicsEngine: physics)
+        let grandparent = AnyNode(ToggleNode(label: 1, position: .zero, isExpanded: false))
+        let parent = AnyNode(ToggleNode(label: 2, position: .zero, isExpanded: true))
+        let child = AnyNode(Node(label: 3, position: .zero))
+        model.nodes = [grandparent, parent, child]
+        model.edges = [
+            GraphEdge(from: grandparent.id, target: parent.id, type: .hierarchy),
+            GraphEdge(from: parent.id, target: child.id, type: .hierarchy)
+        ]
+        let visible = model.visibleNodes()
+        #expect(visible.count == 1)  // Only grandparent visible; recursion hides descendants
+        #expect(visible[0].id == grandparent.id)
+    }
 }

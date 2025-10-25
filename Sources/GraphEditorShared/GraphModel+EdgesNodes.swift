@@ -94,9 +94,19 @@ extension GraphModel {
         let offsetX = CGFloat.random(in: -50...50)
         let offsetY = CGFloat.random(in: -50...50)
         let newPosition = parentPosition + CGPoint(x: offsetX, y: offsetY)
-        let newNode = AnyNode(Node(label: newLabel, position: newPosition))
+        let newNode = AnyNode(Node(label: newLabel, position: newPosition))  // Default to plain Node; could make configurable later
         nodes.append(newNode)
         edges.append(GraphEdge(from: parentID, target: newNode.id, type: .hierarchy))
+        
+        // NEW: If parent is ToggleNode, append to its children and childOrder
+        if var parentToggle = nodes[parentIndex].unwrapped as? ToggleNode {
+            if !parentToggle.children.contains(newNode.id) {  // Avoid duplicates
+                parentToggle.children.append(newNode.id)
+                parentToggle.childOrder.append(newNode.id)  // Append to maintain initial order
+                nodes[parentIndex] = AnyNode(parentToggle)
+            }
+        }
+        
         objectWillChange.send()
         await resumeSimulation()
     }
