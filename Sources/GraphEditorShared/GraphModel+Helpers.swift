@@ -126,4 +126,26 @@ extension GraphModel {
     public var centroid: CGPoint? {
         GraphEditorShared.centroid(of: visibleNodes())
     }
+    
+    public func sortChildren<ComparableValue: Comparable>(of nodeID: NodeID, by keyPath: KeyPath<any NodeProtocol, ComparableValue>) async {
+        guard let index = nodes.firstIndex(where: { $0.id == nodeID }),
+              var toggleNode = nodes[index].unwrapped as? ToggleNode else {
+            // Skip if not ToggleNode
+            return
+        }
+        
+        pushUndo()  // Allow undo of sorting
+        let sortedOrder = toggleNode.children.sorted { childID1, childID2 in
+            guard let node1 = nodes.first(where: { $0.id == childID1 })?.unwrapped,
+                  let node2 = nodes.first(where: { $0.id == childID2 })?.unwrapped else {
+                return false  // Stable sort if nodes missing
+            }
+            return node1[keyPath: keyPath] < node2[keyPath: keyPath]
+        }
+        
+        let updated = toggleNode.with(childOrder: sortedOrder)
+        nodes[index] = AnyNode(updated)
+        objectWillChange.send()
+        await resumeSimulation()  // Re-simulate for layout adjustments
+    }
 }
