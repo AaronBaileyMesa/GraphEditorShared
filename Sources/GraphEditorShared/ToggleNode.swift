@@ -19,8 +19,10 @@ public struct ToggleNode: NodeProtocol, Equatable {
     public var isExpanded: Bool = true
     public var contents: [NodeContent] = []  // NEW: Ordered list, default empty
     public var fillColor: Color { isExpanded ? .green : .red }
+    public var children: [NodeID] = []
+    public var childOrder: [NodeID] = []  // NEW: Explicit order for children (defaults to children array order)
 
-    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, contents: [NodeContent] = []) {
+    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, contents: [NodeContent] = [], children: [NodeID] = [], childOrder: [NodeID]? = nil) {
         self.id = id
         self.label = label
         self.position = position
@@ -28,14 +30,16 @@ public struct ToggleNode: NodeProtocol, Equatable {
         self.radius = radius
         self.isExpanded = isExpanded
         self.contents = contents
+        self.children = children
+        self.childOrder = childOrder ?? children  // Default to children order if not specified
     }
 
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
 
     public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
-        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
 
     public func handlingTap() -> Self {
@@ -45,8 +49,18 @@ public struct ToggleNode: NodeProtocol, Equatable {
         return updated
     }
     
+    public func with(children: [NodeID]) -> Self {
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
+    }
+
+    public func with(childOrder: [NodeID]) -> Self {  // NEW: Method to update order independently
+        // Ensure childOrder is a permutation of children (validation for safety)
+        let validatedOrder = childOrder.filter { children.contains($0) }
+        return ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: validatedOrder.isEmpty ? children : validatedOrder)
+    }
+
     public func shouldHideChildren() -> Bool {
-        !isExpanded
+        !isExpanded  // Existing, but could recurse if deep trees
     }
     
     @available(iOS 16.0, *)
@@ -104,9 +118,9 @@ public struct ToggleNode: NodeProtocol, Equatable {
         }
     }
 
-    // Codable conformance (updated for contents array)
+    // Codable conformance (updated for contents array and childOrder)
     enum CodingKeys: String, CodingKey {
-        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, contents  // Updated key
+        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, contents, children, childOrder  // UPDATED: Added children and childOrder
     }
 
     public init(from decoder: Decoder) throws {
@@ -116,6 +130,8 @@ public struct ToggleNode: NodeProtocol, Equatable {
         radius = try container.decode(CGFloat.self, forKey: .radius)
         isExpanded = try container.decode(Bool.self, forKey: .isExpanded)
         contents = try container.decode([NodeContent].self, forKey: .contents)  // NEW: Decode array
+        children = try container.decode([NodeID].self, forKey: .children)  // NEW: Decode children
+        childOrder = try container.decodeIfPresent([NodeID].self, forKey: .childOrder) ?? []  // NEW: Decode childOrder (optional fallback to empty)
         let posX = try container.decode(CGFloat.self, forKey: .positionX)
         let posY = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: posX, y: posY)
@@ -131,6 +147,8 @@ public struct ToggleNode: NodeProtocol, Equatable {
         try container.encode(radius, forKey: .radius)
         try container.encode(isExpanded, forKey: .isExpanded)
         try container.encode(contents, forKey: .contents)  // NEW: Encode array
+        try container.encode(children, forKey: .children)  // NEW: Encode children
+        try container.encode(childOrder, forKey: .childOrder)  // NEW: Encode childOrder
         try container.encode(position.x, forKey: .positionX)
         try container.encode(position.y, forKey: .positionY)
         try container.encode(velocity.x, forKey: .velocityX)
@@ -144,6 +162,8 @@ public struct ToggleNode: NodeProtocol, Equatable {
         lhs.velocity == rhs.velocity &&
         lhs.radius == rhs.radius &&
         lhs.isExpanded == rhs.isExpanded &&
-        lhs.contents == rhs.contents  // Updated for array
+        lhs.contents == rhs.contents &&
+        lhs.children == rhs.children &&  // UPDATED: Include children
+        lhs.childOrder == rhs.childOrder  // UPDATED: Include childOrder
     }
 }
