@@ -134,4 +134,36 @@ struct PersistenceAndModelTests {
         #expect(visible.count == 1)  // Only grandparent visible; recursion hides descendants
         #expect(visible[0].id == grandparent.id)
     }
+    
+    @MainActor @Test func testUndoRedoChildAddition() async {
+        let storage = MockGraphStorage()
+        let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+        let model = GraphModel(storage: storage, physicsEngine: physics)
+        let parent = AnyNode(ToggleNode(label: 1, position: .zero))
+        model.nodes = [parent]
+        
+        await model.addChild(to: parent.id)  // Pushes undo
+        #expect(model.nodes.count == 2)
+        #expect(model.edges.count == 1)
+        
+        guard let updatedParent = model.nodes[0].unwrapped as? ToggleNode else {
+            #expect(false, "Failed to cast updated parent to ToggleNode")
+            return
+        }
+        #expect(updatedParent.children.count == 1)
+        
+        await model.undo()
+        #expect(model.nodes.count == 1)
+        #expect(model.edges.isEmpty)
+        
+        guard let revertedParent = model.nodes[0].unwrapped as? ToggleNode else {
+            #expect(false, "Failed to cast reverted parent to ToggleNode")
+            return
+        }
+        #expect(revertedParent.children.isEmpty)
+        
+        await model.redo()
+        #expect(model.nodes.count == 2)
+        #expect(model.edges.count == 1)
+    }
 }
