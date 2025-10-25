@@ -393,4 +393,25 @@ struct NodeAndEdgeTests {
         #expect(updatedParent?.isExpanded == true, "Toggled to expanded")
         #expect(model.nodes[1].position != .zero, "Child position offset")
     }
+    
+    @MainActor @Test func testSortChildren() async {
+        let storage = MockGraphStorage()
+        let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+        let model = GraphModel(storage: storage, physicsEngine: physics)
+        let parentID = UUID()
+        let child1 = AnyNode(Node(id: UUID(), label: 3, position: .zero))  // Unsorted labels
+        let child2 = AnyNode(Node(id: UUID(), label: 1, position: .zero))
+        let child3 = AnyNode(Node(id: UUID(), label: 2, position: .zero))
+        let parent = AnyNode(ToggleNode(id: parentID, label: 0, position: .zero, children: [child1.id, child2.id, child3.id], childOrder: [child1.id, child2.id, child3.id]))
+        model.nodes = [parent, child1, child2, child3]
+        
+        await model.sortChildren(of: parentID, by: \.label)
+        let sortedParent = model.nodes[0].unwrapped as? ToggleNode
+        #expect(sortedParent?.childOrder == [child2.id, child3.id, child1.id])  // Sorted by label: 1,2,3
+        #expect(sortedParent?.children == [child1.id, child2.id, child3.id])  // children unchanged
+        
+        await model.undo()  // Test revert
+        let undoneParent = model.nodes[0].unwrapped as? ToggleNode
+        #expect(undoneParent?.childOrder == [child1.id, child2.id, child3.id])  // Original order
+    }
 }
