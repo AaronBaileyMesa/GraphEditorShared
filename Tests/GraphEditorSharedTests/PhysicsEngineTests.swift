@@ -32,5 +32,6 @@ struct PhysicsEngineTests {
         // Check parent back-pull (minimal positive in x)
         #expect(abs(forces[node1.id]?.x ?? 0) > 0, "Some minimal back-pull on parent")
         #expect(abs(forces[node1.id]?.x ?? 0) <= expectedParentBackPull + 1e-6, "Back-pull minimal (expected ≈ \(expectedParentBackPull))")
-    }    
+    }
+
 }

@@ -31,14 +31,15 @@ public class PhysicsEngine {
     internal let positionUpdater: PositionUpdater
     public var useAsymmetricAttraction: Bool = false
     public var alpha: CGFloat = 1.0  // New: Cooling parameter
-    
-    public init(simulationBounds: CGSize) {
-        self.simulationBounds = simulationBounds
-        self.repulsionCalculator = RepulsionCalculator(maxNodesForQuadtree: 200, simulationBounds: simulationBounds)
-        self.attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor, useAsymmetric: useAsymmetricAttraction)
-        self.centeringCalculator = CenteringCalculator(simulationBounds: simulationBounds)
-        self.positionUpdater = PositionUpdater(simulationBounds: simulationBounds)
-    }
+    public var usePreferredAngles: Bool = false  // NEW: Toggle for angular forces (default off)
+        
+        public init(simulationBounds: CGSize) {
+            self.simulationBounds = simulationBounds
+            self.repulsionCalculator = RepulsionCalculator(maxNodesForQuadtree: 200, simulationBounds: simulationBounds)
+            self.attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor, useAsymmetric: useAsymmetricAttraction, usePreferredAngles: usePreferredAngles)  // UPDATED: Pass flag
+            self.centeringCalculator = CenteringCalculator(simulationBounds: simulationBounds)
+            self.positionUpdater = PositionUpdater(simulationBounds: simulationBounds)
+        }
     
     public func temporaryDampingBoost(steps: Int = 20) {
         dampingBoostSteps = steps

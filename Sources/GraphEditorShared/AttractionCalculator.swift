@@ -12,10 +12,12 @@ import CoreGraphics  // For CGPoint, CGVector (used internally)
 struct AttractionCalculator {
     let symmetricFactor: CGFloat
     let useAsymmetric: Bool  // New: Controls full asymmetry for hierarchy edges
+    let usePreferredAngles: Bool  // NEW: Controls angular torque for hierarchies
 
-    init(symmetricFactor: CGFloat, useAsymmetric: Bool = false) {  // Default false to preserve existing behavior
+    init(symmetricFactor: CGFloat, useAsymmetric: Bool = false, usePreferredAngles: Bool = false) {  // UPDATED: Added param, default false
         self.symmetricFactor = symmetricFactor
         self.useAsymmetric = useAsymmetric
+        self.usePreferredAngles = usePreferredAngles
     }
 
     func applyAttractions(forces: [NodeID: CGPoint], edges: [GraphEdge], nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
@@ -57,6 +59,28 @@ struct AttractionCalculator {
                 // Symmetric for .association (unchanged)
                 updatedForces[toNode.id] = CGPoint(x: currentForceTo.x - forceX + symForceX, y: currentForceTo.y - forceY + symForceY)
                 updatedForces[fromNode.id] = CGPoint(x: currentForceFrom.x + symForceX, y: currentForceFrom.y + symForceY)
+            }
+            
+            // NEW: Apply preferred angle torque if enabled and hierarchy
+            if isHierarchy && usePreferredAngles, let parent = fromNode as? ToggleNode {
+                let siblingIndex = parent.childOrder.firstIndex(of: toNode.id) ?? 0
+                let siblingCount = max(parent.childOrder.count, 1)
+                let baseAngle: CGFloat = .pi * 1.5  // 270° downward
+                let spread: CGFloat = .pi / 1.5  // ~120° fan for spacing
+                let anglePerSibling = spread / CGFloat(siblingCount - 1)
+                let preferredAngle = baseAngle - spread / 2 + CGFloat(siblingIndex) * anglePerSibling
+                
+                let actualAngle = atan2(deltaY, deltaX)
+                let angleDiff = (actualAngle - preferredAngle).clamped(to: -.pi ... .pi)  // Shortest angular distance
+                let torqueMagnitude = Constants.Physics.angularStiffness * angleDiff * forceMagnitude  // Scale by distance force
+                
+                // Torque as perpendicular components
+                let torqueX = -torqueMagnitude * forceDirectionY
+                let torqueY = torqueMagnitude * forceDirectionX
+                
+                // Apply to child (asymmetric guidance)
+                let currentTo = updatedForces[toNode.id] ?? .zero
+                updatedForces[toNode.id] = CGPoint(x: currentTo.x + torqueX, y: currentTo.y + torqueY)
             }
         }
         return updatedForces

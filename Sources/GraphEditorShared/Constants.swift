@@ -25,6 +25,7 @@ public enum Constants {
         public static let minCollisionDist: CGFloat = 35.0  // New: For anti-collision separation
         public static let verticalBias: CGFloat = 0.0  // New: Downward bias for hierarchy edges (tune as needed)
         public static let alphaDecay: CGFloat = 0.0228  // New: For cooling schedule
+        static let angularStiffness: CGFloat = 0.05  // Soft torque; tune up to 0.1 if needed
     }
     
     public enum App {

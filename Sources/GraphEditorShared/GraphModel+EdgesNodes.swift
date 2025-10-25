@@ -84,21 +84,38 @@ extension GraphModel {
         await resumeSimulation()
     }
 
-    public func addChild(to parentID: NodeID) async {
-        Self.logger.debugLog("Adding child to parent ID: \(parentID.uuidString.prefix(8))")  // Added debug log
+    public func addPlainChild(to parentID: NodeID) async {
+        Self.logger.debugLog("Adding plain child to parent ID: \(parentID.uuidString.prefix(8))")
+        await addChildInternal(to: parentID, createChild: { label, position in
+            Node(label: label, position: position)  // Use existing Node type
+        })
+    }
+
+    public func addToggleChild(to parentID: NodeID) async {
+        Self.logger.debugLog("Adding toggle child to parent ID: \(parentID.uuidString.prefix(8))")
+        await addChildInternal(to: parentID, createChild: { label, position in
+            ToggleNode(label: label, position: position)  // Use existing ToggleNode type
+        })
+    }
+    
+    // Private helper to avoid duplication (handles common logic like offsets, edges, and childOrder updates)
+    private func addChildInternal(to parentID: NodeID, createChild: (Int, CGPoint) -> some NodeProtocol) async {
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
         guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }) else { return }
         let parentPosition = nodes[parentIndex].position
-        let offsetX = CGFloat.random(in: -50...50)
+        let offsetX = CGFloat.random(in: -50...50)  // Random for natural spread
         let offsetY = CGFloat.random(in: -50...50)
-        let newPosition = parentPosition + CGPoint(x: offsetX, y: offsetY)
-        let newNode = AnyNode(Node(label: newLabel, position: newPosition))  // Default to plain Node; could make configurable later
+        let newPosition = CGPoint(x: parentPosition.x + offsetX, y: parentPosition.y + offsetY)
+        
+        // Create the child using the provided factory (leverages existing types)
+        let child = createChild(newLabel, newPosition)
+        let newNode = AnyNode(child)
         nodes.append(newNode)
         edges.append(GraphEdge(from: parentID, target: newNode.id, type: .hierarchy))
         
-        // NEW: If parent is ToggleNode, append to its children and childOrder
+        // If parent is ToggleNode, append to its children and childOrder
         if var parentToggle = nodes[parentIndex].unwrapped as? ToggleNode {
             if !parentToggle.children.contains(newNode.id) {  // Avoid duplicates
                 parentToggle.children.append(newNode.id)
@@ -110,7 +127,7 @@ extension GraphModel {
         objectWillChange.send()
         await resumeSimulation()
     }
-
+    
     public func deleteNode(withID id: NodeID) async {
         // CHANGED: Qualified
         Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Added debug log

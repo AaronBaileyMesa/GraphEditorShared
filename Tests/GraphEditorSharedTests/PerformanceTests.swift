@@ -38,9 +38,9 @@ struct PerformanceTests {
         engine.useAsymmetricAttraction = true  // Enable for hierarchy testing
         var nodes: [any NodeProtocol] = []
         var edges: [GraphEdge] = []
-        for i in 1...50 {  // Smaller for watchOS
-            let parentID = i == 1 ? nil : UUID()  // Tree structure
-            let node = ToggleNode(label: i, position: CGPoint(x: CGFloat.random(in: 0...300), y: CGFloat.random(in: 0...300)))
+        for count in 1...50 {  // Smaller for watchOS
+            let parentID = count == 1 ? nil : UUID()  // Tree structure
+            let node = ToggleNode(label: count, position: CGPoint(x: CGFloat.random(in: 0...300), y: CGFloat.random(in: 0...300)))
             nodes.append(node)
             if let parentID = parentID {
                 edges.append(GraphEdge(from: parentID, target: node.id, type: .hierarchy))
