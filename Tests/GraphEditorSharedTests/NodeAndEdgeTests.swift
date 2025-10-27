@@ -265,7 +265,7 @@ struct NodeAndEdgeTests {
         model.nodes = [AnyNode(Node(id: parentID, label: 1, position: CGPoint.zero))]
         model.nextNodeLabel = 2
         
-        await model.addChild(to: parentID)
+        await model.addPlainChild(to: parentID)
         #expect(model.nodes.count == 2, "Child added")
         #expect(model.edges.count == 1, "Hierarchy edge added")
         #expect(model.edges[0].type == EdgeType.hierarchy, "Correct edge type")
@@ -283,7 +283,7 @@ struct NodeAndEdgeTests {
         let model = GraphModel(storage: storage, physicsEngine: physics)
         let parent = AnyNode(ToggleNode(label: 1, position: .zero))
         model.nodes = [parent]
-        await model.addChild(to: parent.id)
+        await model.addPlainChild(to: parent.id)
         let updatedParent = model.nodes.first(where: { $0.id == parent.id })?.unwrapped as? ToggleNode
         #expect(updatedParent?.children.count == 1)
         #expect(updatedParent?.childOrder.count == 1)

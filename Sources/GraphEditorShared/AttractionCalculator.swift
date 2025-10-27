@@ -14,7 +14,7 @@ struct AttractionCalculator {
     let useAsymmetric: Bool  // New: Controls full asymmetry for hierarchy edges
     let usePreferredAngles: Bool  // NEW: Controls angular torque for hierarchies
 
-    init(symmetricFactor: CGFloat, useAsymmetric: Bool = false, usePreferredAngles: Bool = false) {  // UPDATED: Added param, default false
+    init(symmetricFactor: CGFloat, useAsymmetric: Bool = false, usePreferredAngles: Bool = true) {  // UPDATED: Default usePreferredAngles to true for hierarchies
         self.symmetricFactor = symmetricFactor
         self.useAsymmetric = useAsymmetric
         self.usePreferredAngles = usePreferredAngles
@@ -67,16 +67,17 @@ struct AttractionCalculator {
                 let siblingCount = max(parent.childOrder.count, 1)
                 let baseAngle: CGFloat = .pi * 1.5  // 270° downward
                 let spread: CGFloat = .pi / 1.5  // ~120° fan for spacing
-                let anglePerSibling = spread / CGFloat(siblingCount - 1)
+                let anglePerSibling = siblingCount > 1 ? spread / CGFloat(siblingCount - 1) : 0
                 let preferredAngle = baseAngle - spread / 2 + CGFloat(siblingIndex) * anglePerSibling
                 
                 let actualAngle = atan2(deltaY, deltaX)
-                let angleDiff = (actualAngle - preferredAngle).clamped(to: -.pi ... .pi)  // Shortest angular distance
-                let torqueMagnitude = Constants.Physics.angularStiffness * angleDiff * forceMagnitude  // Scale by distance force
+                let angleDiff = (preferredAngle - actualAngle).clamped(to: -.pi ... .pi)  // Note: Swapped for correct direction
                 
-                // Torque as perpendicular components
-                let torqueX = -torqueMagnitude * forceDirectionY
-                let torqueY = torqueMagnitude * forceDirectionX
+                let torqueMagnitude = Constants.Physics.angularStiffness * angleDiff * (forceMagnitude * 1.5)  // NEW: Boost scale for stronger enforcement
+                
+                // Torque as perpendicular components (Note: Signs flipped for correct rotation)
+                let torqueX = torqueMagnitude * forceDirectionY
+                let torqueY = -torqueMagnitude * forceDirectionX
                 
                 // Apply to child (asymmetric guidance)
                 let currentTo = updatedForces[toNode.id] ?? .zero

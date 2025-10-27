@@ -142,7 +142,7 @@ struct PersistenceAndModelTests {
         let parent = AnyNode(ToggleNode(label: 1, position: .zero))
         model.nodes = [parent]
         
-        await model.addChild(to: parent.id)  // Pushes undo
+        await model.addPlainChild(to: parent.id)  // Pushes undo
         #expect(model.nodes.count == 2)
         #expect(model.edges.count == 1)
         
