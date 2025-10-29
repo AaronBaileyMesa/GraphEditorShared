@@ -1,25 +1,23 @@
-// swift-tools-version: 5.9
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
+// swift-tools-version: 5.10
 import PackageDescription
 
 let package = Package(
     name: "GraphEditorShared",
-    platforms: [.watchOS(.v9)],  // Set to your project's min watchOS version
+    platforms: [
+        .watchOS(.v10),   // matches your watch target (minimum deployment)
+        .iOS(.v17)        // optional – nice for future iPhone companion
+    ],
     products: [
         .library(
             name: "GraphEditorShared",
-            targets: ["GraphEditorShared"])
+            targets: ["GraphEditorShared"]
+        )
     ],
     targets: [
-        .target(
-            name: "GraphEditorShared",
-            path: "Sources/GraphEditorShared"  // Explicitly set path if needed
-        ),
+        .target(name: "GraphEditorShared"),
         .testTarget(
             name: "GraphEditorSharedTests",
-            dependencies: ["GraphEditorShared"],
-            path: "Tests/GraphEditorSharedTests"  // Explicitly set path if needed
+            dependencies: ["GraphEditorShared"]
         )
     ]
 )
