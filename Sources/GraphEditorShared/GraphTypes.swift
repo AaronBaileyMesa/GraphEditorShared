@@ -11,15 +11,16 @@ public typealias NodeID = UUID
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct Node: NodeProtocol, Equatable {
+public struct Node: NodeProtocol {  // Updated: Conform to NodeProtocol (which now includes HierarchicalNode)
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = 10.0
-    public var isExpanded: Bool = true  // Satisfy protocol (always true for basic Node)
-    public var contents: [NodeContent] = []  // NEW: Ordered list, default empty
-    public var fillColor: Color { .red }  // Explicit red for basic nodes
+    public var children: [UUID] = []
+    public var isExpanded: Bool = true
+    public var contents: [NodeContent] = []
+    public var fillColor: Color { .red }
 
     // Init with all params
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true, contents: [NodeContent] = []) {
@@ -38,6 +39,18 @@ public struct Node: NodeProtocol, Equatable {
     
     public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
         Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
+    }
+}
+
+// Extension for methods only (no stored props)
+extension Node {
+    public mutating func collapse() {
+        isExpanded = false
+    }
+    
+    public mutating func bulkCollapse() {
+        isExpanded = false
+        // Recursion handled in GraphModel for full graph access
     }
 }
 
@@ -142,4 +155,16 @@ public enum NodeWrapper: Codable {
         case .toggleNode(let toggleNode): return toggleNode
         }
     }
+}
+
+public enum GraphMode: Codable {  // Codable for saving
+    case network  // General graphs, allows cycles/associations
+    case tree     // Enforces acyclicity, hierarchy only
+}
+
+public protocol HierarchicalNode {
+    var children: [UUID] { get set }
+    var isExpanded: Bool { get set }
+    mutating func collapse()  // Set isExpanded = false
+    mutating func bulkCollapse()  // Recursive on children (needs graph access)
 }

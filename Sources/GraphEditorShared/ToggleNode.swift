@@ -10,7 +10,7 @@ import Foundation
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct ToggleNode: NodeProtocol, Equatable {
+public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Updated: Added HierarchicalNode
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
@@ -31,7 +31,9 @@ public struct ToggleNode: NodeProtocol, Equatable {
         self.isExpanded = isExpanded
         self.contents = contents
         self.children = children
-        self.childOrder = childOrder ?? children  // Default to children order if not specified
+        // Validate childOrder to be a permutation of children
+        let validatedOrder = (childOrder ?? children).filter { children.contains($0) }
+        self.childOrder = validatedOrder.isEmpty ? children : validatedOrder
     }
 
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
@@ -44,7 +46,7 @@ public struct ToggleNode: NodeProtocol, Equatable {
 
     public func handlingTap() -> Self {
         var updated = self
-        updated.isExpanded.toggle()
+        updated.collapse()  // Reuse protocol method
         updated.velocity = .zero  // Reset to prevent immediate jumps
         return updated
     }
@@ -54,9 +56,7 @@ public struct ToggleNode: NodeProtocol, Equatable {
     }
 
     public func with(childOrder: [NodeID]) -> Self {  // NEW: Method to update order independently
-        // Ensure childOrder is a permutation of children (validation for safety)
-        let validatedOrder = childOrder.filter { children.contains($0) }
-        return ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: validatedOrder.isEmpty ? children : validatedOrder)
+        ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
 
     public func shouldHideChildren() -> Bool {
@@ -116,6 +116,16 @@ public struct ToggleNode: NodeProtocol, Equatable {
                 context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
             }
         }
+    }
+
+    // NEW: HierarchicalNode methods
+    public mutating func collapse() {
+        isExpanded = false
+    }
+    
+    public mutating func bulkCollapse() {
+        isExpanded = false
+        // Recursion handled in GraphModel for full graph access
     }
 
     // Codable conformance (updated for contents array and childOrder)

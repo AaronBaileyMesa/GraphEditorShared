@@ -99,6 +99,10 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     /// Expansion state for hierarchical nodes (e.g., true shows children).
     var isExpanded: Bool { get set }
     
+    var children: [UUID] { get set }
+    mutating func collapse()
+    mutating func bulkCollapse()
+    
     // Data payload for the node
     // Ordered list of data payloads for the node (replaces single optional content)
     var contents: [NodeContent] { get set }
@@ -154,6 +158,14 @@ extension NodeProtocol {
     public var mass: CGFloat { 1.0 }  // Default mass
     
     public func shouldHideChildren() -> Bool { false }  // Default: show children
+    
+    public mutating func collapse() {
+        isExpanded = false
+    }
+
+    public mutating func bulkCollapse() {
+        collapse()  // Full recursion handled in GraphModel
+    }
     
     public func handlingTap() -> Self { self }  // Default: no-op
     
@@ -259,6 +271,20 @@ public struct AnyNode: NodeProtocol {
         get { base.isExpanded }
         set { base.isExpanded = newValue }
     }
+    
+    public var children: [UUID] {
+        get { base.children }
+        set { base.children = newValue }
+    }
+
+    public mutating func collapse() {
+        base.collapse()
+    }
+
+    public mutating func bulkCollapse() {
+        base.bulkCollapse()
+    }
+    
     public var isVisible: Bool { base.isVisible }
     public var fillColor: Color { base.fillColor }
     public var mass: CGFloat { base.mass }

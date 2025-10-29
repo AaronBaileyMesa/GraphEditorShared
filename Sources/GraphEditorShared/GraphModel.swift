@@ -22,8 +22,9 @@ import WatchKit
     @Published public var isSimulating: Bool = false
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
+    @Published public var mode: GraphMode = .network  // Per-graph mode
+    public let changesPublisher = PassthroughSubject<Void, Never>()  // For future real-time sync
 
-    // CHANGED: Made static for consistency; use Self.logger
     private static let logger = Logger.forCategory("graphmodel-storage")
 
     var simulationTimer: Timer?
