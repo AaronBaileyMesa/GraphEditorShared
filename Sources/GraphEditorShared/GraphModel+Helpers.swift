@@ -129,7 +129,7 @@ extension GraphModel {
     
     public func sortChildren<ComparableValue: Comparable>(of nodeID: NodeID, by keyPath: KeyPath<any NodeProtocol, ComparableValue>) async {
         guard let index = nodes.firstIndex(where: { $0.id == nodeID }),
-              var toggleNode = nodes[index].unwrapped as? ToggleNode else {
+              let toggleNode = nodes[index].unwrapped as? ToggleNode else {
             // Skip if not ToggleNode
             return
         }

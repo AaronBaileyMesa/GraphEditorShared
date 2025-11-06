@@ -43,4 +43,3 @@ class AttractionCalculatorTests: XCTestCase {
         XCTAssertEqual(childForce.y, 0, accuracy: 1e-5, "No y-force without torque")
     }
 }
-
