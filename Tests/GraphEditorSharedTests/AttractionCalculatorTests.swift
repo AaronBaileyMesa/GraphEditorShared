@@ -5,7 +5,6 @@
 //  Created by handcart on 10/27/25.
 //
 
-
 import XCTest
 @testable import GraphEditorShared
 
@@ -44,3 +43,4 @@ class AttractionCalculatorTests: XCTestCase {
         XCTAssertEqual(childForce.y, 0, accuracy: 1e-5, "No y-force without torque")
     }
 }
+

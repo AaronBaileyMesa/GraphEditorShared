@@ -53,9 +53,9 @@ extension GraphModel {
 
     // Updated bulkCollapseAll: No casting needed with protocol inheritance; mutate directly
     public func bulkCollapseAll() {
-        for i in 0..<nodes.count {
-            nodes[i].bulkCollapse()  // Direct call—types now compatible
-            let childIds = nodes[i].children
+        for nodeIndex in 0..<nodes.count {
+            nodes[nodeIndex].bulkCollapse()  // Direct call—types now compatible
+            let childIds = nodes[nodeIndex].children
             for childId in childIds {
                 if let childIndex = nodes.firstIndex(where: { $0.id == childId }) {
                     nodes[childIndex].bulkCollapse()  // Direct mutation
