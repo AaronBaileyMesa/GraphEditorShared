@@ -39,13 +39,18 @@ struct NodeTests {
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
         let parentID = UUID()
         let childID = UUID()
-        let parent = ToggleNode(id: parentID, label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false)
+        let parent = ToggleNode(id: parentID, label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false, children: [childID])
         let child = Node(id: childID, label: 2, position: .zero)
         model.nodes = [AnyNode(parent), AnyNode(child)]
         model.edges = [GraphEdge(from: parentID, target: childID, type: EdgeType.hierarchy)]
         
         await model.handleTap(on: parentID)
         let updatedParent = model.nodes[0].unwrapped as? ToggleNode
+        print("Test Post-handleTap: updatedParent isExpanded: \(updatedParent?.isExpanded.description ?? "nil")")
+        #expect(updatedParent?.isExpanded == true, "Toggled to expanded")
+        print("testHandleTapOnToggleNode")
+        print(updatedParent?.isExpanded ?? "nil")
+        
         #expect(updatedParent?.isExpanded == true, "Toggled to expanded")
         #expect(model.nodes[1].position != .zero, "Child position offset")
     }

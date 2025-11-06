@@ -34,6 +34,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         // Validate childOrder to be a permutation of children
         let validatedOrder = (childOrder ?? children).filter { children.contains($0) }
         self.childOrder = validatedOrder.isEmpty ? children : validatedOrder
+        print("ToggleNode.init: Created with isExpanded \(self.isExpanded)")  // Confirm new instance state
     }
 
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
@@ -46,9 +47,16 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
 
     public func handlingTap() -> Self {
         var updated = self
-        updated.collapse()  // Reuse protocol method
-        updated.velocity = .zero  // Reset to prevent immediate jumps
+        print("ToggleNode.handlingTap: Pre-collapse - current isExpanded: \(updated.isExpanded)")
+        updated.isExpanded = !updated.isExpanded  // Toggle here
+        print("ToggleNode.handlingTap: Post-collapse - updated isExpanded: \(updated.isExpanded)")  // Will always show false
+        updated.velocity = .zero
         return updated
+    }
+
+    public mutating func collapse() {
+        print("ToggleNode.collapse: Setting isExpanded to false from \(isExpanded)")
+        isExpanded = false
     }
     
     public func with(children: [NodeID]) -> Self {
@@ -57,6 +65,11 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
 
     public func with(childOrder: [NodeID]) -> Self {  // NEW: Method to update order independently
         ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
+    }
+    
+    public func with(isExpanded: Bool) -> Self {
+        print("ToggleNode.with(isExpanded): Input \(isExpanded), self \(self.isExpanded)")  // Trace input vs self
+        return ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
 
     public func shouldHideChildren() -> Bool {
@@ -116,11 +129,6 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
                 context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
             }
         }
-    }
-
-    // NEW: HierarchicalNode methods
-    public mutating func collapse() {
-        isExpanded = false
     }
     
     public mutating func bulkCollapse() {

@@ -50,26 +50,36 @@ extension GraphModel {
     }
 
     public func handleTap(on nodeID: NodeID) async {
-            guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
-            let oldNode = nodes[index]
-            let updatedNode = oldNode.handlingTap()
-            nodes[index] = updatedNode
+        guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
+            print("handleTap: Index not found for ID \(nodeID)")
+            return
+        }
+        let oldNode = nodes[index]
+        print("handleTap: Pre-handlingTap - old isExpanded: \((oldNode.unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Check initial
 
-            let children = edges.filter { $0.from == nodeID && $0.type == EdgeType.hierarchy }.map { $0.target } // Changed to EdgeType.hierarchy
-        
+        let updatedNode = oldNode.handlingTap()
+        print("handleTap: Post-handlingTap - updated isExpanded: \((updatedNode.unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Key: Should be toggled, but won't be
+
+        nodes[index] = updatedNode
+        print("handleTap: Post-assignment - model.nodes[\(index)] isExpanded: \((nodes[index].unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Verify stuck in model
+
+        let children = edges.filter { $0.from == nodeID && $0.type == EdgeType.hierarchy }.map { $0.target }
         if let toggleNode = updatedNode.unwrapped as? ToggleNode {
+            print("handleTap: Entered if-let - toggleNode isExpanded: \(toggleNode.isExpanded)")  // Will print false, enters else
             if toggleNode.isExpanded {
+                print("handleTap: Running expand block")
                 for childID in children {
-                    guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
-                    var child = nodes[childIndex]
-                    let offsetX = CGFloat.random(in: -Constants.App.nodeModelRadius * 3 ... Constants.App.nodeModelRadius * 3)
-                    let offsetY = CGFloat.random(in: Constants.App.nodeModelRadius * 2 ... Constants.App.nodeModelRadius * 4)
-                    child.position = toggleNode.position + CGPoint(x: offsetX, y: offsetY)
-                    child.velocity = .zero
-                    nodes[childIndex] = child
-                }
-                physicsEngine.temporaryDampingBoost(steps: Constants.Physics.maxSimulationSteps / 10)
+                                    guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
+                                    var child = nodes[childIndex]
+                                    let offsetX = CGFloat.random(in: -Constants.App.nodeModelRadius * 3 ... Constants.App.nodeModelRadius * 3)
+                                    let offsetY = CGFloat.random(in: Constants.App.nodeModelRadius * 2 ... Constants.App.nodeModelRadius * 4)
+                                    child.position = toggleNode.position + CGPoint(x: offsetX, y: offsetY)
+                                    child.velocity = .zero
+                                    nodes[childIndex] = child
+                                }
+                                physicsEngine.temporaryDampingBoost(steps: Constants.Physics.maxSimulationSteps / 10)
             } else {
+                print("handleTap: Running collapse block")
                 for childID in children {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
                     var child = nodes[childIndex]
@@ -78,15 +88,19 @@ extension GraphModel {
                     nodes[childIndex] = child
                 }
             }
+        } else {
+            print("handleTap: Cast to ToggleNode failed on updatedNode")
         }
 
         objectWillChange.send()
         let unwrappedNodes = nodes.map { $0.unwrapped }
         let updatedUnwrapped = physicsEngine.runSimulation(steps: 20, nodes: unwrappedNodes, edges: edges)
         nodes = updatedUnwrapped.map { AnyNode($0) }
+        print("handleTap: Post-simulation - model.nodes[\(index)] isExpanded: \((nodes[index].unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Check if sim overwrote
+
         await resumeSimulation()
     }
-
+    
     public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
         let edgeCount = edges.count
         let edgeWord = edgeCount == 1 ? "edge" : "edges"
