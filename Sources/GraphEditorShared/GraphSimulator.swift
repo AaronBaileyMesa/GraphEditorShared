@@ -40,6 +40,9 @@ class GraphSimulator {
     private let getEdges: () async -> [GraphEdge]
     internal let onStable: (() -> Void)?  // New: Optional callback
     
+    private let onPostStable: (() -> Void)?
+    private let postStableDelay: TimeInterval
+    
     init(getNodes: @escaping () async -> [any NodeProtocol],
          setNodes: @escaping ([any NodeProtocol]) async -> Void,
          getEdges: @escaping () async -> [GraphEdge],
@@ -47,6 +50,8 @@ class GraphSimulator {
          getVisibleEdges: @escaping () async -> [GraphEdge],
          physicsEngine: PhysicsEngine,
          onStable: (() -> Void)? = nil,
+         onPostStable: (() -> Void)? = nil,
+         postStableDelay: TimeInterval = 5.0,
          baseInterval: TimeInterval = 1.0 / 30.0,  // Default value
          velocityChangeThreshold: CGFloat = 0.01,
          velocityHistoryCount: Int = 5) {
@@ -62,6 +67,9 @@ class GraphSimulator {
         self.baseInterval = baseInterval
         self.velocityChangeThreshold = velocityChangeThreshold
         self.velocityHistoryCount = velocityHistoryCount
+        
+        self.onPostStable = onPostStable
+        self.postStableDelay = postStableDelay
     }
     
     struct SimulationStepResult {
@@ -130,6 +138,15 @@ class GraphSimulator {
                 break
             }
         }
+        
+        if iterations < maxIterations && !Task.isCancelled {
+            logger.info("Simulation stabilized; waiting \(self.postStableDelay)s for inactivity pause")
+            try? await Task.sleep(for: .seconds(postStableDelay))
+            if !Task.isCancelled {
+                onPostStable?()
+            }
+        }
+        
         let duration = Date().timeIntervalSince(startTime)  // Added for perf
         if iterations >= maxIterations {
             logger.warning("Simulation timed out after \(iterations) iterations; recent velocities: \(self.recentVelocities); duration: \(duration)s")

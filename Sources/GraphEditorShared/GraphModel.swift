@@ -105,6 +105,12 @@ import WatchKit
                     }
                     self.objectWillChange.send()
                 }
+            },
+            onPostStable: { [weak self] in
+                Task { @MainActor in
+                    self?.isSimulating = false
+                    Self.logger.infoLog("Auto-paused simulation after inactivity")
+                }
             }
         )
     }()
