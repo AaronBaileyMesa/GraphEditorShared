@@ -32,7 +32,6 @@ struct NodeTests {
         #expect(node == decoded, "Node should encode and decode without data loss")
     }
 
-    
     @MainActor @Test func testHandleTapOnToggleNode() async {
         let storage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))

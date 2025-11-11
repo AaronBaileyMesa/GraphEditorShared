@@ -8,9 +8,7 @@
 import Testing
 import Foundation
 import CoreGraphics
-import GraphEditorShared
 @testable import GraphEditorShared
-
 
 struct GraphModelTests {
     @MainActor @Test func testBuildAdjacencyList() {
@@ -39,7 +37,6 @@ struct GraphModelTests {
         #expect(hierarchyAdj[node1ID]?.count == 1, "Only hierarchy from node1")
         #expect(hierarchyAdj[node1ID]?[0] == node2ID, "Correct target")
     }
-    
     
     @Test func testDistanceEdgeCases() {
         let samePoint = CGPoint(x: 5, y: 5)
@@ -71,7 +68,6 @@ struct GraphModelTests {
         #expect(model.wouldCreateCycle(withNewEdgeFrom: node1ID, target: node3ID, type: EdgeType.hierarchy) == false, "No cycle")
         #expect(model.wouldCreateCycle(withNewEdgeFrom: node1ID, target: node2ID, type: EdgeType.association) == false, "Non-hierarchy ignores cycle check")
     }
-    
     
     @MainActor @Test func testAddAndDeleteEdge() async {
         let storage = MockGraphStorage()

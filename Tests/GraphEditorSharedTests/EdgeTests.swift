@@ -73,7 +73,6 @@ struct EdgeTests {
         #expect(nanDouble.clamped(to: 0...100) == 0, "NaN clamps to lower bound")
     }
     
-    
     @Test func testDirectedEdgeCreation() {
         let edge = GraphEdge(from: UUID(), target: UUID())
         #expect(edge.from != edge.target, "Directed edge has distinct from/to")
