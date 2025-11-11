@@ -11,6 +11,8 @@ import os  // ADDED: For Logger
 extension GraphModel {
     private static let logger = Logger.forCategory("graphmodel-simulation")  // ADDED: Local static logger for this extension
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func startSimulation() async {
         Self.logger.infoLog("Starting simulation")  // Qualified with Self
         isSimulating = true
@@ -18,19 +20,25 @@ extension GraphModel {
         await simulator.startSimulation()
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func pauseSimulation() async {
         Self.logger.debugLog("Pausing simulation")  // Qualified with Self
         physicsEngine.isPaused = true
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func resumeSimulation() async {
         Self.logger.debugLog("Resuming simulation")  // Qualified with Self
         physicsEngine.isPaused = false
-        if simulator.simulationTask == nil {
+        if await simulator.simulationTask == nil {
             await startSimulation()
         }
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func stopSimulation() async {
         Self.logger.infoLog("Stopping simulation")  // Qualified with Self
         await simulator.stopSimulation()

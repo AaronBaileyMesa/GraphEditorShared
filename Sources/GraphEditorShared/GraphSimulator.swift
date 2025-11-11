@@ -13,11 +13,9 @@ import WatchKit  // Only if using haptics; otherwise remove
 #endif
 
 @available(iOS 16.0, watchOS 6.0, *)
-/// Manages physics simulation loops for graph updates.
-class GraphSimulator {
+actor GraphSimulator {
     private let logger = Logger.forCategory("graphsimulator")  // Added: Define logger instance
     
-    // NEW: Signposter for performance tracing
     #if DEBUG
     private let signposter: OSSignposter = {
         let subsystem = "io.handcart.GraphEditor"  // Match your app's subsystem
@@ -26,7 +24,7 @@ class GraphSimulator {
     #endif
 
     var simulationTask: Task<Void, Never>?  // Exposed for testing
-    internal var recentVelocities: [CGFloat] = []  // Explicit internal for test access
+    private var recentVelocities: [CGFloat] = []  // Changed from internal to private (actor isolates it)
     let velocityChangeThreshold: CGFloat
     let velocityHistoryCount: Int
     let baseInterval: TimeInterval  // Now configurable
@@ -35,26 +33,31 @@ class GraphSimulator {
     private let getVisibleNodes: () async -> [any NodeProtocol]
     private let getVisibleEdges: () async -> [GraphEdge]
     
-    internal let getNodes: () async -> [any NodeProtocol]  // Changed from private to internal
-    internal let setNodes: ([any NodeProtocol]) async -> Void  // Updated: Polymorphic
+    private let getNodes: () async -> [any NodeProtocol]  // Changed from internal to private
+    private let setNodes: ([any NodeProtocol]) async -> Void  // Updated: Polymorphic
     private let getEdges: () async -> [GraphEdge]
-    internal let onStable: (() -> Void)?  // New: Optional callback
+    private let onStable: (() -> Void)?  // New: Optional callback
     
     private let onPostStable: (() -> Void)?
     private let postStableDelay: TimeInterval
     
-    init(getNodes: @escaping () async -> [any NodeProtocol],
-         setNodes: @escaping ([any NodeProtocol]) async -> Void,
-         getEdges: @escaping () async -> [GraphEdge],
-         getVisibleNodes: @escaping () async -> [any NodeProtocol],
-         getVisibleEdges: @escaping () async -> [GraphEdge],
-         physicsEngine: PhysicsEngine,
-         onStable: (() -> Void)? = nil,
-         onPostStable: (() -> Void)? = nil,
-         postStableDelay: TimeInterval = 5.0,
-         baseInterval: TimeInterval = 1.0 / 30.0,  // Default value
-         velocityChangeThreshold: CGFloat = 0.01,
-         velocityHistoryCount: Int = 5) {
+    private let bypassAppCheck: Bool  // Flag to skip watchOS app state check in tests
+        private let testStepDelay: TimeInterval?  // Optional delay per step for test slowing
+
+        init(getNodes: @escaping () async -> [any NodeProtocol],
+             setNodes: @escaping ([any NodeProtocol]) async -> Void,
+             getEdges: @escaping () async -> [GraphEdge],
+             getVisibleNodes: @escaping () async -> [any NodeProtocol],
+             getVisibleEdges: @escaping () async -> [GraphEdge],
+             physicsEngine: PhysicsEngine,
+             onStable: (() -> Void)? = nil,
+             onPostStable: (() -> Void)? = nil,
+             postStableDelay: TimeInterval = 5.0,
+             baseInterval: TimeInterval = 1.0 / 30.0,
+             velocityChangeThreshold: CGFloat = 0.01,
+             velocityHistoryCount: Int = 5,
+             bypassAppCheck: Bool = false,  // ADDED: Default false (normal behavior)
+             testStepDelay: TimeInterval? = nil) {  // ADDED: Default nil (no delay)
         self.getNodes = getNodes
         self.setNodes = setNodes
         self.getEdges = getEdges
@@ -70,6 +73,8 @@ class GraphSimulator {
         
         self.onPostStable = onPostStable
         self.postStableDelay = postStableDelay
+            self.bypassAppCheck = bypassAppCheck
+                    self.testStepDelay = testStepDelay
     }
     
     struct SimulationStepResult {
@@ -78,10 +83,12 @@ class GraphSimulator {
         let totalVelocity: CGFloat
     }
     
-    @MainActor
     func startSimulation() async {
-    #if os(watchOS)
-        guard WKApplication.shared().applicationState == .active else { return }
+#if os(watchOS)
+        if !bypassAppCheck {  // ADDED: Only check if not bypassed
+            let appState = await WKApplication.shared().applicationState
+            guard appState == .active else { return }
+        }
     #endif
         physicsEngine.resetSimulation()
         recentVelocities.removeAll()
@@ -106,22 +113,29 @@ class GraphSimulator {
         }
     }
     
+    // ADDED: Now async (actor-isolated)
     func stopSimulation() async {
         simulationTask?.cancel()
-        await simulationTask?.value
-        simulationTask = nil  // Added: Clear task after stop
+        simulationTask = nil
     }
     
-    internal func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
+    // ADDED: Now async (actor-isolated)
+    private func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
+        let startTime = Date()
         #if DEBUG
         let loopState = signposter.beginInterval("SimulationLoop", "Nodes: \(nodeCount)")
         #endif
         
-        let startTime = Date()  // Added for perf logging
-        logger.debug("Starting sim loop with nodeCount: \(nodeCount), maxIterations: 500")
+        let maxIterations = 500  // Arbitrary limit to prevent infinite loops
         var iterations = 0
-        let maxIterations = 500
+        
         while !Task.isCancelled && iterations < maxIterations {
+            // ADDED: Optional test delay for slowing loop (e.g., for reliability)
+            if let delay = testStepDelay {
+                            try? await Task.sleep(for: .milliseconds(Int(delay * 1000)))
+                        } else {
+                            try? await Task.sleep(for: .seconds(baseInterval))
+                        }
             if physicsEngine.isPaused {
                 try? await Task.sleep(for: .milliseconds(100))
                 continue
@@ -158,9 +172,10 @@ class GraphSimulator {
         self.onStable?()
     }
 
-    internal func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
+    private func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
     #if os(watchOS)
-        if await WKApplication.shared().applicationState != .active { return false }
+        let appState = await WKApplication.shared().applicationState
+        if appState != .active { return false }
     #endif
         
         if physicsEngine.isPaused { return false }
@@ -190,7 +205,7 @@ class GraphSimulator {
         return !isStable
     }
     
-    internal func computeSimulationStep() async -> SimulationStepResult {
+    private func computeSimulationStep() async -> SimulationStepResult {
         let nodes = await getNodes()
         let edges = await getEdges()
         
@@ -200,7 +215,7 @@ class GraphSimulator {
         return SimulationStepResult(updatedNodes: updatedNodes, shouldContinue: isActive, totalVelocity: totalVelocity)
     }
     
-    internal func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) -> Bool {
+    private func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) async -> Bool {
         recentVelocities.append(result.totalVelocity)
         if recentVelocities.count > velocityHistoryCount {
             recentVelocities.removeFirst()

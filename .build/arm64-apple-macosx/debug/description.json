@@ -1,0 +1,1284 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.xctest/Contents/MacOS/GraphEditorSharedPackageTests",
+      "packagePath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared",
+      "productName" : "GraphEditorSharedPackageTests"
+    }
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.GraphEditorShared-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/sources",
+      "importPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/AttractionCalculator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CenteringCalculator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Constants.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CoordinateTransformer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphError.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+EdgesNodes.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Helpers.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Simulation.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Storage.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+TreeSupport.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Undo.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Visibility.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphSimulator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphTypes.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/HitTestContext.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/NodeProtocol.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PersistenceManager.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PhysicsEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PositionUpdater.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Protocols.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Quadtree.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/RepulsionCalculator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/ToggleNode.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Utilities.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "GraphEditorShared",
+      "moduleOutputPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorShared.swiftmodule",
+      "objects" : [
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/AttractionCalculator.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/CenteringCalculator.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Constants.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/CoordinateTransformer.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphError.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+EdgesNodes.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Helpers.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Simulation.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Storage.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+TreeSupport.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Undo.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Visibility.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphSimulator.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphTypes.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/HitTestContext.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/NodeProtocol.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PersistenceManager.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PhysicsEngine.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PositionUpdater.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Protocols.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Quadtree.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/RepulsionCalculator.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/ToggleNode.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Utilities.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.13",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/include/GraphEditorShared-Swift.h",
+        "-swift-version",
+        "5",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "grapheditorshared"
+      ],
+      "outputFileMapPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/AttractionCalculator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/CenteringCalculator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Constants.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/CoordinateTransformer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphError.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+EdgesNodes.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Helpers.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Simulation.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Storage.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+TreeSupport.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Undo.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Visibility.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphSimulator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphTypes.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/HitTestContext.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/NodeProtocol.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PersistenceManager.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PhysicsEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PositionUpdater.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Protocols.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Quadtree.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/RepulsionCalculator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/ToggleNode.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Utilities.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorShared.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/AttractionCalculator.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CenteringCalculator.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Constants.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CoordinateTransformer.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphError.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+EdgesNodes.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Helpers.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Simulation.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Storage.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+TreeSupport.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Undo.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Visibility.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphSimulator.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphTypes.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/HitTestContext.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/NodeProtocol.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PersistenceManager.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PhysicsEngine.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PositionUpdater.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Protocols.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Quadtree.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/RepulsionCalculator.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/ToggleNode.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Utilities.swift"
+      ],
+      "tempsPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.GraphEditorSharedPackageTests-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/sources",
+      "importPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.derived/runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorSharedTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "GraphEditorSharedPackageTests",
+      "moduleOutputPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorSharedPackageTests.swiftmodule",
+      "objects" : [
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.13",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/include/GraphEditorSharedPackageTests-Swift.h",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "grapheditorshared"
+      ],
+      "outputFileMapPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorSharedPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.derived/runner.swift"
+      ],
+      "tempsPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.GraphEditorSharedTests-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/sources",
+      "importPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/AttractionCalculatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/EdgeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphEditorSharedTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphModelTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphSimulatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/MockGraphStorage.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/NodeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PerformanceTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PersistenceAndModelTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PhysicsEngineTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/QuadtreeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorShared.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "GraphEditorSharedTests",
+      "moduleOutputPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorSharedTests.swiftmodule",
+      "objects" : [
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/AttractionCalculatorTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/EdgeTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphEditorSharedTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphModelTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphSimulatorTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/MockGraphStorage.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/NodeTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PerformanceTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PersistenceAndModelTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PhysicsEngineTests.swift.o",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/QuadtreeTests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-swift-version",
+        "5",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "grapheditorshared"
+      ],
+      "outputFileMapPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/AttractionCalculatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/EdgeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphEditorSharedTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphModelTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphSimulatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/MockGraphStorage.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/NodeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PerformanceTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PersistenceAndModelTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PhysicsEngineTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/QuadtreeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules/GraphEditorSharedTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/AttractionCalculatorTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/EdgeTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphEditorSharedTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphModelTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphSimulatorTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/MockGraphStorage.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/NodeTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PerformanceTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PersistenceAndModelTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PhysicsEngineTests.swift",
+        "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/QuadtreeTests.swift"
+      ],
+      "tempsPath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "GraphEditorShared" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "GraphEditorShared",
+      "-package-name",
+      "grapheditorshared",
+      "-c",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/AttractionCalculator.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CenteringCalculator.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Constants.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CoordinateTransformer.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphError.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+EdgesNodes.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Helpers.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Simulation.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Storage.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+TreeSupport.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Undo.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Visibility.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphSimulator.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphTypes.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/HitTestContext.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/NodeProtocol.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PersistenceManager.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PhysicsEngine.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PositionUpdater.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Protocols.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Quadtree.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/RepulsionCalculator.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/ToggleNode.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Utilities.swift",
+      "-I",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx10.13",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/include/GraphEditorShared-Swift.h",
+      "-swift-version",
+      "5",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "grapheditorshared",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "GraphEditorSharedPackageTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "GraphEditorSharedPackageTests",
+      "-package-name",
+      "grapheditorshared",
+      "-c",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.derived/runner.swift",
+      "-I",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx10.13",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/include/GraphEditorSharedPackageTests-Swift.h",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "grapheditorshared",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "GraphEditorSharedTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "GraphEditorSharedTests",
+      "-package-name",
+      "grapheditorshared",
+      "-c",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/AttractionCalculatorTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/EdgeTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphEditorSharedTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphModelTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphSimulatorTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/MockGraphStorage.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/NodeTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PerformanceTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PersistenceAndModelTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PhysicsEngineTests.swift",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/QuadtreeTests.swift",
+      "-I",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-swift-version",
+      "5",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "grapheditorshared",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "GraphEditorShared" : [
+
+    ],
+    "GraphEditorSharedPackageTests" : [
+      "GraphEditorSharedTests",
+      "GraphEditorShared"
+    ],
+    "GraphEditorSharedTests" : [
+      "GraphEditorShared"
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+    "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.derived/runner.swift" : {
+      "inputs" : [
+
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.derived/runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/AttractionCalculator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CenteringCalculator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Constants.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/CoordinateTransformer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphError.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+EdgesNodes.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Helpers.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Simulation.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Storage.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+TreeSupport.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Undo.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel+Visibility.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphModel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphSimulator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/GraphTypes.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/HitTestContext.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/NodeProtocol.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PersistenceManager.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PhysicsEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/PositionUpdater.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Protocols.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Quadtree.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/RepulsionCalculator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/ToggleNode.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Sources/GraphEditorShared/Utilities.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/sources"
+    },
+    "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.derived/runner.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/sources"
+    },
+    "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/AttractionCalculator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/CenteringCalculator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Constants.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/CoordinateTransformer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphError.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+EdgesNodes.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Helpers.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Simulation.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Storage.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+TreeSupport.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Undo.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel+Visibility.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphModel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphSimulator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/GraphTypes.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/HitTestContext.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/NodeProtocol.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PersistenceManager.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PhysicsEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/PositionUpdater.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Protocols.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Quadtree.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/RepulsionCalculator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/ToggleNode.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorShared.build/Utilities.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/AttractionCalculatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/EdgeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphEditorSharedTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphModelTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/GraphSimulatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/MockGraphStorage.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/NodeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PerformanceTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PersistenceAndModelTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/PhysicsEngineTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/QuadtreeTests.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedPackageTests.product/Objects.LinkFileList"
+    },
+    "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/AttractionCalculatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/EdgeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphEditorSharedTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphModelTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/GraphSimulatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/MockGraphStorage.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/NodeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PerformanceTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PersistenceAndModelTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/PhysicsEngineTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/Tests/GraphEditorSharedTests/QuadtreeTests.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/GraphEditorSharedTests.build/sources"
+    },
+    "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/handcart/Development/GraphEditor/GraphEditorShared/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+    }
+  }
+}
