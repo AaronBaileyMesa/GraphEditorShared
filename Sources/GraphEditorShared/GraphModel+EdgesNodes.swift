@@ -12,6 +12,8 @@ extension GraphModel {
     // NEW: Add static logger for this extension
     private static let logger = Logger.forCategory("graphmodel_edgesnodes")
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func wouldCreateCycle(withNewEdgeFrom from: NodeID, target: NodeID, type: EdgeType) -> Bool {
         guard type == .hierarchy else { return false }
         var tempEdges = edges.filter { $0.type == .hierarchy }
@@ -19,6 +21,8 @@ extension GraphModel {
         return !isAcyclic(edges: tempEdges)
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     private func isAcyclic(edges: [GraphEdge]) -> Bool {
         var adj: [NodeID: [NodeID]] = [:]
         var inDegree: [NodeID: Int] = [:]
@@ -40,6 +44,8 @@ extension GraphModel {
         return count == nodes.count
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func addEdge(from: NodeID, target: NodeID, type: EdgeType) async {
         if wouldCreateCycle(withNewEdgeFrom: from, target: target, type: type) {
             // CHANGED: Qualified static logger
@@ -52,6 +58,8 @@ extension GraphModel {
         await resumeSimulation()
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func deleteEdge(withID id: UUID) async {
         // CHANGED: Qualified
         Self.logger.debugLog("Deleting edge with ID: \(id.uuidString.prefix(8))")  // Added debug log
@@ -61,6 +69,8 @@ extension GraphModel {
         await resumeSimulation()
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func addNode(at position: CGPoint) async {
         // CHANGED: Qualified; manual CGPoint formatting
         Self.logger.debugLog("Adding node at position: x=\(position.x), y=\(position.y)")  // Added debug log
@@ -73,6 +83,8 @@ extension GraphModel {
         await resumeSimulation()
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func addToggleNode(at position: CGPoint) async {
         Self.logger.debugLog("Adding toggle node at position: x=\(position.x), y=\(position.y)")  // Added debug log
         pushUndo()
@@ -84,6 +96,8 @@ extension GraphModel {
         await resumeSimulation()
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func addPlainChild(to parentID: NodeID) async {
         Self.logger.debugLog("Adding plain child to parent ID: \(parentID.uuidString.prefix(8))")
         await addChildInternal(to: parentID, createChild: { label, position in
@@ -91,6 +105,8 @@ extension GraphModel {
         })
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func addToggleChild(to parentID: NodeID) async {
         Self.logger.debugLog("Adding toggle child to parent ID: \(parentID.uuidString.prefix(8))")
         await addChildInternal(to: parentID, createChild: { label, position in
@@ -98,6 +114,8 @@ extension GraphModel {
         })
     }
     
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     // Private helper to avoid duplication (handles common logic like offsets, edges, and childOrder updates)
     private func addChildInternal(to parentID: NodeID, createChild: (Int, CGPoint) -> some NodeProtocol) async {
         pushUndo()
@@ -128,6 +146,8 @@ extension GraphModel {
         await resumeSimulation()
     }
     
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func deleteNode(withID id: NodeID) async {
         // CHANGED: Qualified
         Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Added debug log
@@ -138,6 +158,8 @@ extension GraphModel {
         await resumeSimulation()
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func updateNodeContents(withID id: NodeID, newContents: [NodeContent]) async {
         // CHANGED: Qualified
         Self.logger.debugLog("Updating contents for node ID: \(id.uuidString.prefix(8))")  // Added debug log
@@ -151,6 +173,8 @@ extension GraphModel {
         }
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func deleteSelected(selectedNodeID: NodeID?, selectedEdgeID: UUID?) async {
         // CHANGED: Qualified
         Self.logger.debugLog("Deleting selected: node=\(selectedNodeID?.uuidString.prefix(8) ?? "nil"), edge=\(selectedEdgeID?.uuidString.prefix(8) ?? "nil")")  // Added debug log
@@ -165,6 +189,8 @@ extension GraphModel {
         await resumeSimulation()
     }
 
+    // ADDED: @MainActor to isolate this method to the main thread
+    @MainActor
     public func toggleExpansion(for nodeID: NodeID) async {
         // CHANGED: Qualified
         Self.logger.debugLog("Toggling expansion for node ID: \(nodeID.uuidString.prefix(8))")  // Added debug log
