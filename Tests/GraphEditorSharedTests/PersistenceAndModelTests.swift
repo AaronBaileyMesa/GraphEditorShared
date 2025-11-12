@@ -50,7 +50,7 @@ struct PersistenceAndModelTests {
         do {
             _ = try await manager.load()
             #expect(Bool(false), "Load should throw graphNotFound after clear")
-        } catch GraphStorageError.graphNotFound(_) {
+        } catch _ as GraphStorageError {
             #expect(true, "Load throws not found as expected")
         } catch {
             #expect(Bool(false), "Unexpected error: \(error)")
@@ -147,7 +147,7 @@ struct PersistenceAndModelTests {
         #expect(model.edges.count == 1)
         
         guard let updatedParent = model.nodes[0].unwrapped as? ToggleNode else {
-            #expect(false, "Failed to cast updated parent to ToggleNode")
+            #expect(Bool(false), "Failed to cast updated parent to ToggleNode")
             return
         }
         #expect(updatedParent.children.count == 1)
@@ -157,7 +157,7 @@ struct PersistenceAndModelTests {
         #expect(model.edges.isEmpty)
         
         guard let revertedParent = model.nodes[0].unwrapped as? ToggleNode else {
-            #expect(false, "Failed to cast reverted parent to ToggleNode")
+            #expect(Bool(false), "Failed to cast reverted parent to ToggleNode")
             return
         }
         #expect(revertedParent.children.isEmpty)

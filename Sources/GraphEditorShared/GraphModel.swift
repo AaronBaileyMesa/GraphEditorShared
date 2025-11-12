@@ -88,22 +88,24 @@ import WatchKit
             },
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
-                guard let self = self, !self.isStable else { return }
-                let velocities = self.nodes.map { hypot($0.velocity.x, $0.velocity.y) }
-                if velocities.allSatisfy({ $0 < 0.001 }) {
-                    // CHANGED: Qualified static logger
-                    Self.logger.infoLog("Simulation stable: Centering nodes")  // Replaced print
-                    let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
-                    self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
-                    self.isStable = true
-                    Task.detached {
-                        await self.stopSimulation()
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        await MainActor.run {
-                            self.isStable = false
+                Task { @MainActor in
+                    guard let self = self, !self.isStable else { return }
+                    let velocities = self.nodes.map { hypot($0.velocity.x, $0.velocity.y) }
+                    if velocities.allSatisfy({ $0 < 0.001 }) {
+                        // CHANGED: Qualified static logger
+                        Self.logger.infoLog("Simulation stable: Centering nodes")  // Replaced print
+                        let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
+                        self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
+                        self.isStable = true
+                        Task.detached {
+                            await self.stopSimulation()
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            await MainActor.run {
+                                self.isStable = false
+                            }
                         }
+                        self.objectWillChange.send()
                     }
-                    self.objectWillChange.send()
                 }
             },
             onPostStable: { [weak self] in
