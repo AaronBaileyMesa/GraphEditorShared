@@ -23,6 +23,8 @@ import WatchKit
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
     @Published public var mode: GraphMode = .network  // Per-graph mode
+    @Published public var hierarchyEdgeColor: Color = .blue  // New: Default color for hierarchy edges
+    @Published public var associationEdgeColor: Color = .white  // New: Default color for association edges
     public let changesPublisher = PassthroughSubject<Void, Never>()  // For future real-time sync
 
     private static let logger = Logger.forCategory("graphmodel-storage")
@@ -38,7 +40,6 @@ import WatchKit
     public var physicsEngine: PhysicsEngine
 
     public var hiddenNodeIDs: Set<NodeID> {
-        // Removed debug print to avoid side effects; add os_log if needed for production logging.
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
 
@@ -92,8 +93,7 @@ import WatchKit
                     guard let self = self, !self.isStable else { return }
                     let velocities = self.nodes.map { hypot($0.velocity.x, $0.velocity.y) }
                     if velocities.allSatisfy({ $0 < 0.001 }) {
-                        // CHANGED: Qualified static logger
-                        Self.logger.infoLog("Simulation stable: Centering nodes")  // Replaced print
+                        Self.logger.infoLog("Simulation stable: Centering nodes")
                         let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
                         self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
                         self.isStable = true
@@ -128,8 +128,7 @@ import WatchKit
     public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
         self.storage = storage
         self.physicsEngine = physicsEngine
-        // CHANGED: Qualified static logger
-        Self.logger.infoLog("GraphModel initialized with storage: \(type(of: storage))")  // Existing, already good
+        Self.logger.infoLog("GraphModel initialized with storage: \(type(of: storage))")
     }
     
     func buildAdjacencyList(for type: EdgeType) -> [NodeID: [NodeID]] {
