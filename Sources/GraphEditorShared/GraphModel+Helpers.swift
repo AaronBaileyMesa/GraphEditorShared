@@ -5,19 +5,12 @@
 //  Created by handcart on 9/19/25.
 //
 import Foundation
+import os
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    public func resetGraph() async {
-        nodes.removeAll()
-        edges.removeAll()
-        nextNodeLabel = 1  // Reset label counter
-        undoStack.removeAll()
-        redoStack.removeAll()
-        objectWillChange.send()
-        await startSimulation()  // Or resume if needed
-    }
-    
+    private static let helpersLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "GraphModel.Helpers")
+
     func buildAdjacencyList(for edgeType: EdgeType? = nil) -> [NodeID: [NodeID]] {
         var adj = [NodeID: [NodeID]]()
         let filteredEdges = edgeType != nil ? edges.filter { $0.type == edgeType! } : edges
@@ -161,5 +154,23 @@ extension GraphModel {
         nodes[index] = AnyNode(updated)
         objectWillChange.send()
         await resumeSimulation()  // Re-simulate for layout adjustments
+    }
+    
+    // Add this to GraphModel+Helpers.swift to include color resets (and optionally call save() if needed)
+    public func resetGraph() async {
+        nodes.removeAll()
+        edges.removeAll()
+        nextNodeLabel = 1  // Reset label counter
+        hierarchyEdgeColor = .blue  // Reset to default
+        associationEdgeColor = .white  // Reset to default
+        undoStack.removeAll()
+        redoStack.removeAll()
+        objectWillChange.send()
+        do {
+            try await save()  // Add this to persist the reset
+        } catch {
+            Self.helpersLogger.error("Failed to save after reset: \(String(describing: error), privacy: .public)")
+        }
+        await startSimulation()  // Or resume if needed
     }
 }

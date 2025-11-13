@@ -168,3 +168,51 @@ public protocol HierarchicalNode {
     mutating func collapse()  // Set isExpanded = false
     mutating func bulkCollapse()  // Recursive on children (needs graph access)
 }
+
+// Codable wrapper for SwiftUI.Color to avoid extending imported types with protocol conformances
+public struct CodableColor: Codable, Equatable {
+    public var color: Color
+
+    public init(_ color: Color) {
+        self.color = color
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        // We store a string description for backward compatibility with previous approach
+        let description = try container.decode(String.self)
+        self.color = CodableColor.color(fromDescription: description) ?? .black
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(color.description)
+    }
+
+    // Helper to parse Color from a description string like
+    // "SwiftUI.Color(red: 1.0, green: 0.0, blue: 0.0, opacity: 1.0)"
+    private static func color(fromDescription description: String) -> Color? {
+        let cleaned = description
+            .replacingOccurrences(of: "SwiftUI.Color(", with: "")
+            .replacingOccurrences(of: ")", with: "")
+        let pairs = cleaned.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        var red: Double = 0.0
+        var green: Double = 0.0
+        var blue: Double = 0.0
+        var opacity: Double = 1.0
+        for pair in pairs {
+            let parts = pair.split(separator: ":").map { $0.trimmingCharacters(in: .whitespaces) }
+            if parts.count == 2 {
+                let value = Double(parts[1]) ?? 0.0
+                switch parts[0] {
+                case "red": red = value
+                case "green": green = value
+                case "blue": blue = value
+                case "opacity": opacity = value
+                default: break
+                }
+            }
+        }
+        return Color(red: red, green: green, blue: blue, opacity: opacity)
+    }
+}
