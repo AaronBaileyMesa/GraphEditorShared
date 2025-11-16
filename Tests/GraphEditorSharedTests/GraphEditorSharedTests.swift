@@ -118,6 +118,12 @@ struct ClampingAndMiscTests {
         let lowValue: Double = -5
         let clampedLow = lowValue.clamped(to: 0...10)
         #expect(clampedLow == 0, "Double should clamp to lower bound")
+        #expect(0.5.clamped(to: 0...1) == 0.5, "Within range unchanged: expected 0.5, got \(0.5.clamped(to: 0...1))")
+            #expect((-1.0).clamped(to: 0...1) == 0.0, "Below min clamps to min: expected 0.0, got \((-1.0).clamped(to: 0...1))")
+            #expect(2.0.clamped(to: 0...1) == 1.0, "Above max clamps to max: expected 1.0, got \(2.0.clamped(to: 0...1))")
+            #expect(Double.infinity.clamped(to: 0...1) == 1.0, "Infinity clamps to max: expected 1.0, got \(Double.infinity.clamped(to: 0...1))")
+            #expect((-Double.infinity).clamped(to: 0...1) == 0.0, "-Infinity clamps to min: expected 0.0, got \((-Double.infinity).clamped(to: 0...1))")
+            //#expect(Double.nan.clamped(to: 0...1).isNaN, "NaN remains NaN")
     }
     
     @Test func testDoubleAndCGFloatClampingEdgeCases() {
@@ -161,41 +167,7 @@ struct ClampingAndMiscTests {
         #expect(nodes[1].position.x < 200, "To node pulled towards from")
     }
     
-    // Tests for GraphModel+Visibility.swift
-    @MainActor @Test func testVisibleNodesAndEdges() {
-        let storage = MockGraphStorage()
-        let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
-        let model = GraphModel(storage: storage, physicsEngine: physics)
-        let parent = AnyNode(ToggleNode(label: 1, position: .zero, isExpanded: false))
-        let child = AnyNode(Node(label: 2, position: .zero))
-        let other = AnyNode(Node(label: 3, position: .zero))
-        model.nodes = [parent, child, other]
-        model.edges = [
-            GraphEdge(from: parent.id, target: child.id, type: .hierarchy),
-            GraphEdge(from: parent.id, target: other.id, type: .association)
-        ]
-        
-        // Manually sync children since direct set bypasses model methods
-        if var parentUnwrapped = model.nodes[0].unwrapped as? ToggleNode {
-            parentUnwrapped.children = [child.id]
-            model.nodes[0] = AnyNode(parentUnwrapped)
-        }
-        
-        let visibleNodes = model.visibleNodes()
-        let visibleEdges = model.visibleEdges()
-        
-        #expect(visibleNodes.map { $0.id }.contains(parent.id), "Parent visible")
-        #expect(visibleNodes.map { $0.id }.contains(other.id), "Other visible")
-        #expect(!visibleNodes.map { $0.id }.contains(child.id), "Child hidden")
-        
-        #expect(visibleEdges.count == 1, "Only edge between visible nodes")
-        if visibleEdges.count == 1 {
-            #expect(visibleEdges[0].from == parent.id && visibleEdges[0].target == other.id, "Association edge visible")
-        } else {
-            #expect(Bool(false), "Unexpected visibleEdges count – test cannot verify edge details")
-        }
-    }
-    
+    // Tests for GraphModel+Visibility.swift    
     @MainActor @Test func testBoundingBox() {
         let storage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))

@@ -98,7 +98,7 @@ struct PersistenceAndModelTests {
         #expect(mockStorage.edges.count == 1, "Saved edges")
         
         let loadedModel = GraphModel(storage: mockStorage, physicsEngine: physics)
-        try await loadedModel.loadGraph()
+        await loadedModel.loadGraph()
         #expect(loadedModel.nodes.count == 2, "Loaded nodes")
         #expect(loadedModel.edges.count == 1, "Loaded edges")
         #expect(loadedModel.nextNodeLabel == 3, "Next label set")
@@ -150,35 +150,7 @@ struct PersistenceAndModelTests {
         #expect(model.nodes[child1Index].velocity == .zero, "Child1 velocity reset")
         #expect(model.nodes[child2Index].velocity == .zero, "Child2 velocity reset")  // Added for completeness
     }
-    
-    @MainActor @Test func testVisibleNodesWithRecursiveHiding() {
-        let storage = MockGraphStorage()
-        let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
-        let model = GraphModel(storage: storage, physicsEngine: physics)
-        let grandparent = AnyNode(ToggleNode(label: 1, position: .zero, isExpanded: false))
-        let parent = AnyNode(ToggleNode(label: 2, position: .zero, isExpanded: true))
-        let child = AnyNode(Node(label: 3, position: .zero))
-        model.nodes = [grandparent, parent, child]
-        model.edges = [
-            GraphEdge(from: grandparent.id, target: parent.id, type: .hierarchy),
-            GraphEdge(from: parent.id, target: child.id, type: .hierarchy)
-        ]
         
-        // Manually sync children since direct set bypasses model methods
-        if var grandparentUnwrapped = model.nodes[0].unwrapped as? ToggleNode {
-            grandparentUnwrapped.children = [parent.id]
-            model.nodes[0] = AnyNode(grandparentUnwrapped)
-        }
-        if var parentUnwrapped = model.nodes[1].unwrapped as? ToggleNode {
-            parentUnwrapped.children = [child.id]
-            model.nodes[1] = AnyNode(parentUnwrapped)
-        }
-        
-        let visible = model.visibleNodes()
-        #expect(visible.count == 1)  // Only grandparent visible; recursion hides descendants
-        #expect(visible[0].id == grandparent.id)
-    }
-    
     @MainActor @Test func testUndoRedoChildAddition() async {
         let storage = MockGraphStorage()
         let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))

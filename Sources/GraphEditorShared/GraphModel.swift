@@ -43,20 +43,30 @@ import WatchKit
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
 
-        for node in nodes where node.unwrapped.shouldHideChildren() {
-            let children = edges.filter { $0.from == node.id && $0.type == .hierarchy }.map { $0.target }
-            toHide.append(contentsOf: children)
-        }
-
-        let adj = buildAdjacencyList(for: .hierarchy)
-        while !toHide.isEmpty {
-            let current = toHide.removeLast()
-            // Remove any conditional check on shouldHideChildren() here
-            if hidden.insert(current).inserted {
-                let children = adj[current] ?? []
+        print("=== Computing hiddenNodeIDs ===")
+        for node in nodes {
+            let shouldHide = node.shouldHideChildren()
+            if shouldHide {
+                let children = edges.filter { $0.from == node.id && $0.type == .hierarchy }.map { $0.target }
+                print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
                 toHide.append(contentsOf: children)
             }
         }
+
+        let adj = buildAdjacencyList(for: .hierarchy)
+        print("Adjacency list: \(adj.map { key, value in "\(key.uuidString.prefix(8)): \(value.map { $0.uuidString.prefix(8) }.joined(separator: ", "))" }.joined(separator: "\n"))")
+
+        while !toHide.isEmpty {
+            let current = toHide.removeLast()
+            print("Processing toHide: \(current.uuidString.prefix(8))")
+            if hidden.insert(current).inserted {
+                let children = adj[current] ?? []
+                print("  Adding descendants: \(children.map { $0.uuidString.prefix(8) })")
+                toHide.append(contentsOf: children)
+            }
+        }
+
+        print("Final hiddenNodeIDs: \(hidden.map { $0.uuidString.prefix(8) }.sorted())")
         return hidden
     }
     

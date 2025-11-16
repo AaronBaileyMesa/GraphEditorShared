@@ -72,8 +72,10 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         return ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
     
+    // In ToggleNode.swift
     public func shouldHideChildren() -> Bool {
-        !isExpanded  // Existing, but could recurse if deep trees
+        print("ToggleNode.shouldHideChildren for label \(label) (ID: \(id.uuidString.prefix(8))): isExpanded = \(isExpanded), result = \(!isExpanded)")
+        return !isExpanded
     }
     
     @available(iOS 16.0, *)
