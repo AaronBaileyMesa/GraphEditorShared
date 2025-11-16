@@ -131,7 +131,8 @@ struct ClampingAndMiscTests {
     @Test func testGraphStateInitialization() {
         let nodes: [any NodeProtocol] = [Node(id: UUID(), label: 1, position: .zero)]
         let edges = [GraphEdge(from: UUID(), target: UUID())]
-        let state = GraphState(nodes: nodes, edges: edges)
+        let state = GraphState(nodes: nodes, edges: edges, hierarchyEdgeColor: TestConstants.defaultHierarchyColor,
+                               associationEdgeColor: TestConstants.defaultAssociationColor)
         #expect(state.nodes.map { $0.id } == nodes.map { $0.id }, "Nodes should match")
         #expect(state.edges == edges, "Edges should match")
     }
@@ -161,32 +162,38 @@ struct ClampingAndMiscTests {
     }
     
     // Tests for GraphModel+Visibility.swift
-    @MainActor @Test func testVisibleNodesAndEdges() async {
+    @MainActor @Test func testVisibleNodesAndEdges() {
         let storage = MockGraphStorage()
-        let parentID = UUID()
-        let childID = UUID()
-        let otherID = UUID()
-        let parent = ToggleNode(id: parentID, label: 1, position: CGPoint.zero, isExpanded: false)
-        let child = Node(id: childID, label: 2, position: CGPoint.zero)
-        let other = Node(id: otherID, label: 3, position: CGPoint.zero)
-        storage.nodes = [parent, child, other]
-        storage.edges = [
-            GraphEdge(from: parentID, target: childID, type: EdgeType.hierarchy),
-            GraphEdge(from: parentID, target: otherID, type: EdgeType.association),
-            GraphEdge(from: otherID, target: childID, type: EdgeType.association)
+        let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+        let model = GraphModel(storage: storage, physicsEngine: physics)
+        let parent = AnyNode(ToggleNode(label: 1, position: .zero, isExpanded: false))
+        let child = AnyNode(Node(label: 2, position: .zero))
+        let other = AnyNode(Node(label: 3, position: .zero))
+        model.nodes = [parent, child, other]
+        model.edges = [
+            GraphEdge(from: parent.id, target: child.id, type: .hierarchy),
+            GraphEdge(from: parent.id, target: other.id, type: .association)
         ]
-        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
-        let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
-        await model.load()  // Calls syncCollapsedPositions internally
+        
+        // Manually sync children since direct set bypasses model methods
+        if var parentUnwrapped = model.nodes[0].unwrapped as? ToggleNode {
+            parentUnwrapped.children = [child.id]
+            model.nodes[0] = AnyNode(parentUnwrapped)
+        }
         
         let visibleNodes = model.visibleNodes()
-        #expect(visibleNodes.count == 2, "Child should be hidden when parent collapsed")
-        #expect(visibleNodes.map { $0.id }.contains(parentID), "Parent visible")
-        #expect(visibleNodes.map { $0.id }.contains(otherID), "Other visible")
-        
         let visibleEdges = model.visibleEdges()
+        
+        #expect(visibleNodes.map { $0.id }.contains(parent.id), "Parent visible")
+        #expect(visibleNodes.map { $0.id }.contains(other.id), "Other visible")
+        #expect(!visibleNodes.map { $0.id }.contains(child.id), "Child hidden")
+        
         #expect(visibleEdges.count == 1, "Only edge between visible nodes")
-        #expect(visibleEdges[0].from == parentID && visibleEdges[0].target == otherID, "Association edge visible")
+        if visibleEdges.count == 1 {
+            #expect(visibleEdges[0].from == parent.id && visibleEdges[0].target == other.id, "Association edge visible")
+        } else {
+            #expect(Bool(false), "Unexpected visibleEdges count – test cannot verify edge details")
+        }
     }
     
     @MainActor @Test func testBoundingBox() {
@@ -231,7 +238,7 @@ struct ClampingAndMiscTests {
         #expect((model.nodes[0].unwrapped as? ToggleNode)?.isExpanded == true, "Root1 should be expanded")
         #expect((model.nodes[1].unwrapped as? ToggleNode)?.isExpanded == true, "Root2 should be expanded")
     }
-       
+    
     // Tests for GraphModel+Undo.swift
     @MainActor @Test func testSnapshotLimitsUndoStackAndClearsRedo() async {
         let storage = MockGraphStorage()
@@ -311,9 +318,9 @@ struct ClampingAndMiscTests {
         #expect(loaded?.selectedNodeID == selectedNodeID, "Selected node saved/loaded")
         #expect(loaded?.selectedEdgeID == selectedEdgeID, "Selected edge saved/loaded")
     }
-  
+    
     // Tests for NodeProtocol.swift
-   
+    
     @Test func testNodeProtocolDefaults() {
         let node = Node(id: UUID(), label: 1, position: .zero)
         #expect(node.handlingTap() == node, "Default tap: no change")

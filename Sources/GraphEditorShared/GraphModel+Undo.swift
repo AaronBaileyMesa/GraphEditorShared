@@ -62,7 +62,7 @@ extension GraphModel {
         
         // Handle auto-save with error logging (fixes warning on await save())
         do {
-            try await save()  // Use 'try await' here
+            try await saveGraph()  // Use 'try await' here
         } catch {
             let logger = Logger.forCategory("graphmodel")  // From your standardized logging
             logger.errorLog("Auto-save failed during snapshot", error: error)

@@ -21,7 +21,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
     public var fillColor: Color { isExpanded ? .green : .red }
     public var children: [NodeID] = []
     public var childOrder: [NodeID] = []  // NEW: Explicit order for children (defaults to children array order)
-
+    
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, contents: [NodeContent] = [], children: [NodeID] = [], childOrder: [NodeID]? = nil) {
         self.id = id
         self.label = label
@@ -36,15 +36,15 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         self.childOrder = validatedOrder.isEmpty ? children : validatedOrder
         print("ToggleNode.init: Created with isExpanded \(self.isExpanded)")  // Confirm new instance state
     }
-
+    
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
         ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
-
+    
     public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
         ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
-
+    
     public func handlingTap() -> Self {
         var updated = self
         print("ToggleNode.handlingTap: Pre-collapse - current isExpanded: \(updated.isExpanded)")
@@ -53,7 +53,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         updated.velocity = .zero
         return updated
     }
-
+    
     public mutating func collapse() {
         print("ToggleNode.collapse: Setting isExpanded to false from \(isExpanded)")
         isExpanded = false
@@ -62,7 +62,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
     public func with(children: [NodeID]) -> Self {
         ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
-
+    
     public func with(childOrder: [NodeID]) -> Self {  // NEW: Method to update order independently
         ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
@@ -71,7 +71,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         print("ToggleNode.with(isExpanded): Input \(isExpanded), self \(self.isExpanded)")  // Trace input vs self
         return ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
-
+    
     public func shouldHideChildren() -> Bool {
         !isExpanded  // Existing, but could recurse if deep trees
     }
@@ -81,36 +81,36 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         AnyView(Circle().fill(fillColor).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))  // Simple default
     }
-
+    
     @available(iOS 16.0, *)
     @available(watchOS 9.0, *)
     public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
         let scaledRadius = radius * zoomScale
         let borderWidth: CGFloat = isSelected ? max(3.0, 4 * zoomScale) : 0
         let borderRadius = scaledRadius + borderWidth / 2
-
+        
         // Draw border if selected
         if borderWidth > 0 {
             let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
             context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
         }
-
+        
         // Draw node circle
         let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
         context.fill(innerPath, with: .color(fillColor))
-
+        
         // Draw +/- icon centered in node
         let iconText = isExpanded ? "-" : "+"
         let iconFontSize = max(8.0, 12.0 * zoomScale)
         let iconResolved = context.resolve(Text(iconText).foregroundColor(.white).font(.system(size: iconFontSize, weight: .bold)))
         context.draw(iconResolved, at: position, anchor: .center)
-
+        
         // Draw label above node
         let labelFontSize = max(8.0, 12.0 * zoomScale)
         let labelResolved = context.resolve(Text("\(label)").foregroundColor(.white).font(.system(size: labelFontSize)))
         let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
         context.draw(labelResolved, at: labelPosition, anchor: .center)
-
+        
         // NEW: Draw contents list vertically below node
         if !contents.isEmpty && zoomScale > 0.5 {  // Only if zoomed
             var yOffset = scaledRadius + 5 * zoomScale  // Start below node
@@ -135,29 +135,29 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         isExpanded = false
         // Recursion handled in GraphModel for full graph access
     }
-
+    
     // Codable conformance (updated for contents array and childOrder)
     enum CodingKeys: String, CodingKey {
         case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, contents, children, childOrder  // UPDATED: Added children and childOrder
     }
-
+    
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(NodeID.self, forKey: .id)
         label = try container.decode(Int.self, forKey: .label)
-        radius = try container.decode(CGFloat.self, forKey: .radius)
-        isExpanded = try container.decode(Bool.self, forKey: .isExpanded)
-        contents = try container.decode([NodeContent].self, forKey: .contents)  // NEW: Decode array
-        children = try container.decode([NodeID].self, forKey: .children)  // NEW: Decode children
+        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? Constants.App.nodeModelRadius  // Default if missing
+        isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true  // Default if missing
+        contents = try container.decodeIfPresent([NodeContent].self, forKey: .contents) ?? []  // Default if missing
+        children = try container.decodeIfPresent([NodeID].self, forKey: .children) ?? []  // Default if missing
         childOrder = try container.decodeIfPresent([NodeID].self, forKey: .childOrder) ?? []  // NEW: Decode childOrder (optional fallback to empty)
         let posX = try container.decode(CGFloat.self, forKey: .positionX)
         let posY = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: posX, y: posY)
-        let velX = try container.decode(CGFloat.self, forKey: .velocityX)
-        let velY = try container.decode(CGFloat.self, forKey: .velocityY)
+        let velX = try container.decodeIfPresent(CGFloat.self, forKey: .velocityX) ?? 0.0  // Default to 0 if missing
+        let velY = try container.decodeIfPresent(CGFloat.self, forKey: .velocityY) ?? 0.0  // Default to 0 if missing
         velocity = CGPoint(x: velX, y: velY)
     }
-
+    
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -172,7 +172,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         try container.encode(velocity.x, forKey: .velocityX)
         try container.encode(velocity.y, forKey: .velocityY)
     }
-
+    
     public static func == (lhs: ToggleNode, rhs: ToggleNode) -> Bool {
         lhs.id == rhs.id &&
         lhs.label == rhs.label &&

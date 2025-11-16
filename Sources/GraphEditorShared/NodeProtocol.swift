@@ -157,7 +157,13 @@ extension NodeProtocol {
     
     public var mass: CGFloat { 1.0 }  // Default mass
     
-    public func shouldHideChildren() -> Bool { false }  // Default: show children
+    public func shouldHideChildren() -> Bool {
+            if let toggle = self as? ToggleNode {
+                return !toggle.isExpanded
+            } else {
+                return false  // Critical: Non-ToggleNodes (e.g., Node) should NOT hide children
+            }
+        }
     
     public mutating func collapse() {
         isExpanded = false

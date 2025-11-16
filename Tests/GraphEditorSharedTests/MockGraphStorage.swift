@@ -5,95 +5,104 @@
 //  Created by handcart on 11/6/25.
 //
 
-import Testing
 import Foundation  // For UUID, JSONEncoder, JSONDecoder
 import CoreGraphics  // For CGPoint
 @testable import GraphEditorShared
 
 class MockGraphStorage: GraphStorage {
-    // In-memory single-graph (default) storage for convenience in tests
-    var nodes: [any NodeProtocol] = []
-    var edges: [GraphEdge] = []
-    var savedViewState: ViewState?
-    
-    // In-memory multi-graph storage
-    private var graphs: [String: (nodes: [any NodeProtocol], edges: [GraphEdge])] = [:]
+    // In-memory multi-graph storage using full GraphState (includes colors)
+    private var graphs: [String: GraphState] = [:]
     private var viewStates: [String: ViewState] = [:]
     private let defaultName = "default"
     
-    // MARK: - Single-graph (default) methods
+    // Derived single-graph properties for convenience in tests (syncs with default graph)
+    var nodes: [any NodeProtocol] {
+        get { graphs[defaultName]?.nodes ?? [] }
+        set {
+            let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+            let updatedState = GraphState(nodes: newValue, edges: currentState.edges, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor)
+            graphs[defaultName] = updatedState
+        }
+    }
+    
+    var edges: [GraphEdge] {
+        get { graphs[defaultName]?.edges ?? [] }
+        set {
+            let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+            let updatedState = GraphState(nodes: currentState.nodes, edges: newValue, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor)
+            graphs[defaultName] = updatedState
+        }
+    }
+    
+    var savedViewState: ViewState? {
+        get { viewStates[defaultName] }
+        set { viewStates[defaultName] = newValue }
+    }
+    
+    // MARK: - Single-graph (default) methods (using default graph under the hood)
     func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
-        self.nodes = nodes
-        self.edges = edges
-        // Keep default graph in sync
-        graphs[defaultName] = (nodes, edges)
+        let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+        let updatedState = GraphState(
+            nodes: nodes,
+            edges: edges,
+            hierarchyEdgeColor: currentState.hierarchyEdgeColor,
+            associationEdgeColor: currentState.associationEdgeColor
+        )
+        graphs[defaultName] = updatedState
     }
     
     func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
-        return (nodes, edges)
+        guard let state = graphs[defaultName] else {
+            throw GraphStorageError.graphNotFound(defaultName)
+        }
+        return (state.nodes, state.edges)
     }
     
-    func clear() async throws {
-        nodes = []
-        edges = []
-        savedViewState = nil
-        graphs[defaultName] = ([], [])
-        viewStates.removeValue(forKey: defaultName)
+    func clear() async throws {  // Clear all for full reset in tests
+        graphs.removeAll()
+        viewStates.removeAll()
     }
     
     func saveViewState(_ viewState: ViewState) async throws {
-        savedViewState = viewState
         viewStates[defaultName] = viewState
     }
     
     func loadViewState() async throws -> ViewState? {
-        return savedViewState
+        return viewStates[defaultName]
     }
     
     // MARK: - Multi-graph methods
     func listGraphNames() async throws -> [String] {
-        // Always include default; plus any explicitly created graphs
-        var names = Set(graphs.keys)
-        names.insert(defaultName)
-        return Array(names).sorted()
+        return Array(graphs.keys).sorted()
     }
     
     func createNewGraph(name: String) async throws {
         if graphs[name] != nil {
             throw GraphStorageError.graphExists(name)
         }
-        graphs[name] = ([], [])
+        graphs[name] = GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
         viewStates.removeValue(forKey: name)
     }
     
     func save(nodes: [any NodeProtocol], edges: [GraphEdge], for name: String) async throws {
-        graphs[name] = (nodes, edges)
-        if name == defaultName {
-            // Keep convenience properties in sync for tests that set/read directly
-            self.nodes = nodes
-            self.edges = edges
-        }
+        let currentState = graphs[name] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+        let updatedState = GraphState(
+            nodes: nodes,
+            edges: edges,
+            hierarchyEdgeColor: currentState.hierarchyEdgeColor,
+            associationEdgeColor: currentState.associationEdgeColor
+        )
+        graphs[name] = updatedState
     }
     
     func load(for name: String) async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
-        if name == defaultName {
-            return (nodes, edges)
+        guard let state = graphs[name] else {
+            throw GraphStorageError.graphNotFound(name)
         }
-        if let state = graphs[name] {
-            return state
-        }
-        throw GraphStorageError.graphNotFound(name)
+        return (state.nodes, state.edges)
     }
     
     func deleteGraph(name: String) async throws {
-        if name == defaultName {
-            nodes = []
-            edges = []
-            savedViewState = nil
-            graphs[defaultName] = ([], [])
-            viewStates.removeValue(forKey: defaultName)
-            return
-        }
         guard graphs.removeValue(forKey: name) != nil else {
             throw GraphStorageError.graphNotFound(name)
         }
@@ -103,15 +112,21 @@ class MockGraphStorage: GraphStorage {
     // MARK: - View state per graph (synchronous variants required by protocol)
     func saveViewState(_ viewState: ViewState, for name: String) throws {
         viewStates[name] = viewState
-        if name == defaultName {
-            savedViewState = viewState
-        }
     }
     
     func loadViewState(for name: String) throws -> ViewState? {
-        if name == defaultName {
-            return savedViewState ?? viewStates[name]
-        }
         return viewStates[name]
+    }
+    
+    // MARK: - GraphState methods (now fully implemented)
+    public func saveGraphState(_ graphState: GraphState, for name: String) async throws {
+        graphs[name] = graphState
+    }
+
+    public func loadGraphState(for name: String) async throws -> GraphState {
+        guard let state = graphs[name] else {
+            throw GraphStorageError.graphNotFound(name)
+        }
+        return state
     }
 }

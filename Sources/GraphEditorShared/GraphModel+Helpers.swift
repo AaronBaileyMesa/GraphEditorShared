@@ -167,7 +167,7 @@ extension GraphModel {
         redoStack.removeAll()
         objectWillChange.send()
         do {
-            try await save()  // Add this to persist the reset
+            try await saveGraph()  // Add this to persist the reset
         } catch {
             Self.helpersLogger.error("Failed to save after reset: \(String(describing: error), privacy: .public)")
         }

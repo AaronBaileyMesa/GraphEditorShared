@@ -26,6 +26,13 @@ public extension CGFloat {
     }
 }
 
+extension FloatingPoint {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        if self.isNaN { return range.lowerBound }  // Handle NaN as lower
+        return min(max(self, range.lowerBound), range.upperBound)
+    }
+}
+
 public extension CGPoint {
     func normalized() -> CGPoint {
         let len = hypot(x, y)
@@ -147,3 +154,4 @@ extension CGFloat {
         return (self * divisor).rounded() / divisor
     }
 }
+

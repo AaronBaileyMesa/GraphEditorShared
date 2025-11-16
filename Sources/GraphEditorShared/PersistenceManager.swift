@@ -1,5 +1,9 @@
-// Sources/GraphEditorShared/PersistenceManager.swift
-
+//
+//  PersistenceManager.swift
+//  GraphEditorShared
+//
+//  Created by handcart on 9/19/25.
+//
 import Foundation
 import os  // For Logger
 
@@ -45,32 +49,10 @@ public class PersistenceManager: GraphStorage {
         "graphViewState_\(name)"
     }
     
-    struct SavedState: Codable {
-        var version: Int = 1
-        let nodes: [NodeWrapper]
-        let edges: [GraphEdge]
-    }
-    
-    // MARK: - Default (Single-Graph) Methods (Unchanged Behavior)
-    
-    public func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
-        try await save(nodes: nodes, edges: edges, for: defaultGraphName)
-    }
-    
-    public func load() async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
-        try await load(for: defaultGraphName)
-    }
+    // MARK: - Default (Single-Graph) Methods
     
     public func clear() async throws {
         try await deleteGraph(name: defaultGraphName)
-    }
-    
-    public func saveViewState(_ viewState: ViewState) async throws {
-        try saveViewState(viewState, for: defaultGraphName)
-    }
-    
-    public func loadViewState() async throws -> ViewState? {
-        try loadViewState(for: defaultGraphName)
     }
     
     // MARK: - Multi-Graph Methods
@@ -80,41 +62,31 @@ public class PersistenceManager: GraphStorage {
             let contents = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             let names = contents
                 .filter { $0.lastPathComponent.hasPrefix("graph-") && $0.pathExtension == "json" }
-                .map { String($0.deletingPathExtension().lastPathComponent.dropFirst(6)) }  // Drop "graph-"
-                .sorted()
-            logger.debug("Listed \(names.count) graphs: \(names)")
-            return names
+                .map { $0.lastPathComponent.replacingOccurrences(of: "graph-", with: "").replacingOccurrences(of: ".json", with: "") }
+            logger.debug("Listed graphs: \(names)")
+            return names.sorted()
         } catch {
-            logger.error("Listing failed: \(error.localizedDescription)")
-            throw GraphStorageError.loadingFailed(error)
+            logger.error("Failed to list graphs: \(error.localizedDescription)")
+            throw error
         }
     }
     
     public func createNewGraph(name: String) async throws {
-        let url = fileURL(for: name)
-        if FileManager.default.fileExists(atPath: url.path) {
-            logger.warning("Graph '\(name)' already exists")
+        if FileManager.default.fileExists(atPath: fileURL(for: name).path) {
             throw GraphStorageError.graphExists(name)
         }
-        // Create empty graph
-        let emptyNodes: [any NodeProtocol] = []
-        let emptyEdges: [GraphEdge] = []
-        try await save(nodes: emptyNodes, edges: emptyEdges, for: name)
-        logger.debug("Created new graph: \(name)")
+        // No need to create empty file; save will handle
+        logger.debug("Created new graph '\(name)' (empty)")
     }
     
-    public func save(nodes: [any NodeProtocol], edges: [GraphEdge], for name: String) async throws {
-        let wrapped = nodes.compactMap { node -> NodeWrapper? in
-            if let plainNode = node as? Node { return .node(plainNode) } else if let toggleNode = node as? ToggleNode { return .toggleNode(toggleNode) } else {
-                logger.error("Unsupported node type: \(String(describing: type(of: node))); skipping.")
-                return nil  // Skip instead of fatalError
-            }
-        }
-        let state = SavedState(nodes: wrapped, edges: edges)
+    // MARK: - GraphState Persistence (Per-Graph)
+    
+    public func saveGraphState(_ graphState: GraphState, for name: String) async throws {
         do {
-            let data = try JSONEncoder().encode(state)
-            try data.write(to: fileURL(for: name), options: .atomic)  // Ensures full overwrite
-            logger.debug("Saved \(wrapped.count) nodes and \(edges.count) edges for graph '\(name)'")
+            let data = try JSONEncoder().encode(graphState)
+            let url = fileURL(for: name)
+            try data.write(to: url, options: .atomic)
+            logger.debug("Saved \(graphState.nodes.count) nodes and \(graphState.edges.count) edges for graph '\(name)'")
         } catch let error as EncodingError {
             logger.error("Encoding failed for '\(name)': \(error.localizedDescription)")
             throw GraphStorageError.encodingFailed(error)
@@ -124,7 +96,7 @@ public class PersistenceManager: GraphStorage {
         }
     }
     
-    public func load(for name: String) async throws -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
+    public func loadGraphState(for name: String) async throws -> GraphState {
         let url = fileURL(for: name)
         guard FileManager.default.fileExists(atPath: url.path) else {
             logger.debug("No saved file for '\(name)'; throwing not found")
@@ -132,13 +104,9 @@ public class PersistenceManager: GraphStorage {
         }
         do {
             let data = try Data(contentsOf: url)
-            let state = try JSONDecoder().decode(SavedState.self, from: data)
-            if state.version != 1 {
-                throw GraphStorageError.decodingFailed(NSError(domain: "Invalid version \(state.version) for '\(name)'", code: 0))
-            }
-            let loadedNodes = state.nodes.map { $0.value }
-            logger.debug("Loaded \(loadedNodes.count) nodes and \(state.edges.count) edges for graph '\(name)'")
-            return (loadedNodes, state.edges)
+            let state = try JSONDecoder().decode(GraphState.self, from: data)
+            logger.debug("Loaded \(state.nodes.count) nodes and \(state.edges.count) edges for graph '\(name)'")
+            return state
         } catch let error as DecodingError {
             logger.error("Decoding failed for '\(name)': \(error.localizedDescription)")
             throw GraphStorageError.decodingFailed(error)

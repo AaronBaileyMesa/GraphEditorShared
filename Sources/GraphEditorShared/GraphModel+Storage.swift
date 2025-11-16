@@ -12,7 +12,7 @@ import os  // Added for Logger
 extension GraphModel {
     private static let logger = Logger.forCategory("graphmodel-storage")  // ADDED: Define local static logger for this extension
 
-    private func syncCollapsedPositions() {
+    func syncCollapsedPositions() {
         for parentIndex in 0..<nodes.count {
             if let toggle = nodes[parentIndex].unwrapped as? ToggleNode, !toggle.isExpanded {
                 let children = edges.filter { $0.from == nodes[parentIndex].id && $0.type == .hierarchy }.map { $0.target }
@@ -34,85 +34,50 @@ extension GraphModel {
     private func loadFromStorage(for name: String) async throws {
         Self.logger.infoLog("loadFromStorage started for \(name)")
         do {
-            let (loadedNodes, loadedEdges) = try await storage.load(for: name)
-            Self.logger.infoLog("loadFromStorage: loaded \(loadedNodes.count) nodes, \(loadedEdges.count) edges for \(name)")
-            self.nodes = loadedNodes.map { AnyNode($0) }
-            self.edges = loadedEdges
+            let loadedState = try await storage.loadGraphState(for: name)  // Updated: Load full GraphState
+            Self.logger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")  // Fixed: removed .unwrappedNodes (assuming GraphState.nodes is [any NodeProtocol])
+            self.nodes = loadedState.nodes.map { AnyNode($0) }
+            self.edges = loadedState.edges
+            self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
+            self.associationEdgeColor = loadedState.associationEdgeColor.color
             self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
         } catch {
+            // Fallback to defaults on error
             Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation with custom error
+            self.nodes = []
+            self.edges = []
+            self.nextNodeLabel = 1
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
+        Self.logger.infoLog("loadFromStorage completed for \(name)")
     }
     
-    public func load() async {
-        Self.logger.infoLog("GraphModel.load() called")
+    /// Saves the current graph state.
+    public func saveGraph() async throws {
+        let state = GraphState(
+            nodes: nodes.map { $0.unwrapped },
+            edges: edges,
+            hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
+            associationEdgeColor: CodableColor(associationEdgeColor)
+        )
         do {
-            try await loadFromStorage(for: currentGraphName)
-            syncCollapsedPositions()
-            if let viewState = try storage.loadViewState(for: currentGraphName) {
-                Self.logger.infoLog("Loaded view state: offset \(viewState.offset), zoom \(viewState.zoomScale)")
-            }
-            Self.logger.infoLog("GraphModel.load() succeeded; nodes: \(nodes.count), edges: \(edges.count)")
+            try await storage.saveGraphState(state, for: currentGraphName)  // Updated: Use saveGraphState
+            Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for \(self.currentGraphName)")
         } catch {
-            Self.logger.errorLog("GraphModel.load() failed: \(error.localizedDescription)", error: error)
-        }
-    }
-    
-    public func save() async throws {
-        Self.logger.infoLog("GraphModel.save() called; nodes: \(nodes.count), edges: \(edges.count)")
-        do {
-            try await storage.save(nodes: nodes.map { $0.unwrapped }, edges: edges, for: currentGraphName)
-            Self.logger.infoLog("GraphModel.save() succeeded")
-        } catch {
-            Self.logger.errorLog("GraphModel.save() failed: \(error.localizedDescription)", error: error)
+            Self.logger.errorLog("Save failed for \(self.currentGraphName)", error: error)
             throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
     }
-
-    public func clearGraph() async {
-        Self.logger.infoLog("clearGraph called")
-        nodes = []
-        edges = []
-        nextNodeLabel = 1
-        do {
-            try await storage.deleteGraph(name: currentGraphName)
-            Self.logger.infoLog("clearGraph succeeded")
-        } catch {
-            Self.logger.errorLog("clearGraph failed: \(error.localizedDescription)", error: error)
-        }
-        objectWillChange.send()
-    }
     
-    // Multi-graph methods (integrated into Storage extension)
-    /// Loads the current graph (based on currentGraphName); defaults to empty if not found.
+    /// Loads the current graph state.
     public func loadGraph() async {
         do {
             try await loadFromStorage(for: currentGraphName)
-            nextNodeLabel = (nodes.map { $0.label }.max() ?? 0) + 1
-            Self.logger.infoLog("Loaded graph '\(self.currentGraphName)' with \(self.nodes.count) nodes and \(self.edges.count) edges")
-            objectWillChange.send()
-        } catch GraphStorageError.graphNotFound(_) {
-            nodes = []
-            edges = []
-            nextNodeLabel = 1
-            Self.logger.warning("Graph '\(self.currentGraphName)' not found; starting empty")
+            await startSimulation()
+            Self.logger.infoLog("Loaded graph '\(self.currentGraphName)'")
         } catch {
-            nodes = []
-            edges = []
-            nextNodeLabel = 1
-            Self.logger.errorLog("Failed to load graph '\(self.currentGraphName)'", error: error)
-        }
-    }
-    
-    /// Saves the current graph state under currentGraphName.
-    public func saveGraph() async throws {
-        do {
-            try await save()
-            Self.logger.infoLog("Saved graph '\(self.currentGraphName)'")
-        } catch {
-            Self.logger.errorLog("Failed to save graph '\(self.currentGraphName)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)
+            Self.logger.errorLog("Load failed for \(self.currentGraphName)", error: error)
+            // Handle fallback or error UI in calling code
         }
     }
     
@@ -124,10 +89,8 @@ extension GraphModel {
             nodes = []
             edges = []
             nextNodeLabel = 1
-            undoStack = []
-            redoStack = []
-            objectWillChange.send()
-            Self.logger.infoLog("Created and switched to new graph '\(name)'")
+            await startSimulation()
+            Self.logger.infoLog("Created new graph '\(name)'")
         } catch {
             Self.logger.errorLog("Failed to create graph '\(name)'", error: error)
             throw GraphError.storageFailure(error.localizedDescription)  // Added propagation

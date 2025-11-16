@@ -51,15 +51,15 @@ import WatchKit
         let adj = buildAdjacencyList(for: .hierarchy)
         while !toHide.isEmpty {
             let current = toHide.removeLast()
+            // Remove any conditional check on shouldHideChildren() here
             if hidden.insert(current).inserted {
                 let children = adj[current] ?? []
                 toHide.append(contentsOf: children)
             }
         }
-
         return hidden
     }
-
+    
     lazy var simulator: GraphSimulator = {
         GraphSimulator(
             getNodes: { [weak self] in

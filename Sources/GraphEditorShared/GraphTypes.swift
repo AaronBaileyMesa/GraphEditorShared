@@ -11,7 +11,7 @@ public typealias NodeID = UUID
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct Node: NodeProtocol {  // Updated: Conform to NodeProtocol (which now includes HierarchicalNode)
+public struct Node: NodeProtocol, Codable {  // Updated: Conform to NodeProtocol (which now includes HierarchicalNode)
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
@@ -33,12 +33,50 @@ public struct Node: NodeProtocol {  // Updated: Conform to NodeProtocol (which n
         self.contents = contents
     }
     
+    
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
         Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
     }
     
     public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
         Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
+    }
+    
+    public func shouldHideChildren() -> Bool {
+            return false  // Explicit for non-hierarchical nodes
+        }
+    
+    // Codable conformance (mirrors ToggleNode for consistency)
+    enum CodingKeys: String, CodingKey {
+        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, contents, children
+    }
+     public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(NodeID.self, forKey: .id)
+        label = try container.decode(Int.self, forKey: .label)
+        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? 10.0  // Default if missing
+        isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true  // Default if missing
+        contents = try container.decodeIfPresent([NodeContent].self, forKey: .contents) ?? []  // Default if missing
+        children = try container.decodeIfPresent([NodeID].self, forKey: .children) ?? []  // Default if missing
+        let posX = try container.decode(CGFloat.self, forKey: .positionX)  // Required
+        let posY = try container.decode(CGFloat.self, forKey: .positionY)  // Required
+        position = CGPoint(x: posX, y: posY)
+        let velX = try container.decodeIfPresent(CGFloat.self, forKey: .velocityX) ?? 0.0  // Default to 0 if missing
+        let velY = try container.decodeIfPresent(CGFloat.self, forKey: .velocityY) ?? 0.0  // Default to 0 if missing
+        velocity = CGPoint(x: velX, y: velY)
+    }
+     public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(label, forKey: .label)
+        try container.encode(radius, forKey: .radius)
+        try container.encode(isExpanded, forKey: .isExpanded)
+        try container.encode(contents, forKey: .contents)
+        try container.encode(children, forKey: .children)
+        try container.encode(position.x, forKey: .positionX)
+        try container.encode(position.y, forKey: .positionY)
+        try container.encode(velocity.x, forKey: .velocityX)
+        try container.encode(velocity.y, forKey: .velocityY)
     }
 }
 
@@ -102,13 +140,42 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 // Snapshot of the graph state for undo/redo.
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct GraphState {
+public struct GraphState: Codable {  // NEW: Make Codable
     public let nodes: [any NodeProtocol]
     public let edges: [GraphEdge]
+    public let hierarchyEdgeColor: CodableColor  // NEW
+    public let associationEdgeColor: CodableColor  // NEW
     
-    public init(nodes: [any NodeProtocol], edges: [GraphEdge]) {
+    public init(nodes: [any NodeProtocol], edges: [GraphEdge], hierarchyEdgeColor: CodableColor, associationEdgeColor: CodableColor) {
         self.nodes = nodes
         self.edges = edges
+        self.hierarchyEdgeColor = hierarchyEdgeColor
+        self.associationEdgeColor = associationEdgeColor
+    }
+    
+    // NEW: Codable conformance (leverage existing Codable types)
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Nodes: Assume NodeProtocol gets a Codable extension if needed; for now, use NodeWrapper if available
+        let wrappedNodes = try container.decode([NodeWrapper].self, forKey: .nodes)
+        nodes = wrappedNodes.map { $0.value }
+        edges = try container.decode([GraphEdge].self, forKey: .edges)
+        hierarchyEdgeColor = try container.decode(CodableColor.self, forKey: .hierarchyEdgeColor)
+        associationEdgeColor = try container.decode(CodableColor.self, forKey: .associationEdgeColor)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        // Nodes: Wrap in NodeWrapper for encoding
+        let wrappedNodes = nodes.map { NodeWrapper(wrapping: $0) }  // Wrap NodeProtocol using NodeWrapper.init(wrapping:)
+        try container.encode(wrappedNodes, forKey: .nodes)
+        try container.encode(edges, forKey: .edges)
+        try container.encode(hierarchyEdgeColor, forKey: .hierarchyEdgeColor)
+        try container.encode(associationEdgeColor, forKey: .associationEdgeColor)
+    }
+    
+    enum CodingKeys: String, CodingKey {  // NEW
+        case nodes, edges, hierarchyEdgeColor, associationEdgeColor
     }
 }
 
@@ -122,6 +189,20 @@ public enum NodeWrapper: Codable {
         case type, data
     }
     
+    // Convenience initializer to wrap any NodeProtocol into a concrete case
+    public init(wrapping node: any NodeProtocol) {
+        if let anyNode = node as? AnyNode {
+            // Handle already-wrapped: Flatten by wrapping the inner unwrapped node
+            self.init(wrapping: anyNode.unwrapped)
+        } else if let concrete = node as? Node {
+            self = .node(concrete)
+        } else if let concrete = node as? ToggleNode {
+            self = .toggleNode(concrete)
+        } else {
+            // Fallback: attempt to downcast via Mirror if more types are added in future
+            fatalError("Unsupported NodeProtocol concrete type: \(type(of: node))")
+        }
+    }
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
@@ -216,3 +297,4 @@ public struct CodableColor: Codable, Equatable {
         return Color(red: red, green: green, blue: blue, opacity: opacity)
     }
 }
+
