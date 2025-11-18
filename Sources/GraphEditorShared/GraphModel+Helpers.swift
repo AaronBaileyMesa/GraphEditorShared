@@ -178,12 +178,12 @@ extension GraphModel {
     @MainActor
     public var boundingBox: CGRect {
         guard !nodes.isEmpty else { return .zero }
-        let xs = nodes.map { $0.position.x }
-        let ys = nodes.map { $0.position.y }
-        let minX = xs.min() ?? 0
-        let minY = ys.min() ?? 0
-        let maxX = xs.max() ?? 0
-        let maxY = ys.max() ?? 0
+        let xside = nodes.map { $0.position.x }
+        let yside = nodes.map { $0.position.y }
+        let minX = xside.min() ?? 0
+        let minY = yside.min() ?? 0
+        let maxX = xside.max() ?? 0
+        let maxY = yside.max() ?? 0
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
     
