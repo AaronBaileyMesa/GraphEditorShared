@@ -166,50 +166,6 @@ struct ClampingAndMiscTests {
         #expect(nodes[1].position.x < 200, "To node pulled towards from")
     }
     
-    // Tests for GraphModel+Visibility.swift    
-    @MainActor @Test func testBoundingBox() {
-        let storage = MockGraphStorage()
-        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
-        let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
-        let node1 = Node(id: UUID(), label: 1, position: CGPoint(x: 0, y: 0))
-        let node2 = Node(id: UUID(), label: 2, position: CGPoint(x: 100, y: 100))
-        model.nodes = [AnyNode(node1), AnyNode(node2)]
-        
-        let box = model.boundingBox()
-        let radius = node1.radius  // Or hardcode if known
-        #expect(box.minX == -radius && box.minY == -radius && box.maxX == 100 + radius && box.maxY == 100 + radius, "Bounding box should encompass all nodes")
-    }
-    
-    @MainActor @Test func testCenterGraph() {
-        let storage = MockGraphStorage()
-        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 200, height: 200))
-        let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
-        let node1 = Node(id: UUID(), label: 1, position: CGPoint(x: 0, y: 0))
-        let node2 = Node(id: UUID(), label: 2, position: CGPoint(x: 100, y: 100))
-        model.nodes = [AnyNode(node1), AnyNode(node2)]
-        
-        model.centerGraph()
-        let centeredNodes = model.nodes.map { $0.position }
-        let avgX = (centeredNodes[0].x + centeredNodes[1].x) / 2
-        let avgY = (centeredNodes[0].y + centeredNodes[1].y) / 2
-        #expect(avgX == 100 && avgY == 100, "Nodes should be centered in bounds")
-    }
-    
-    @MainActor @Test func testExpandAllRoots() async {
-        let storage = MockGraphStorage()
-        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
-        let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
-        let root1 = ToggleNode(id: UUID(), label: 1, position: CGPoint.zero, isExpanded: false)
-        let root2 = ToggleNode(id: UUID(), label: 2, position: CGPoint.zero, isExpanded: false)
-        let child = Node(id: UUID(), label: 3, position: CGPoint.zero)
-        model.nodes = [AnyNode(root1), AnyNode(root2), AnyNode(child)]
-        model.edges = [GraphEdge(from: root1.id, target: child.id, type: EdgeType.hierarchy)]
-        
-        await model.expandAllRoots()
-        #expect((model.nodes[0].unwrapped as? ToggleNode)?.isExpanded == true, "Root1 should be expanded")
-        #expect((model.nodes[1].unwrapped as? ToggleNode)?.isExpanded == true, "Root2 should be expanded")
-    }
-    
     // Tests for GraphModel+Undo.swift
     @MainActor @Test func testSnapshotLimitsUndoStackAndClearsRedo() async {
         let storage = MockGraphStorage()

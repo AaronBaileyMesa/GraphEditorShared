@@ -173,4 +173,32 @@ extension GraphModel {
         }
         await startSimulation()  // Or resume if needed
     }
+    
+    // In GraphModel+Helpers.swift (add to extension GraphModel)
+    @MainActor
+    public var boundingBox: CGRect {
+        guard !nodes.isEmpty else { return .zero }
+        let xs = nodes.map { $0.position.x }
+        let ys = nodes.map { $0.position.y }
+        let minX = xs.min() ?? 0
+        let minY = ys.min() ?? 0
+        let maxX = xs.max() ?? 0
+        let maxY = ys.max() ?? 0
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+    
+    // In GraphModel+Helpers.swift (add to extension GraphModel)
+    @MainActor
+    public func centerGraph() {
+        guard !nodes.isEmpty else { return }
+        let centroid = nodes.reduce(CGPoint.zero) { acc, node in
+            CGPoint(x: acc.x + node.position.x, y: acc.y + node.position.y)
+        } / CGFloat(nodes.count)
+        for iteration in nodes.indices {
+            var updatedNode = nodes[iteration]
+            updatedNode.position -= centroid
+            nodes[iteration] = updatedNode
+        }
+        objectWillChange.send()
+    }
 }
