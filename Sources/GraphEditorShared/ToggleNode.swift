@@ -187,3 +187,9 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         lhs.childOrder == rhs.childOrder  // UPDATED: Include childOrder
     }
 }
+
+extension ToggleNode {
+    mutating func toggleExpansion() {
+        isExpanded.toggle()
+    }
+}
