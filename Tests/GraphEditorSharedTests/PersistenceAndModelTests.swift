@@ -29,7 +29,6 @@ struct PersistenceAndModelTests {
             hierarchyEdgeColor: CodableColor(.blue),
             associationEdgeColor: CodableColor(.white)
         )
-        //try await manager.save(graphState: state, for: "default")
         try await manager.saveGraphState(state, for: "default")
         
         let fileManager = FileManager.default

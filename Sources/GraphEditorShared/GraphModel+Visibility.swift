@@ -19,4 +19,3 @@ extension GraphModel {
         return edges.filter { !hidden.contains($0.from) && !hidden.contains($0.target) }
     }
 }
-

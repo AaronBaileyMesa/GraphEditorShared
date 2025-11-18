@@ -33,7 +33,6 @@ public struct Node: NodeProtocol, Codable {  // Updated: Conform to NodeProtocol
         self.contents = contents
     }
     
-    
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
         Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
     }
@@ -297,4 +296,3 @@ public struct CodableColor: Codable, Equatable {
         return Color(red: red, green: green, blue: blue, opacity: opacity)
     }
 }
-

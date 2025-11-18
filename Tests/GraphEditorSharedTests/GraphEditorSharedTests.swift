@@ -123,7 +123,6 @@ struct ClampingAndMiscTests {
             #expect(2.0.clamped(to: 0...1) == 1.0, "Above max clamps to max: expected 1.0, got \(2.0.clamped(to: 0...1))")
             #expect(Double.infinity.clamped(to: 0...1) == 1.0, "Infinity clamps to max: expected 1.0, got \(Double.infinity.clamped(to: 0...1))")
             #expect((-Double.infinity).clamped(to: 0...1) == 0.0, "-Infinity clamps to min: expected 0.0, got \((-Double.infinity).clamped(to: 0...1))")
-            //#expect(Double.nan.clamped(to: 0...1).isNaN, "NaN remains NaN")
     }
     
     @Test func testDoubleAndCGFloatClampingEdgeCases() {
