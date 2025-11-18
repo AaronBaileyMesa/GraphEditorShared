@@ -173,10 +173,12 @@ actor GraphSimulator {
     }
 
     private func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
-    #if os(watchOS)
-        let appState = await WKApplication.shared().applicationState
-        if appState != .active { return false }
-    #endif
+        #if os(watchOS)
+        if !bypassAppCheck {
+            let appState = await WKApplication.shared().applicationState
+            if appState != .active { return false }
+        }
+        #endif
         
         if physicsEngine.isPaused { return false }
         
@@ -184,13 +186,43 @@ actor GraphSimulator {
         let stepState = signposter.beginInterval("SimulationStep", "Nodes: \(nodeCount)")
         #endif
         
-        let result: SimulationStepResult = await Task.detached {
-            await self.computeSimulationStep()
-        }.value
-        logger.debug("Step: Total velocity = \(result.totalVelocity)")
-        await self.setNodes(result.updatedNodes)
+        // Use the visible closures that GraphModel already provides
+        let visibleNodes = await getVisibleNodes()
+        let visibleEdges = await getVisibleEdges()
         
-        recentVelocities.append(result.totalVelocity)
+        guard !visibleNodes.isEmpty else {
+            #if DEBUG
+            signposter.endInterval("SimulationStep", stepState, "No visible nodes")
+            #endif
+            return false
+        }
+        
+        let (updatedNodes, isActive) = await physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges)
+        let totalVelocity = updatedNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+        
+        // Write back only the updated visible nodes
+        let allNodes = await getNodes()
+        var nodeMap: [NodeID: any NodeProtocol] = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0) })
+        
+        for updated in updatedNodes {
+            nodeMap[updated.id] = updated
+        }
+        
+        // Zero velocity on hidden nodes
+        let currentHidden = Set(allNodes.map { $0.id }).subtracting(visibleNodes.map { $0.id })
+        for hiddenID in currentHidden {
+            if var node = nodeMap[hiddenID] {
+                node = node.with(position: node.position, velocity: .zero)
+                nodeMap[hiddenID] = node
+            }
+        }
+        
+        let finalNodes = Array(nodeMap.values)
+        await setNodes(finalNodes)
+        
+        logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count))")
+        
+        recentVelocities.append(totalVelocity)
         if recentVelocities.count > velocityHistoryCount {
             recentVelocities.removeFirst()
         }
@@ -199,7 +231,8 @@ actor GraphSimulator {
         let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
         
         #if DEBUG
-        signposter.endInterval("SimulationStep", stepState, "Total velocity: \(result.totalVelocity), Stable: \(isStable)")
+        signposter.endInterval("SimulationStep", stepState,
+                              "Vel: \(totalVelocity), Visible: \(visibleNodes.count), Stable: \(isStable)")
         #endif
         
         return !isStable

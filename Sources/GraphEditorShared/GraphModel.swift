@@ -26,23 +26,23 @@ import WatchKit
     @Published public var hierarchyEdgeColor: Color = .blue  // New: Default color for hierarchy edges
     @Published public var associationEdgeColor: Color = .white  // New: Default color for association edges
     public let changesPublisher = PassthroughSubject<Void, Never>()  // For future real-time sync
-
+    
     private static let logger = Logger.forCategory("graphmodel-storage")
-
+    
     var simulationTimer: Timer?
     var undoStack: [UndoGraphState] = []
     var redoStack: [UndoGraphState] = []
     public var maxUndo: Int = 10
-
+    
     public var nextNodeLabel = 1
-
+    
     public let storage: GraphStorage
     public var physicsEngine: PhysicsEngine
-
+    
     public var hiddenNodeIDs: Set<NodeID> {
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
-
+        
         print("=== Computing hiddenNodeIDs ===")
         for node in nodes {
             let shouldHide = node.shouldHideChildren()
@@ -52,10 +52,10 @@ import WatchKit
                 toHide.append(contentsOf: children)
             }
         }
-
+        
         let adj = buildAdjacencyList(for: .hierarchy)
         print("Adjacency list: \(adj.map { key, value in "\(key.uuidString.prefix(8)): \(value.map { $0.uuidString.prefix(8) }.joined(separator: ", "))" }.joined(separator: "\n"))")
-
+        
         while !toHide.isEmpty {
             let current = toHide.removeLast()
             print("Processing toHide: \(current.uuidString.prefix(8))")
@@ -65,7 +65,7 @@ import WatchKit
                 toHide.append(contentsOf: children)
             }
         }
-
+        
         print("Final hiddenNodeIDs: \(hidden.map { $0.uuidString.prefix(8) }.sorted())")
         return hidden
     }
@@ -83,14 +83,10 @@ import WatchKit
                 }
             },
             getEdges: { [weak self] in
-                await MainActor.run {
-                    self?.edges ?? []
-                }
+                await MainActor.run { self?.visibleEdges() ?? [] }
             },
             getVisibleNodes: { [weak self] in
-                await MainActor.run {
-                    self?.visibleNodes() ?? []
-                }
+                await MainActor.run { self?.visibleNodes() ?? [] }
             },
             getVisibleEdges: { [weak self] in
                 await MainActor.run {
@@ -130,11 +126,11 @@ import WatchKit
     public var canUndo: Bool {
         !undoStack.isEmpty
     }
-
+    
     public var canRedo: Bool {
         !redoStack.isEmpty
     }
-
+    
     public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
         self.storage = storage
         self.physicsEngine = physicsEngine
@@ -147,5 +143,42 @@ import WatchKit
             adj[edge.from, default: []].append(edge.target)
         }
         return adj
+    }
+    
+    /// Returns only nodes that are not hidden + only hierarchy edges that connect visible nodes
+    @MainActor
+    func visibleNodesAndEdges() -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
+        let visibleNodeIDs = Set(nodes.map(\.id)).subtracting(hiddenNodeIDs)
+        let visibleNodes = nodes
+            .compactMap { visibleNodeIDs.contains($0.id) ? $0.unwrapped : nil }
+        
+        let visibleEdges = edges.filter { edge in
+            edge.type == .hierarchy &&   // only hierarchy edges collapse children
+            visibleNodeIDs.contains(edge.from) &&
+            visibleNodeIDs.contains(edge.target)
+        }
+        
+        return (visibleNodes, visibleEdges)
+    }
+    
+    /// Takes the physics-updated visible nodes and writes them back into the full `nodes` array
+    @MainActor
+    private func mergeVisibleNodesIntoFullModel(updatedVisibleNodes: [any NodeProtocol]) {
+        var nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+        
+        for updatedNode in updatedVisibleNodes {
+            nodeMap[updatedNode.id] = AnyNode(updatedNode)
+        }
+        
+        for hiddenID in hiddenNodeIDs {
+            if let wrapper = nodeMap[hiddenID] {
+                let current = wrapper.unwrapped
+                let frozen = current.with(position: current.position, velocity: .zero)
+                nodeMap[hiddenID] = AnyNode(frozen)
+            }
+        }
+        
+        self.nodes = nodeMap.values.sorted { $0.id.uuidString < $1.id.uuidString }
+        objectWillChange.send()
     }
 }
