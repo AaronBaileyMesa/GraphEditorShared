@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import os
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
@@ -21,6 +22,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
     public var fillColor: Color { isExpanded ? .green : .red }
     public var children: [NodeID] = []
     public var childOrder: [NodeID] = []  // NEW: Explicit order for children (defaults to children array order)
+    private static let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "togglenode")
     
     public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, contents: [NodeContent] = [], children: [NodeID] = [], childOrder: [NodeID]? = nil) {
         self.id = id
@@ -34,7 +36,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         // Validate childOrder to be a permutation of children
         let validatedOrder = (childOrder ?? children).filter { children.contains($0) }
         self.childOrder = validatedOrder.isEmpty ? children : validatedOrder
-        print("ToggleNode.init: Created with isExpanded \(self.isExpanded)")  // Confirm new instance state
+        ToggleNode.logger.debug("ToggleNode created – isExpanded: \(isExpanded)")
     }
     
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
