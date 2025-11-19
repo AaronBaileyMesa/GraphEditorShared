@@ -69,7 +69,7 @@ struct PersistenceAndModelTests {
             _ = try await manager.loadGraphState(for: "default")
             #expect(Bool(false), "Load should throw graphNotFound after clear")
         } catch let error as GraphStorageError {
-            if case .graphNotFound(_) = error {
+            if case .graphNotFound = error {
                 #expect(true, "Load throws not found as expected")
             } else {
                 #expect(Bool(false), "Unexpected GraphStorageError variant: \(error)")
