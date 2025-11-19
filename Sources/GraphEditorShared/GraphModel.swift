@@ -3,6 +3,7 @@
 //  GraphEditorShared
 //
 //  Created by handcart on 10/3/25.
+//  Updated 2025-11-18: Added proper caching for hiddenNodeIDs → fixes massive redraw spam
 //
 
 import os.log
@@ -16,16 +17,17 @@ import WatchKit
 
 @available(iOS 16.0, watchOS 6.0, *)
 @MainActor public class GraphModel: ObservableObject {
-    @Published public var currentGraphName: String = "default"  // Standardized to "default" for consistency
+    @Published public var currentGraphName: String = "default"
     @Published public var nodes: [AnyNode] = []
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
-    @Published public var mode: GraphMode = .network  // Per-graph mode
-    @Published public var hierarchyEdgeColor: Color = .blue  // New: Default color for hierarchy edges
-    @Published public var associationEdgeColor: Color = .white  // New: Default color for association edges
-    public let changesPublisher = PassthroughSubject<Void, Never>()  // For future real-time sync
+    @Published public var mode: GraphMode = .network
+    @Published public var hierarchyEdgeColor: Color = .blue
+    @Published public var associationEdgeColor: Color = .white
+    
+    public let changesPublisher = PassthroughSubject<Void, Never>()
     
     private static let logger = Logger.forCategory("graphmodel-storage")
     
@@ -39,79 +41,147 @@ import WatchKit
     public let storage: GraphStorage
     public var physicsEngine: PhysicsEngine
     
+    // MARK: - Hidden Nodes Caching (fixes extreme performance regression)
+    
+    private var cachedHiddenNodeIDs: Set<NodeID> = []
+    private var hiddenNodesVersion: UInt64 = 0           // Incremented on any relevant mutation
+    private var lastValidatedVersion: UInt64 = 0         // Version at which cache was last confirmed valid
+    private var lastNodeUpdateTime: Date = .distantPast
+    private let minimumUpdateInterval: TimeInterval = 1.0 / 30.0   // 30 FPS max for SwiftUI
+    
+    /// Public read-only accessor – O(1) most of the time
     public var hiddenNodeIDs: Set<NodeID> {
+        // Fast path – cache is valid
+        if hiddenNodesVersion == lastValidatedVersion {
+            return cachedHiddenNodeIDs
+        }
+        
+        // Slow path – recompute
+        let newHidden = computeHiddenNodeIDs()
+        cachedHiddenNodeIDs = newHidden
+        lastValidatedVersion = hiddenNodesVersion
+        return newHidden
+    }
+    
+    /// Call this whenever ToggleNode.isExpanded or hierarchy edges change
+    public func invalidateHiddenNodesCache() {
+        hiddenNodesVersion &+= 1
+    }
+    
+    /// The actual expensive work – now private and only called when needed
+    private func computeHiddenNodeIDs() -> Set<NodeID> {
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
         
+        #if DEBUG
         print("=== Computing hiddenNodeIDs ===")
-        for node in nodes {
-            let shouldHide = node.shouldHideChildren()
-            if shouldHide {
-                let children = edges.filter { $0.from == node.id && $0.type == .hierarchy }.map { $0.target }
-                print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
-                toHide.append(contentsOf: children)
+        #endif
+        
+        for wrapper in nodes {
+            guard let toggleNode = wrapper.unwrapped as? ToggleNode, !toggleNode.isExpanded else {
+                #if DEBUG
+                if let toggle = wrapper.unwrapped as? ToggleNode {
+                    print("ToggleNode.shouldHideChildren for label \(toggle.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
+                }
+                #endif
+                continue
             }
+            
+            let children = edges
+                .filter { $0.from == wrapper.id && $0.type == .hierarchy }
+                .map { $0.target }
+            
+            #if DEBUG
+            print("ToggleNode.shouldHideChildren for label \(toggleNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
+            print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
+            #endif
+            
+            toHide.append(contentsOf: children)
         }
         
         let adj = buildAdjacencyList(for: .hierarchy)
-        print("Adjacency list: \(adj.map { key, value in "\(key.uuidString.prefix(8)): \(value.map { $0.uuidString.prefix(8) }.joined(separator: ", "))" }.joined(separator: "\n"))")
+        
+        #if DEBUG
+        print("Adjacency list:")
+        for (from, tos) in adj.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            print("  \(from.uuidString.prefix(8)): \(tos.map { $0.uuidString.prefix(8) }.joined(separator: ", "))")
+        }
+        #endif
         
         while !toHide.isEmpty {
             let current = toHide.removeLast()
+            #if DEBUG
             print("Processing toHide: \(current.uuidString.prefix(8))")
+            #endif
             if hidden.insert(current).inserted {
-                let children = adj[current] ?? []
-                print("  Adding descendants: \(children.map { $0.uuidString.prefix(8) })")
-                toHide.append(contentsOf: children)
+                let descendants = adj[current] ?? []
+                #if DEBUG
+                if !descendants.isEmpty {
+                    print("  Adding descendants: \(descendants.map { $0.uuidString.prefix(8) })")
+                }
+                #endif
+                toHide.append(contentsOf: descendants)
             }
         }
         
-        print("Final hiddenNodeIDs: \(hidden.map { $0.uuidString.prefix(8) }.sorted())")
+        #if DEBUG
+        print("Final hiddenNodeIDs: \(hidden.sorted(by: { $0.uuidString < $1.uuidString }))")
+        #endif
+        
         return hidden
     }
+    
+    // MARK: - Simulator
     
     lazy var simulator: GraphSimulator = {
         GraphSimulator(
             getNodes: { [weak self] in
                 await MainActor.run {
-                    self?.nodes.map { $0.unwrapped } ?? []
+                    self?.visibleNodes ?? []
                 }
             },
             setNodes: { [weak self] newNodes in
                 await MainActor.run {
-                    self?.nodes = newNodes.map { AnyNode($0) }
+                    guard let self else { return }
+                    
+                    // === POLISH: Throttle SwiftUI updates to ~30 FPS ===
+                    let now = Date()
+                    if now.timeIntervalSince(self.lastNodeUpdateTime) < self.minimumUpdateInterval {
+                        return  // Drop this physics frame — UI doesn’t need it
+                    }
+                    self.lastNodeUpdateTime = now
+                    
+                    // Apply the update — @Published on `nodes` will notify SwiftUI exactly once
+                    self.mergeVisibleNodesIntoFullModel(updatedVisibleNodes: newNodes)
+                    // Do NOT call objectWillChange.send() — it’s redundant and harmful
                 }
             },
             getEdges: { [weak self] in
-                await MainActor.run { self?.visibleEdges() ?? [] }
+                await MainActor.run { self?.visibleEdges ?? [] }
             },
             getVisibleNodes: { [weak self] in
-                await MainActor.run { self?.visibleNodes() ?? [] }
+                await MainActor.run { self?.visibleNodes ?? [] }
             },
             getVisibleEdges: { [weak self] in
-                await MainActor.run {
-                    self?.visibleEdges() ?? []
-                }
+                await MainActor.run { self?.visibleEdges ?? [] }
             },
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
                 Task { @MainActor in
-                    guard let self = self, !self.isStable else { return }
-                    let velocities = self.nodes.map { hypot($0.velocity.x, $0.velocity.y) }
-                    if velocities.allSatisfy({ $0 < 0.001 }) {
-                        Self.logger.infoLog("Simulation stable: Centering nodes")
-                        let centeredNodes = self.physicsEngine.centerNodes(nodes: self.nodes.map { $0.unwrapped })
-                        self.nodes = centeredNodes.map { AnyNode($0.with(position: $0.position, velocity: .zero)) }
-                        self.isStable = true
-                        Task.detached {
-                            await self.stopSimulation()
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            await MainActor.run {
-                                self.isStable = false
-                            }
-                        }
-                        self.objectWillChange.send()
+                    guard let self else { return }
+                    
+                    // Final centering + zero velocities
+                    let centered = self.physicsEngine.centerNodes(
+                        nodes: self.nodes.map { $0.unwrapped }
+                    )
+                    self.nodes = centered.map {
+                        AnyNode($0.with(position: $0.position, velocity: .zero))
                     }
+                    
+                    self.isStable = true
+                    try? await Task.sleep(for: .seconds(0.5))
+                    self.isStable = false
+                    await self.stopSimulation()
                 }
             },
             onPostStable: { [weak self] in
@@ -123,13 +193,8 @@ import WatchKit
         )
     }()
     
-    public var canUndo: Bool {
-        !undoStack.isEmpty
-    }
-    
-    public var canRedo: Bool {
-        !redoStack.isEmpty
-    }
+    public var canUndo: Bool { !undoStack.isEmpty }
+    public var canRedo: Bool { !redoStack.isEmpty }
     
     public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
         self.storage = storage
@@ -145,23 +210,44 @@ import WatchKit
         return adj
     }
     
-    /// Returns only nodes that are not hidden + only hierarchy edges that connect visible nodes
+    // MARK: - Visible Nodes & Edges (now also cached indirectly via hiddenNodeIDs)
+    
+    // In GraphModel.swift (or wherever this extension lives)
+
     @MainActor
     func visibleNodesAndEdges() -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
-        let visibleNodeIDs = Set(nodes.map(\.id)).subtracting(hiddenNodeIDs)
-        let visibleNodes = nodes
-            .compactMap { visibleNodeIDs.contains($0.id) ? $0.unwrapped : nil }
+        let hidden = hiddenNodeIDs
         
+        // SAFE WAY #1: Use a normal for-loop instead of map
+        var visibleNodeIDs = Set<NodeID>()
+        for node in nodes {
+            if !hidden.contains(node.id) {
+                visibleNodeIDs.insert(node.id)
+            }
+        }
+        
+        // SAFE WAY #2: Build visible nodes manually
+        var visibleNodes: [any NodeProtocol] = []
+        visibleNodes.reserveCapacity(nodes.count)
+        
+        for node in nodes {
+            if visibleNodeIDs.contains(node.id) {
+                visibleNodes.append(node.unwrapped)  // unwrapped is @MainActor safe
+            }
+        }
+        
+        // Edges are value types → safe
         let visibleEdges = edges.filter { edge in
-            edge.type == .hierarchy &&   // only hierarchy edges collapse children
+            edge.type == .hierarchy &&
             visibleNodeIDs.contains(edge.from) &&
             visibleNodeIDs.contains(edge.target)
         }
         
         return (visibleNodes, visibleEdges)
     }
+        
+    // MARK: - Merge physics results back into full model
     
-    /// Takes the physics-updated visible nodes and writes them back into the full `nodes` array
     @MainActor
     private func mergeVisibleNodesIntoFullModel(updatedVisibleNodes: [any NodeProtocol]) {
         var nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
@@ -170,6 +256,7 @@ import WatchKit
             nodeMap[updatedNode.id] = AnyNode(updatedNode)
         }
         
+        // Freeze hidden nodes so they don’t drift
         for hiddenID in hiddenNodeIDs {
             if let wrapper = nodeMap[hiddenID] {
                 let current = wrapper.unwrapped
@@ -181,4 +268,25 @@ import WatchKit
         self.nodes = nodeMap.values.sorted { $0.id.uuidString < $1.id.uuidString }
         objectWillChange.send()
     }
+    
+    // MARK: - Load-time velocity reset (fixes 500-iteration launch bug)
+    @MainActor
+    public func zeroAllVelocities() {
+        guard !nodes.isEmpty else { return }
+        
+        nodes = nodes.map { wrapper in
+            let node = wrapper.unwrapped
+            let frozen = node.with(position: node.position, velocity: .zero)
+            return AnyNode(frozen)
+        }
+        
+        // Important: notify SwiftUI + simulator that nodes changed
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+    }
+}
+
+extension GraphModel {
+    public var visibleNodes: [any NodeProtocol] { visibleNodesAndEdges().nodes }
+    public var visibleEdges: [GraphEdge]       { visibleNodesAndEdges().edges }
 }

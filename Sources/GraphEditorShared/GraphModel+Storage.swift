@@ -29,6 +29,7 @@ extension GraphModel {
             }
         }
         objectWillChange.send()
+        
     }
 
     private func loadFromStorage(for name: String) async throws {
@@ -50,22 +51,32 @@ extension GraphModel {
             throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
         Self.logger.infoLog("loadFromStorage completed for \(name)")
+        invalidateHiddenNodesCache()
+        await simulator.resetVelocityHistory()
+        zeroAllVelocities()
     }
     
-    /// Saves the current graph state.
+    /// Saves the current graph state — **velocities are deliberately stripped**
     public func saveGraph() async throws {
+        // Strip velocity from every node before persisting
+        let cleanNodes = nodes.map { wrapper -> any NodeProtocol in
+            let node = wrapper.unwrapped
+            return node.with(position: node.position, velocity: .zero)
+        }
+        
         let state = GraphState(
-            nodes: nodes.map { $0.unwrapped },
+            nodes: cleanNodes,
             edges: edges,
             hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
             associationEdgeColor: CodableColor(associationEdgeColor)
         )
+        
         do {
-            try await storage.saveGraphState(state, for: currentGraphName)  // Updated: Use saveGraphState
-            Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for \(self.currentGraphName)")
+            try await storage.saveGraphState(state, for: currentGraphName)
+            Self.logger.infoLog("Saved \(cleanNodes.count) nodes and \(edges.count) edges for '\(currentGraphName)' (velocities stripped)")
         } catch {
-            Self.logger.errorLog("Save failed for \(self.currentGraphName)", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            Self.logger.errorLog("Save failed for '\(currentGraphName)'", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
@@ -79,6 +90,9 @@ extension GraphModel {
             Self.logger.errorLog("Load failed for \(self.currentGraphName)", error: error)
             // Handle fallback or error UI in calling code
         }
+        invalidateHiddenNodesCache()
+        await simulator.resetVelocityHistory()
+        zeroAllVelocities()
     }
     
     /// Creates a new empty graph with the given name and switches to it.

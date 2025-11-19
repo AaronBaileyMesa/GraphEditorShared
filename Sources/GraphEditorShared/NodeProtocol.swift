@@ -233,129 +233,124 @@ extension NodeProtocol {
                 let resolved = context.resolve(contentText)
                 let contentPosition = CGPoint(x: position.x, y: position.y + yOffset)
                 context.draw(resolved, at: contentPosition, anchor: .center)
-                yOffset += 10 * zoomScale  // Line spacing
-            }
-            if contents.count > maxItems {
-                let moreText = Text("+\(contents.count - maxItems) more").font(.system(size: contentFontSize * 0.75)).foregroundColor(.gray)
-                let resolved = context.resolve(moreText)
-                context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
-            }
-        }
-    }
-}
+                                yOffset += 10 * zoomScale  // Line spacing
+                            }
+                            if contents.count > maxItems {
+                                let moreText = Text("+\(contents.count - maxItems) more").font(.system(size: contentFontSize * 0.75)).foregroundColor(.gray)
+                                let resolved = context.resolve(moreText)
+                                context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
+                            }
+                        }
+                    }
+                }
 
-@available(iOS 16.0, *)
-@available(watchOS 9.0, *)
-public struct AnyNode: NodeProtocol {
-    // NEW: Add the static logger here (moved from protocol)
-    private static let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "nodeprotocol")
-    
-    private var base: any NodeProtocol  // var for mutability
-    
-    public var contents: [NodeContent] {
-        get { base.contents }
-        set { base.contents = newValue }
-    }
-    
-    public var unwrapped: any NodeProtocol { base }
-    
-    public var id: NodeID { base.id }
-    public var label: Int { base.label }
-    public var position: CGPoint {
-        get { base.position }
-        set { base.position = newValue }
-    }
-    public var velocity: CGPoint {
-        get { base.velocity }
-        set { base.velocity = newValue }
-    }
-    public var radius: CGFloat {
-        get { base.radius }
-        set { base.radius = newValue }
-    }
-    public var isExpanded: Bool {
-        get { base.isExpanded }
-        set { base.isExpanded = newValue }
-    }
-    
-    public var children: [UUID] {
-        get { base.children }
-        set { base.children = newValue }
-    }
+                @available(iOS 16.0, *)
+                @available(watchOS 9.0, *)
+                // MARK: - AnyNode – Type-Erased Wrapper (FINAL VERSION)
 
-    public mutating func collapse() {
-        base.collapse()
-    }
-
-    public mutating func bulkCollapse() {
-        base.bulkCollapse()
-    }
-    
-    public var isVisible: Bool { base.isVisible }
-    public var fillColor: Color { base.fillColor }
-    public var mass: CGFloat { base.mass }
-    
-    public init(_ base: any NodeProtocol) {
-        self.base = base
-    }
-    
-    public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        var newBase = base
-        newBase.position = position
-        newBase.velocity = velocity
-        return AnyNode(newBase)
-    }
-    
-    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
-        var newBase = base
-        newBase.position = position
-        newBase.velocity = velocity
-        newBase.contents = contents
-        return AnyNode(newBase)
-    }
-    
-    public func handlingTap() -> Self {
-        AnyNode(base.handlingTap())
-    }
-    
-    public func shouldHideChildren() -> Bool {
-        base.shouldHideChildren()
-    }
-    
-    @available(iOS 15.0, *)
-    @available(watchOS 9.0, *)
-    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-        base.renderView(zoomScale: zoomScale, isSelected: isSelected)
-    }
-    
-    @available(iOS 15.0, *)
-    @available(watchOS 9.0, *)
-    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-#if DEBUG
-        Self.logger.debug("Drawing node \(label) at (\(position.x), \(position.y)), isSelected: \(isSelected), zoom: \(zoomScale)")
-#endif
-        base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
-    }
-    
-    public static func == (lhs: AnyNode, rhs: AnyNode) -> Bool {
-        lhs.id == rhs.id && lhs.position == rhs.position && lhs.velocity == rhs.velocity &&
-        lhs.isExpanded == rhs.isExpanded && lhs.contents == rhs.contents  // Updated for array
-    }
-    
-    public init(from decoder: Decoder) throws {
-        let wrapper = try NodeWrapper(from: decoder)
-        self.base = wrapper.value
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        let wrapper: NodeWrapper
-        if let node = base as? Node {
-            wrapper = .node(node)
-        } else if let toggleNode = base as? ToggleNode {
-            wrapper = .toggleNode(toggleNode)
-        } else {
-            throw EncodingError.invalidValue(base, EncodingError.Context(codingPath: [], debugDescription: "Unsupported node type"))
-        }
-        try wrapper.encode(to: encoder)
-    }
-}
+                public struct AnyNode: NodeProtocol {
+                    private var base: any NodeProtocol
+                    
+                    // Hierarchical state we must preserve across type erasure
+                    public var isExpanded: Bool
+                    public var children: [UUID]  // Changed to [UUID] to match protocol
+                    public var childOrder: [UUID]  // Assuming NodeID == UUID; adjust if needed
+                    
+                    // MARK: Forwarded NodeProtocol requirements
+                    public var id: NodeID { base.id }
+                    public var label: Int { base.label }
+                    public var position: CGPoint {
+                        get { base.position }
+                        set { base.position = newValue }
+                    }
+                    public var velocity: CGPoint {
+                        get { base.velocity }
+                        set { base.velocity = newValue }
+                    }
+                    public var radius: CGFloat {
+                        get { base.radius }
+                        set { base.radius = newValue }  // FIXED: Added missing setter to conform to protocol
+                    }
+                    public var contents: [NodeContent] {
+                        get { base.contents }
+                        set { base.contents = newValue }
+                    }
+                    public var fillColor: Color { base.fillColor }
+                    public var unwrapped: any NodeProtocol { base }
+                    
+                    // MARK: THE CRITICAL INIT – This fixes the "can't expand back" bug
+                    public init(_ base: any NodeProtocol) {
+                        self.base = base
+                        
+                        if let toggle = base as? ToggleNode {
+                            self.isExpanded = toggle.isExpanded
+                            self.children = toggle.children
+                            self.childOrder = toggle.childOrder
+                        } else if let hierarchical = base as? any HierarchicalNode {
+                            self.isExpanded = hierarchical.isExpanded
+                            self.children = hierarchical.children
+                            self.childOrder = []
+                        } else {
+                            self.isExpanded = true
+                            self.children = []
+                            self.childOrder = []
+                        }
+                    }
+                    
+                    // MARK: Required NodeProtocol methods (fixed & clean)
+                    
+                    public func with(position: CGPoint, velocity: CGPoint) -> AnyNode {
+                        AnyNode(base.with(position: position, velocity: velocity))
+                    }
+                    
+                    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> AnyNode {
+                        AnyNode(base.with(position: position, velocity: velocity, contents: contents))
+                    }
+                    
+                    public func handlingTap() -> AnyNode {
+                        AnyNode(base.handlingTap()) // ← now preserves isExpanded perfectly
+                    }
+                    
+                    public func shouldHideChildren() -> Bool {
+                        base.shouldHideChildren()
+                    }
+                    
+                    @available(iOS 15.0, *)
+                    @available(watchOS 9.0, *)
+                    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
+                        base.renderView(zoomScale: zoomScale, isSelected: isSelected)
+                    }
+                    
+                    @available(iOS 15.0, *)
+                    @available(watchOS 9.0, *)
+                    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
+                        base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
+                    }
+                    
+                    // MARK: Codable
+                    public init(from decoder: Decoder) throws {
+                        let wrapper = try NodeWrapper(from: decoder)
+                        self = AnyNode(wrapper.value)
+                        self.velocity = .zero  // instead of decoding whatever garbage was saved
+                    }
+                    
+                    public func encode(to encoder: Encoder) throws {
+                        let wrapper: NodeWrapper = {
+                            if let node = base as? Node { return .node(node) }
+                            if let toggle = base as? ToggleNode { return .toggleNode(toggle) }
+                            fatalError("Unsupported node type for encoding")
+                        }()
+                        try wrapper.encode(to: encoder)
+                    }
+                    
+                    // MARK: Equatable
+                    public static func == (lhs: AnyNode, rhs: AnyNode) -> Bool {
+                        lhs.id == rhs.id &&
+                        lhs.position == rhs.position &&
+                        lhs.velocity == rhs.velocity &&
+                        lhs.isExpanded == rhs.isExpanded &&
+                        lhs.contents == rhs.contents &&
+                        lhs.children == rhs.children &&
+                        lhs.childOrder == rhs.childOrder
+                    }
+                }

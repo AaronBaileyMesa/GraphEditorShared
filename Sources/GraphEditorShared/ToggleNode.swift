@@ -72,7 +72,6 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         return ToggleNode(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents, children: children, childOrder: childOrder)
     }
     
-    // In ToggleNode.swift
     public func shouldHideChildren() -> Bool {
         print("ToggleNode.shouldHideChildren for label \(label) (ID: \(id.uuidString.prefix(8))): isExpanded = \(isExpanded), result = \(!isExpanded)")
         return !isExpanded
@@ -155,9 +154,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         let posX = try container.decode(CGFloat.self, forKey: .positionX)
         let posY = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: posX, y: posY)
-        let velX = try container.decodeIfPresent(CGFloat.self, forKey: .velocityX) ?? 0.0  // Default to 0 if missing
-        let velY = try container.decodeIfPresent(CGFloat.self, forKey: .velocityY) ?? 0.0  // Default to 0 if missing
-        velocity = CGPoint(x: velX, y: velY)
+        self.velocity = .zero  // instead of decoding whatever garbage was saved
     }
     
     public func encode(to encoder: Encoder) throws {

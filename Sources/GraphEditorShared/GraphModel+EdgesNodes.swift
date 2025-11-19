@@ -56,6 +56,8 @@ extension GraphModel {
         edges.append(GraphEdge(from: from, target: target, type: type))
         objectWillChange.send()
         await resumeSimulation()
+        invalidateHiddenNodesCache()
+        await simulator.resetVelocityHistory()  
     }
 
     // ADDED: @MainActor to isolate this method to the main thread
@@ -67,6 +69,8 @@ extension GraphModel {
         edges.removeAll { $0.id == id }
         objectWillChange.send()
         await resumeSimulation()
+        invalidateHiddenNodesCache()
+        await simulator.resetVelocityHistory()
     }
 
     // ADDED: @MainActor to isolate this method to the main thread
@@ -190,15 +194,33 @@ extension GraphModel {
     }
 
     // ADDED: @MainActor to isolate this method to the main thread
+    // GraphModel+EdgesNodes.swift  (or any extension — this one is already imported everywhere)
+
     @MainActor
     public func toggleExpansion(for nodeID: NodeID) async {
-        // CHANGED: Qualified
-        Self.logger.debugLog("Toggling expansion for node ID: \(nodeID.uuidString.prefix(8))")  // Added debug log
-        pushUndo()
-        guard let idx = nodes.firstIndex(where: { $0.id == nodeID }), let toggle = nodes[idx].unwrapped as? ToggleNode else { return }
-        let updated = toggle.handlingTap()
-        nodes[idx] = AnyNode(updated)
+        Self.logger.debugLog("Toggling expansion for node ID: \(nodeID.uuidString.prefix(8))")
+        
+        pushUndo()  // Must come first — undo captures old state
+        
+        guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
+            Self.logger.warning("toggleExpansion: Node not found – \(nodeID.uuidString.prefix(8))")
+            return
+        }
+        
+        // Must unwrap to a concrete ToggleNode to call handlingTap()
+        guard var toggleNode = nodes[index].unwrapped as? ToggleNode else {
+            Self.logger.warning("toggleExpansion: Node is not a ToggleNode – \(nodeID.uuidString.prefix(8))")
+            return
+        }
+        
+        toggleNode = toggleNode.handlingTap()           // toggles isExpanded + zeros velocity
+        nodes[index] = AnyNode(toggleNode)              // write back
+        
         objectWillChange.send()
+        
+        invalidateHiddenNodesCache()
+        
+        await simulator.resetVelocityHistory()
         await resumeSimulation()
     }
 }

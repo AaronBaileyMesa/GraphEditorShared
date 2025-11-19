@@ -73,11 +73,13 @@ public class PhysicsEngine {
         let updatedNodes = postProcessNodes(tempNodes: tempNodes, isActive: isActive)
         
         logVelocityIfNeeded(nodes: updatedNodes)
+
+        alpha = max(alpha * 0.994, 0.04)
         
-        #if DEBUG
+#if DEBUG
         Self.signposter.endInterval("SimulationStep", stepState, "Active: \(isActive)")
         #endif
-        
+       
         return (updatedNodes, isActive)
     }
     

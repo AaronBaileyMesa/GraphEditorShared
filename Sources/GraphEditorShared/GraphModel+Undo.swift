@@ -37,6 +37,8 @@ extension GraphModel {
             if resume {
                 await resumeSimulation()
             }
+            invalidateHiddenNodesCache()
+            await simulator.resetVelocityHistory()
         }
     }
     
@@ -50,6 +52,8 @@ extension GraphModel {
             if resume {
                 await resumeSimulation()
             }
+            invalidateHiddenNodesCache()
+            await simulator.resetVelocityHistory()
         }
     }
     

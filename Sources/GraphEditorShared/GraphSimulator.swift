@@ -16,13 +16,13 @@ import WatchKit  // Only if using haptics; otherwise remove
 actor GraphSimulator {
     private let logger = Logger.forCategory("graphsimulator")  // Added: Define logger instance
     
-    #if DEBUG
+#if DEBUG
     private let signposter: OSSignposter = {
         let subsystem = "io.handcart.GraphEditor"  // Match your app's subsystem
         return OSSignposter(subsystem: subsystem, category: "graphsimulator")
     }()
-    #endif
-
+#endif
+    
     var simulationTask: Task<Void, Never>?  // Exposed for testing
     private var recentVelocities: [CGFloat] = []  // Changed from internal to private (actor isolates it)
     let velocityChangeThreshold: CGFloat
@@ -42,22 +42,22 @@ actor GraphSimulator {
     private let postStableDelay: TimeInterval
     
     private let bypassAppCheck: Bool  // Flag to skip watchOS app state check in tests
-        private let testStepDelay: TimeInterval?  // Optional delay per step for test slowing
-
-        init(getNodes: @escaping () async -> [any NodeProtocol],
-             setNodes: @escaping ([any NodeProtocol]) async -> Void,
-             getEdges: @escaping () async -> [GraphEdge],
-             getVisibleNodes: @escaping () async -> [any NodeProtocol],
-             getVisibleEdges: @escaping () async -> [GraphEdge],
-             physicsEngine: PhysicsEngine,
-             onStable: (() -> Void)? = nil,
-             onPostStable: (() -> Void)? = nil,
-             postStableDelay: TimeInterval = 5.0,
-             baseInterval: TimeInterval = 1.0 / 30.0,
-             velocityChangeThreshold: CGFloat = 0.01,
-             velocityHistoryCount: Int = 5,
-             bypassAppCheck: Bool = false,  // ADDED: Default false (normal behavior)
-             testStepDelay: TimeInterval? = nil) {  // ADDED: Default nil (no delay)
+    private let testStepDelay: TimeInterval?  // Optional delay per step for test slowing
+    
+    init(getNodes: @escaping () async -> [any NodeProtocol],
+         setNodes: @escaping ([any NodeProtocol]) async -> Void,
+         getEdges: @escaping () async -> [GraphEdge],
+         getVisibleNodes: @escaping () async -> [any NodeProtocol],
+         getVisibleEdges: @escaping () async -> [GraphEdge],
+         physicsEngine: PhysicsEngine,
+         onStable: (() -> Void)? = nil,
+         onPostStable: (() -> Void)? = nil,
+         postStableDelay: TimeInterval = 5.0,
+         baseInterval: TimeInterval = 1.0 / 30.0,
+         velocityChangeThreshold: CGFloat = 0.04,
+         velocityHistoryCount: Int = 30,
+         bypassAppCheck: Bool = false,  // ADDED: Default false (normal behavior)
+         testStepDelay: TimeInterval? = nil) {  // ADDED: Default nil (no delay)
         self.getNodes = getNodes
         self.setNodes = setNodes
         self.getEdges = getEdges
@@ -73,8 +73,8 @@ actor GraphSimulator {
         
         self.onPostStable = onPostStable
         self.postStableDelay = postStableDelay
-            self.bypassAppCheck = bypassAppCheck
-                    self.testStepDelay = testStepDelay
+        self.bypassAppCheck = bypassAppCheck
+        self.testStepDelay = testStepDelay
     }
     
     struct SimulationStepResult {
@@ -89,9 +89,8 @@ actor GraphSimulator {
             let appState = await WKApplication.shared().applicationState
             guard appState == .active else { return }
         }
-    #endif
-        physicsEngine.resetSimulation()
-        recentVelocities.removeAll()
+#endif
+        recentVelocities.removeAll()      // ← AND THIS ONE (optional, but harmless to keep if you want fresh history)
         
         let nodeCount = await getNodes().count
         if nodeCount < 5 {
@@ -119,12 +118,24 @@ actor GraphSimulator {
         simulationTask = nil
     }
     
-    // ADDED: Now async (actor-isolated)
+    // MARK: - Public API for GraphModel
+
+    /// Call this whenever the set of visible nodes changes significantly
+    /// (e.g. ToggleNode collapse/expand, hierarchy edge add/delete, undo/redo, load graph)
+    public func resetVelocityHistory() async {
+        await self.clearVelocityHistory()
+    }
+
+    private func clearVelocityHistory() {
+        recentVelocities.removeAll(keepingCapacity: true)
+        logger.debug("Velocity history cleared – graph visibility changed")
+    }
+    
     private func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
         let startTime = Date()
-        #if DEBUG
+#if DEBUG
         let loopState = signposter.beginInterval("SimulationLoop", "Nodes: \(nodeCount)")
-        #endif
+#endif
         
         let maxIterations = 500  // Arbitrary limit to prevent infinite loops
         var iterations = 0
@@ -132,10 +143,10 @@ actor GraphSimulator {
         while !Task.isCancelled && iterations < maxIterations {
             // ADDED: Optional test delay for slowing loop (e.g., for reliability)
             if let delay = testStepDelay {
-                            try? await Task.sleep(for: .milliseconds(Int(delay * 1000)))
-                        } else {
-                            try? await Task.sleep(for: .seconds(baseInterval))
-                        }
+                try? await Task.sleep(for: .milliseconds(Int(delay * 1000)))
+            } else {
+                try? await Task.sleep(for: .seconds(baseInterval))
+            }
             if physicsEngine.isPaused {
                 try? await Task.sleep(for: .milliseconds(100))
                 continue
@@ -143,12 +154,12 @@ actor GraphSimulator {
             let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
             physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)
             iterations += 1
-            logger.debug("Iteration \(iterations): shouldContinue = \(shouldContinue)")
+            logger.info("Iteration \(iterations): shouldContinue = \(shouldContinue) | recentVelocities = \(self.recentVelocities.map { String(format: "%.3f", $0) }.joined(separator: ", "))")
             if !shouldContinue {
                 logger.info("Simulation stabilized after \(iterations) iterations")
-                #if DEBUG
+#if DEBUG
                 signposter.endInterval("SimulationLoop", loopState, "Stabilized after \(iterations) iterations")
-                #endif
+#endif
                 break
             }
         }
@@ -164,57 +175,50 @@ actor GraphSimulator {
         let duration = Date().timeIntervalSince(startTime)  // Added for perf
         if iterations >= maxIterations {
             logger.warning("Simulation timed out after \(iterations) iterations; recent velocities: \(self.recentVelocities); duration: \(duration)s")
-            #if DEBUG
+#if DEBUG
             signposter.endInterval("SimulationLoop", loopState, "Timed out after \(iterations) iterations")
             signposter.emitEvent("SimulationTimeout", "Recent velocities: \(self.recentVelocities)")
-            #endif
+#endif
         }
         self.onStable?()
     }
-
+    
     private func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
-        #if os(watchOS)
+#if os(watchOS)
         if !bypassAppCheck {
             let appState = await WKApplication.shared().applicationState
             if appState != .active { return false }
         }
-        #endif
+#endif
         
         if physicsEngine.isPaused { return false }
         
-        #if DEBUG
+#if DEBUG
         let stepState = signposter.beginInterval("SimulationStep", "Nodes: \(nodeCount)")
-        #endif
+#endif
         
         // Use the visible closures that GraphModel already provides
         let visibleNodes = await getVisibleNodes()
         let visibleEdges = await getVisibleEdges()
         
         guard !visibleNodes.isEmpty else {
-            #if DEBUG
+#if DEBUG
             signposter.endInterval("SimulationStep", stepState, "No visible nodes")
-            #endif
+#endif
             return false
         }
         
-        let (updatedNodes, isActive) = await physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges)
-        let totalVelocity = updatedNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+        let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges)
+        let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
         
         // Write back only the updated visible nodes
         let allNodes = await getNodes()
-        var nodeMap: [NodeID: any NodeProtocol] = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0) })
+        var nodeMap: [NodeID: any NodeProtocol] = Dictionary(
+            uniqueKeysWithValues: (await getNodes()).map { ($0.id, $0) }
+        )
         
-        for updated in updatedNodes {
-            nodeMap[updated.id] = updated
-        }
-        
-        // Zero velocity on hidden nodes
-        let currentHidden = Set(allNodes.map { $0.id }).subtracting(visibleNodes.map { $0.id })
-        for hiddenID in currentHidden {
-            if var node = nodeMap[hiddenID] {
-                node = node.with(position: node.position, velocity: .zero)
-                nodeMap[hiddenID] = node
-            }
+        for updatedNode in updatedVisibleNodes {
+            nodeMap[updatedNode.id] = updatedNode
         }
         
         let finalNodes = Array(nodeMap.values)
@@ -227,25 +231,32 @@ actor GraphSimulator {
             recentVelocities.removeFirst()
         }
         
+        // MARK: - NEW STABILIZATION LOGIC (November 18, 2025)
+        // We now use a strict absolute velocity threshold + required consecutive samples
+        // This prevents false stabilization when forces decay slowly (your exact case)
+        let absoluteVelocityThreshold: CGFloat = 0.065   // TUNABLE: 0.04 = rock solid, 0.08 = slightly forgiving
+        let requiredStableSamples: Int = 20              // Must stay below threshold for N consecutive steps
+        
+        let recentCount = recentVelocities.count
+        let allBelowThreshold = recentVelocities.allSatisfy { $0 < absoluteVelocityThreshold }
+        let enoughSamples = recentCount >= requiredStableSamples
+        
+        let isStable = enoughSamples && allBelowThreshold
+        
+        // Optional: Add a tiny velocity change check as secondary confirmation (prevents oscillation)
         let velocityChange = recentVelocities.max()! - recentVelocities.min()!
-        let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
+        let isNearlyFlat = velocityChange < 0.04
         
-        #if DEBUG
+        let finalStable = isStable && isNearlyFlat
+        
+        logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count)) | Stable: \(finalStable) (samples: \(recentCount)/\(requiredStableSamples), maxV: \(self.recentVelocities.max() ?? 0))")
+        
+#if DEBUG
         signposter.endInterval("SimulationStep", stepState,
-                              "Vel: \(totalVelocity), Visible: \(visibleNodes.count), Stable: \(isStable)")
-        #endif
+                               "Vel: \(String(format: "%.3f", totalVelocity)), Stable: \(finalStable), Samples: \(recentCount)/\(requiredStableSamples)")
+#endif
         
-        return !isStable
-    }
-    
-    private func computeSimulationStep() async -> SimulationStepResult {
-        let nodes = await getNodes()
-        let edges = await getEdges()
-        
-        let (updatedNodes, isActive) = physicsEngine.simulationStep(nodes: nodes, edges: edges)
-        let totalVelocity = updatedNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
-        
-        return SimulationStepResult(updatedNodes: updatedNodes, shouldContinue: isActive, totalVelocity: totalVelocity)
+        return !finalStable
     }
     
     private func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) async -> Bool {
@@ -257,4 +268,5 @@ actor GraphSimulator {
         let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
         return isStable  // True if should stop (stable and low velocity)
     }
+    
 }

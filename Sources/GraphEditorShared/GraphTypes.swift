@@ -249,6 +249,12 @@ public protocol HierarchicalNode {
     mutating func bulkCollapse()  // Recursive on children (needs graph access)
 }
 
+extension HierarchicalNode {
+    public func shouldHideChildren() -> Bool {
+        return false  // Regular Node or future types never hide children
+    }
+}
+
 // Codable wrapper for SwiftUI.Color to avoid extending imported types with protocol conformances
 public struct CodableColor: Codable, Equatable {
     public var color: Color

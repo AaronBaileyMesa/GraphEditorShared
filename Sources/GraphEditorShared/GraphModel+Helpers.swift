@@ -57,30 +57,28 @@ extension GraphModel {
         print("handleTap: Post-assignment - model.nodes[\(index)] isExpanded: \((nodes[index].unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Verify stuck in model
 
         let children = edges.filter { $0.from == nodeID && $0.type == EdgeType.hierarchy }.map { $0.target }
+
         if let toggleNode = updatedNode.unwrapped as? ToggleNode {
-            print("handleTap: Entered if-let - toggleNode isExpanded: \(toggleNode.isExpanded)")  // Will print false, enters else
+            print("handleTap: Entered if-let - toggleNode isExpanded: \(toggleNode.isExpanded)")
+
             if toggleNode.isExpanded {
-                print("handleTap: Running expand block")
-                for childID in children {
-                                    guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
-                                    var child = nodes[childIndex]
-                                    let offsetX = CGFloat.random(in: -Constants.App.nodeModelRadius * 3 ... Constants.App.nodeModelRadius * 3)
-                                    let offsetY = CGFloat.random(in: Constants.App.nodeModelRadius * 2 ... Constants.App.nodeModelRadius * 4)
-                                    child.position = toggleNode.position + CGPoint(x: offsetX, y: offsetY)
-                                    child.velocity = .zero
-                                    nodes[childIndex] = child
-                                }
-                                physicsEngine.temporaryDampingBoost(steps: Constants.Physics.maxSimulationSteps / 10)
-            } else {
-                print("handleTap: Running collapse block")
+                // Expand → gently push children outward in a circle (prevents overlap)
                 for childID in children {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
-                    var child = nodes[childIndex]
-                    child.position = toggleNode.position
-                    child.velocity = .zero
-                    nodes[childIndex] = child
+                    var child = nodes[childIndex].unwrapped
+                    
+                    let angle = CGFloat.random(in: 0..<CGFloat.pi * 2)
+                    let distance = Constants.App.nodeModelRadius * 4
+                    let offset = CGPoint(x: cos(angle) * distance, y: sin(angle) * distance)
+                    
+                    child.position = toggleNode.position + offset
+                    nodes[childIndex] = AnyNode(child)
                 }
+            } else {
+                // Collapse → do nothing at all to positions
+                // Hidden nodes remain fully active in physics → perfect hierarchical layout
             }
+        
         } else {
             print("handleTap: Cast to ToggleNode failed on updatedNode")
         }
@@ -131,7 +129,7 @@ extension GraphModel {
     }
     
     public var centroid: CGPoint? {
-        GraphEditorShared.centroid(of: visibleNodes())
+        GraphEditorShared.centroid(of: visibleNodes)
     }
     
     public func sortChildren<ComparableValue: Comparable>(of nodeID: NodeID, by keyPath: KeyPath<any NodeProtocol, ComparableValue>) async {
