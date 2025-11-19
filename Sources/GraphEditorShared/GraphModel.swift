@@ -108,20 +108,18 @@ import WatchKit
         }
         #endif
         
+        // Fixed transitive closure – always explore children of collapsed ToggleNodes
         while !toHide.isEmpty {
             let current = toHide.removeLast()
+            guard hidden.insert(current).inserted else { continue }  // skip if already hidden
+            
+            // Add ALL hierarchy children – even if they were already processed in a previous collapse
+            let grandchildren = adj[current] ?? []
+            toHide.append(contentsOf: grandchildren)
+            
             #if DEBUG
-            print("Processing toHide: \(current.uuidString.prefix(8))")
+            print("  Added grandchildren: \(grandchildren.map { $0.uuidString.prefix(8) })")
             #endif
-            if hidden.insert(current).inserted {
-                let descendants = adj[current] ?? []
-                #if DEBUG
-                if !descendants.isEmpty {
-                    print("  Adding descendants: \(descendants.map { $0.uuidString.prefix(8) })")
-                }
-                #endif
-                toHide.append(contentsOf: descendants)
-            }
         }
         
         #if DEBUG

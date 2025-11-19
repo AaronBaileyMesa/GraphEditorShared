@@ -159,6 +159,7 @@ extension GraphModel {
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.target == id }
         objectWillChange.send()
+        invalidateHiddenNodesCache()
         await resumeSimulation()
     }
 
@@ -190,6 +191,7 @@ extension GraphModel {
             edges.removeAll { $0.from == id || $0.target == id }
         }
         objectWillChange.send()
+        invalidateHiddenNodesCache()
         await resumeSimulation()
     }
 
