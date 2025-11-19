@@ -199,4 +199,9 @@ extension GraphModel {
         }
         objectWillChange.send()
     }
+    
+    public func toggleNode(with id: NodeID?) -> ToggleNode? {
+        guard let id else { return nil }
+        return nodes.first(where: { $0.id == id })?.unwrapped as? ToggleNode
+    }
 }

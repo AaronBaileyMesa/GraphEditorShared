@@ -217,32 +217,27 @@ import WatchKit
     @MainActor
     func visibleNodesAndEdges() -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let hidden = hiddenNodeIDs
-        
-        // SAFE WAY #1: Use a normal for-loop instead of map
-        var visibleNodeIDs = Set<NodeID>()
-        for node in nodes {
-            if !hidden.contains(node.id) {
-                visibleNodeIDs.insert(node.id)
-            }
-        }
-        
-        // SAFE WAY #2: Build visible nodes manually
+
+        // Build the set of IDs that are actually visible
+        let visibleNodeIDs = Set(nodes.lazy
+            .filter { !hidden.contains($0.id) }
+            .map { $0.id })
+
+        // Visible nodes – using for…where (preferred by SwiftLint)
         var visibleNodes: [any NodeProtocol] = []
         visibleNodes.reserveCapacity(nodes.count)
-        
-        for node in nodes {
-            if visibleNodeIDs.contains(node.id) {
-                visibleNodes.append(node.unwrapped)  // unwrapped is @MainActor safe
-            }
+
+        for node in nodes where visibleNodeIDs.contains(node.id) {
+            visibleNodes.append(node.unwrapped)   // unwrapped is @MainActor-safe
         }
-        
-        // Edges are value types → safe
+
+        // Visible hierarchy edges only (value types → safe)
         let visibleEdges = edges.filter { edge in
             edge.type == .hierarchy &&
             visibleNodeIDs.contains(edge.from) &&
             visibleNodeIDs.contains(edge.target)
         }
-        
+
         return (visibleNodes, visibleEdges)
     }
         
@@ -288,5 +283,5 @@ import WatchKit
 
 extension GraphModel {
     public var visibleNodes: [any NodeProtocol] { visibleNodesAndEdges().nodes }
-    public var visibleEdges: [GraphEdge]       { visibleNodesAndEdges().edges }
+    public var visibleEdges: [GraphEdge] { visibleNodesAndEdges().edges }
 }

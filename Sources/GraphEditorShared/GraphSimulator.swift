@@ -123,7 +123,7 @@ actor GraphSimulator {
     /// Call this whenever the set of visible nodes changes significantly
     /// (e.g. ToggleNode collapse/expand, hierarchy edge add/delete, undo/redo, load graph)
     public func resetVelocityHistory() async {
-        await self.clearVelocityHistory()
+        self.clearVelocityHistory()
     }
 
     private func clearVelocityHistory() {
@@ -212,7 +212,7 @@ actor GraphSimulator {
         let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
         
         // Write back only the updated visible nodes
-        let allNodes = await getNodes()
+        _ = await getNodes()
         var nodeMap: [NodeID: any NodeProtocol] = Dictionary(
             uniqueKeysWithValues: (await getNodes()).map { ($0.id, $0) }
         )
