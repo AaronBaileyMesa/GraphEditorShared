@@ -34,14 +34,17 @@ extension GraphModel {
             edges = state.edges
             nextNodeLabel = state.nextLabel
             objectWillChange.send()
+            
+            zeroAllVelocities()            // ← ADD THIS LINE
+            invalidateHiddenNodesCache()   // ← (you already have this, keep it)
+            
             if resume {
                 await resumeSimulation()
             }
-            invalidateHiddenNodesCache()
             await simulator.resetVelocityHistory()
         }
     }
-    
+
     public func redo(resume: Bool = true) async {
         if let state = redoStack.popLast() {
             undoStack.append(currentState())
@@ -49,10 +52,13 @@ extension GraphModel {
             edges = state.edges
             nextNodeLabel = state.nextLabel
             objectWillChange.send()
+            
+            zeroAllVelocities()            // ← ADD THIS LINE
+            invalidateHiddenNodesCache()
+            
             if resume {
                 await resumeSimulation()
             }
-            invalidateHiddenNodesCache()
             await simulator.resetVelocityHistory()
         }
     }
