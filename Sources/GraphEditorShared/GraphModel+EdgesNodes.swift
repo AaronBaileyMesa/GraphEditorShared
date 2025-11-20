@@ -162,6 +162,36 @@ extension GraphModel {
         invalidateHiddenNodesCache()
         await resumeSimulation()
     }
+    
+    // MARK: - Node Movement (drag & drop)
+
+    @MainActor
+    public func moveNode(withID nodeID: NodeID, to newPosition: CGPoint) async {
+        Self.logger.debug("Moving node \(nodeID.uuidString.prefix(8)) → (\(newPosition.x), \(newPosition.y))")
+        
+        pushUndo()  // Always snapshot before mutation!
+        
+        guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
+            Self.logger.warning("moveNode: Node not found – \(nodeID.uuidString.prefix(8))")
+            return
+        }
+        
+        var node = nodes[index].unwrapped
+        node.position = newPosition
+        node.velocity = .zero  // Stop any momentum – feels snappier
+        
+        nodes[index] = AnyNode(node)
+        
+        objectWillChange.send()
+        invalidateHiddenNodesCache()          // In case children are hidden/shown
+        await simulator.resetVelocityHistory() // Prevent old velocity from re-accelerating
+        await resumeSimulation()
+    }
+
+    @MainActor
+    public func moveNode(_ node: any NodeProtocol, to newPosition: CGPoint) async {
+        await moveNode(withID: node.id, to: newPosition)
+    }
 
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor

@@ -88,3 +88,27 @@ public struct CoordinateTransformer {
         return CGPoint(x: modelPos.x.rounded(to: 3), y: modelPos.y.rounded(to: 3))
     }
 }
+
+// MARK: - RenderContext Convenience Overload
+extension CoordinateTransformer {
+    public static func modelToScreen(_ modelPos: CGPoint, _ renderContext: RenderContext) -> CGPoint {
+        modelToScreen(
+            modelPos,
+            effectiveCentroid: renderContext.effectiveCentroid,
+            zoomScale: renderContext.zoomScale,
+            offset: renderContext.offset,
+            viewSize: renderContext.viewSize
+        )
+    }
+    
+    // Optional: also add screenToModel overload if you ever need it
+    public static func screenToModel(_ screenPos: CGPoint, _ renderContext: RenderContext) -> CGPoint {
+        screenToModel(
+            screenPos,
+            effectiveCentroid: renderContext.effectiveCentroid,
+            zoomScale: renderContext.zoomScale,
+            offset: renderContext.offset,
+            viewSize: renderContext.viewSize
+        )
+    }
+}

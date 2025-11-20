@@ -84,56 +84,7 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         AnyView(Circle().fill(fillColor).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))  // Simple default
     }
-    
-    @available(iOS 16.0, *)
-    @available(watchOS 9.0, *)
-    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        let scaledRadius = radius * zoomScale
-        let borderWidth: CGFloat = isSelected ? max(3.0, 4 * zoomScale) : 0
-        let borderRadius = scaledRadius + borderWidth / 2
-        
-        // Draw border if selected
-        if borderWidth > 0 {
-            let borderPath = Path(ellipseIn: CGRect(x: position.x - borderRadius, y: position.y - borderRadius, width: 2 * borderRadius, height: 2 * borderRadius))
-            context.stroke(borderPath, with: .color(.yellow), lineWidth: borderWidth)
-        }
-        
-        // Draw node circle
-        let innerPath = Path(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: 2 * scaledRadius, height: 2 * scaledRadius))
-        context.fill(innerPath, with: .color(fillColor))
-        
-        // Draw +/- icon centered in node
-        let iconText = isExpanded ? "-" : "+"
-        let iconFontSize = max(8.0, 12.0 * zoomScale)
-        let iconResolved = context.resolve(Text(iconText).foregroundColor(.white).font(.system(size: iconFontSize, weight: .bold)))
-        context.draw(iconResolved, at: position, anchor: .center)
-        
-        // Draw label above node
-        let labelFontSize = max(8.0, 12.0 * zoomScale)
-        let labelResolved = context.resolve(Text("\(label)").foregroundColor(.white).font(.system(size: labelFontSize)))
-        let labelPosition = CGPoint(x: position.x, y: position.y - (scaledRadius + 10 * zoomScale))
-        context.draw(labelResolved, at: labelPosition, anchor: .center)
-        
-        // NEW: Draw contents list vertically below node
-        if !contents.isEmpty && zoomScale > 0.5 {  // Only if zoomed
-            var yOffset = scaledRadius + 5 * zoomScale  // Start below node
-            let contentFontSize = max(6.0, 8.0 * zoomScale)
-            let maxItems = 3  // Limit for watchOS
-            for content in contents.prefix(maxItems) {
-                let contentText = Text(content.displayText).font(.system(size: contentFontSize)).foregroundColor(.gray)
-                let resolved = context.resolve(contentText)
-                let contentPosition = CGPoint(x: position.x, y: position.y + yOffset)
-                context.draw(resolved, at: contentPosition, anchor: .center)
-                yOffset += 10 * zoomScale  // Line spacing
-            }
-            if contents.count > maxItems {
-                let moreText = Text("+\(contents.count - maxItems) more").font(.system(size: contentFontSize * 0.75)).foregroundColor(.gray)
-                let resolved = context.resolve(moreText)
-                context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
-            }
-        }
-    }
-    
+  
     public mutating func bulkCollapse() {
         isExpanded = false
         // Recursion handled in GraphModel for full graph access
@@ -184,6 +135,14 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         lhs.contents == rhs.contents &&
         lhs.children == rhs.children &&  // UPDATED: Include children
         lhs.childOrder == rhs.childOrder  // UPDATED: Include childOrder
+    }
+    
+    public var displayRadius: CGFloat {
+        // Match whatever logic you use in NodeView to size the circle
+        let base: CGFloat = 40
+        let contentBonus = CGFloat(contents.reduce(0) { $0 + $1.displayText.count }) * 3.5
+        let labelBonus = CGFloat(String(label).count) * 8
+        return max(base + contentBonus + labelBonus, 50)  // tweak until it matches your visuals
     }
 }
 

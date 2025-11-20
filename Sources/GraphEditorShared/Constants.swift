@@ -36,6 +36,6 @@ public enum Constants {
         public static let contentPadding: CGFloat = 50.0  // Padding for graph bounds
         public static let maxZoom: CGFloat = 8.0  // Maximum zoom level
     }
-    
-    // Add more enums as needed (e.g., UI, Testing)
 }
+
+

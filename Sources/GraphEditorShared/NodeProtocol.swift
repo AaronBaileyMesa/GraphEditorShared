@@ -95,6 +95,7 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     
     /// Radius for rendering and hit detection.
     var radius: CGFloat { get set }
+    var displayRadius: CGFloat { get }
     
     /// Expansion state for hierarchical nodes (e.g., true shows children).
     var isExpanded: Bool { get set }
@@ -138,16 +139,6 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     /// Determines if child nodes (via outgoing edges) should be hidden.
     /// - Returns: True if children should be hidden (e.g., collapsed toggle).
     func shouldHideChildren() -> Bool
-    
-    /// Draws the node in a GraphicsContext for efficient Canvas rendering.
-    /// - Parameters:
-    ///   - context: The GraphicsContext to draw into.
-    ///   - position: Center position for drawing.
-    ///   - zoomScale: Current zoom level.
-    ///   - isSelected: Whether to draw selection highlights.
-    @available(iOS 15.0, *)
-    @available(watchOS 9.0, *)
-    func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool)
 }
 
 extension NodeProtocol {
@@ -158,17 +149,17 @@ extension NodeProtocol {
     public var mass: CGFloat { 1.0 }  // Default mass
     
     public func shouldHideChildren() -> Bool {
-            if let toggle = self as? ToggleNode {
-                return !toggle.isExpanded
-            } else {
-                return false  // Critical: Non-ToggleNodes (e.g., Node) should NOT hide children
-            }
+        if let toggle = self as? ToggleNode {
+            return !toggle.isExpanded
+        } else {
+            return false  // Critical: Non-ToggleNodes (e.g., Node) should NOT hide children
         }
+    }
     
     public mutating func collapse() {
         isExpanded = false
     }
-
+    
     public mutating func bulkCollapse() {
         collapse()  // Full recursion handled in GraphModel
     }
@@ -195,162 +186,114 @@ extension NodeProtocol {
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         AnyView(Circle().fill(fillColor).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))
     }
+
+}
+
+@available(iOS 16.0, *)
+@available(watchOS 9.0, *)
+// MARK: - AnyNode – Type-Erased Wrapper (FINAL VERSION)
+
+public struct AnyNode: NodeProtocol {
+    private var base: any NodeProtocol
+    
+    // Hierarchical state we must preserve across type erasure
+    public var isExpanded: Bool
+    public var children: [UUID]  // Changed to [UUID] to match protocol
+    public var childOrder: [UUID]  // Assuming NodeID == UUID; adjust if needed
+    
+    // MARK: Forwarded NodeProtocol requirements
+    public var id: NodeID { base.id }
+    public var label: Int { base.label }
+    public var position: CGPoint {
+        get { base.position }
+        set { base.position = newValue }
+    }
+    public var velocity: CGPoint {
+        get { base.velocity }
+        set { base.velocity = newValue }
+    }
+    public var radius: CGFloat {
+        get { base.radius }
+        set { base.radius = newValue }  // FIXED: Added missing setter to conform to protocol
+    }
+    public var contents: [NodeContent] {
+        get { base.contents }
+        set { base.contents = newValue }
+    }
+    public var fillColor: Color { base.fillColor }
+    public var unwrapped: any NodeProtocol { base }
+    
+    // MARK: THE CRITICAL INIT – This fixes the "can't expand back" bug
+    public init(_ base: any NodeProtocol) {
+        self.base = base
+        
+        if let toggle = base as? ToggleNode {
+            self.isExpanded = toggle.isExpanded
+            self.children = toggle.children
+            self.childOrder = toggle.childOrder
+        } else if let hierarchical = base as? any HierarchicalNode {
+            self.isExpanded = hierarchical.isExpanded
+            self.children = hierarchical.children
+            self.childOrder = []
+        } else {
+            self.isExpanded = true
+            self.children = []
+            self.childOrder = []
+        }
+    }
+    
+    // MARK: Required NodeProtocol methods (fixed & clean)
+    
+    public func with(position: CGPoint, velocity: CGPoint) -> AnyNode {
+        AnyNode(base.with(position: position, velocity: velocity))
+    }
+    
+    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> AnyNode {
+        AnyNode(base.with(position: position, velocity: velocity, contents: contents))
+    }
+    
+    public func handlingTap() -> AnyNode {
+        AnyNode(base.handlingTap()) // ← now preserves isExpanded perfectly
+    }
+    
+    public func shouldHideChildren() -> Bool {
+        base.shouldHideChildren()
+    }
     
     @available(iOS 15.0, *)
     @available(watchOS 9.0, *)
-    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-        let scaledRadius = radius * zoomScale
-        let path = CGPath(ellipseIn: CGRect(x: position.x - scaledRadius, y: position.y - scaledRadius, width: scaledRadius * 2, height: scaledRadius * 2), transform: nil)
-        context.fill(Path(path), with: .color(fillColor))
-        context.stroke(Path(path), with: .color(isSelected ? Color.green : Color.white), lineWidth: 2 * zoomScale)
-        
-        let textKey = "\(label)_\(zoomScale)"
-        var labelResolved: GraphicsContext.ResolvedText?
-        nodeCacheQueue.sync {
-            if let cached = nodeTextCache[textKey] {
-                labelResolved = cached
-            } else {
-                let text = Text("\(label)").font(.system(size: 12 * zoomScale)).foregroundColor(.white)
-                let resolved = context.resolve(text)
-                nodeTextCache[textKey] = resolved
-                insertionOrder.append(textKey)
-                if nodeTextCache.count > maxCacheSize {
-                    let oldestKey = insertionOrder.removeFirst()
-                    nodeTextCache.removeValue(forKey: oldestKey)
-                }
-                labelResolved = resolved
-            }
-        }
-        context.draw(labelResolved!, at: position, anchor: .center)
-        
-        // NEW: Draw contents list vertically below node
-        if !contents.isEmpty && zoomScale > 0.5 {  // Only if zoomed
-            var yOffset = scaledRadius + 5 * zoomScale  // Start below node
-            let contentFontSize = max(6.0, 8.0 * zoomScale)
-            let maxItems = 3  // Limit for watchOS
-            for content in contents.prefix(maxItems) {
-                let contentText = Text(content.displayText).font(.system(size: contentFontSize)).foregroundColor(.gray)
-                let resolved = context.resolve(contentText)
-                let contentPosition = CGPoint(x: position.x, y: position.y + yOffset)
-                context.draw(resolved, at: contentPosition, anchor: .center)
-                                yOffset += 10 * zoomScale  // Line spacing
-                            }
-                            if contents.count > maxItems {
-                                let moreText = Text("+\(contents.count - maxItems) more").font(.system(size: contentFontSize * 0.75)).foregroundColor(.gray)
-                                let resolved = context.resolve(moreText)
-                                context.draw(resolved, at: CGPoint(x: position.x, y: position.y + yOffset), anchor: .center)
-                            }
-                        }
-                    }
-                }
+    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
+        base.renderView(zoomScale: zoomScale, isSelected: isSelected)
+    }
+    
+    // MARK: Codable
+    public init(from decoder: Decoder) throws {
+        let wrapper = try NodeWrapper(from: decoder)
+        self = AnyNode(wrapper.value)
+        self.velocity = .zero  // instead of decoding whatever garbage was saved
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        let wrapper: NodeWrapper = {
+            if let node = base as? Node { return .node(node) }
+            if let toggle = base as? ToggleNode { return .toggleNode(toggle) }
+            fatalError("Unsupported node type for encoding")
+        }()
+        try wrapper.encode(to: encoder)
+    }
+    
+    // MARK: Equatable
+    public static func == (lhs: AnyNode, rhs: AnyNode) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.position == rhs.position &&
+        lhs.velocity == rhs.velocity &&
+        lhs.isExpanded == rhs.isExpanded &&
+        lhs.contents == rhs.contents &&
+        lhs.children == rhs.children &&
+        lhs.childOrder == rhs.childOrder
+    }
+}
 
-                @available(iOS 16.0, *)
-                @available(watchOS 9.0, *)
-                // MARK: - AnyNode – Type-Erased Wrapper (FINAL VERSION)
-
-                public struct AnyNode: NodeProtocol {
-                    private var base: any NodeProtocol
-                    
-                    // Hierarchical state we must preserve across type erasure
-                    public var isExpanded: Bool
-                    public var children: [UUID]  // Changed to [UUID] to match protocol
-                    public var childOrder: [UUID]  // Assuming NodeID == UUID; adjust if needed
-                    
-                    // MARK: Forwarded NodeProtocol requirements
-                    public var id: NodeID { base.id }
-                    public var label: Int { base.label }
-                    public var position: CGPoint {
-                        get { base.position }
-                        set { base.position = newValue }
-                    }
-                    public var velocity: CGPoint {
-                        get { base.velocity }
-                        set { base.velocity = newValue }
-                    }
-                    public var radius: CGFloat {
-                        get { base.radius }
-                        set { base.radius = newValue }  // FIXED: Added missing setter to conform to protocol
-                    }
-                    public var contents: [NodeContent] {
-                        get { base.contents }
-                        set { base.contents = newValue }
-                    }
-                    public var fillColor: Color { base.fillColor }
-                    public var unwrapped: any NodeProtocol { base }
-                    
-                    // MARK: THE CRITICAL INIT – This fixes the "can't expand back" bug
-                    public init(_ base: any NodeProtocol) {
-                        self.base = base
-                        
-                        if let toggle = base as? ToggleNode {
-                            self.isExpanded = toggle.isExpanded
-                            self.children = toggle.children
-                            self.childOrder = toggle.childOrder
-                        } else if let hierarchical = base as? any HierarchicalNode {
-                            self.isExpanded = hierarchical.isExpanded
-                            self.children = hierarchical.children
-                            self.childOrder = []
-                        } else {
-                            self.isExpanded = true
-                            self.children = []
-                            self.childOrder = []
-                        }
-                    }
-                    
-                    // MARK: Required NodeProtocol methods (fixed & clean)
-                    
-                    public func with(position: CGPoint, velocity: CGPoint) -> AnyNode {
-                        AnyNode(base.with(position: position, velocity: velocity))
-                    }
-                    
-                    public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> AnyNode {
-                        AnyNode(base.with(position: position, velocity: velocity, contents: contents))
-                    }
-                    
-                    public func handlingTap() -> AnyNode {
-                        AnyNode(base.handlingTap()) // ← now preserves isExpanded perfectly
-                    }
-                    
-                    public func shouldHideChildren() -> Bool {
-                        base.shouldHideChildren()
-                    }
-                    
-                    @available(iOS 15.0, *)
-                    @available(watchOS 9.0, *)
-                    public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-                        base.renderView(zoomScale: zoomScale, isSelected: isSelected)
-                    }
-                    
-                    @available(iOS 15.0, *)
-                    @available(watchOS 9.0, *)
-                    public func draw(in context: GraphicsContext, at position: CGPoint, zoomScale: CGFloat, isSelected: Bool) {
-                        base.draw(in: context, at: position, zoomScale: zoomScale, isSelected: isSelected)
-                    }
-                    
-                    // MARK: Codable
-                    public init(from decoder: Decoder) throws {
-                        let wrapper = try NodeWrapper(from: decoder)
-                        self = AnyNode(wrapper.value)
-                        self.velocity = .zero  // instead of decoding whatever garbage was saved
-                    }
-                    
-                    public func encode(to encoder: Encoder) throws {
-                        let wrapper: NodeWrapper = {
-                            if let node = base as? Node { return .node(node) }
-                            if let toggle = base as? ToggleNode { return .toggleNode(toggle) }
-                            fatalError("Unsupported node type for encoding")
-                        }()
-                        try wrapper.encode(to: encoder)
-                    }
-                    
-                    // MARK: Equatable
-                    public static func == (lhs: AnyNode, rhs: AnyNode) -> Bool {
-                        lhs.id == rhs.id &&
-                        lhs.position == rhs.position &&
-                        lhs.velocity == rhs.velocity &&
-                        lhs.isExpanded == rhs.isExpanded &&
-                        lhs.contents == rhs.contents &&
-                        lhs.children == rhs.children &&
-                        lhs.childOrder == rhs.childOrder
-                    }
-                }
+extension NodeProtocol {
+    public var displayRadius: CGFloat { radius } 
+}
