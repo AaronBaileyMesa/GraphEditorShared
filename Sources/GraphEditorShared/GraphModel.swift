@@ -26,6 +26,18 @@ import WatchKit
     @Published public var mode: GraphMode = .network
     @Published public var hierarchyEdgeColor: Color = .blue
     @Published public var associationEdgeColor: Color = .white
+    // In GraphModel.swift
+    
+    private var ephemeralControlNodes: [ControlNode] = []          // only these
+    private var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
+    
+    public var allNodes: [any NodeProtocol] {
+        nodes + ephemeralControlNodes
+    }
+    
+    public var allEdges: [GraphEdge] {
+        edges + ephemeralControlEdges
+    }
     
     public let changesPublisher = PassthroughSubject<Void, Never>()
     
@@ -73,17 +85,17 @@ import WatchKit
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
         
-        #if DEBUG
+#if DEBUG
         print("=== Computing hiddenNodeIDs ===")
-        #endif
+#endif
         
         for wrapper in nodes {
             guard let toggleNode = wrapper.unwrapped as? ToggleNode, !toggleNode.isExpanded else {
-                #if DEBUG
+#if DEBUG
                 if let toggle = wrapper.unwrapped as? ToggleNode {
                     print("ToggleNode.shouldHideChildren for label \(toggle.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
                 }
-                #endif
+#endif
                 continue
             }
             
@@ -91,22 +103,22 @@ import WatchKit
                 .filter { $0.from == wrapper.id && $0.type == .hierarchy }
                 .map { $0.target }
             
-            #if DEBUG
+#if DEBUG
             print("ToggleNode.shouldHideChildren for label \(toggleNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
             print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
-            #endif
+#endif
             
             toHide.append(contentsOf: children)
         }
         
         let adj = buildAdjacencyList(for: .hierarchy)
         
-        #if DEBUG
+#if DEBUG
         print("Adjacency list:")
         for (from, tos) in adj.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
             print("  \(from.uuidString.prefix(8)): \(tos.map { $0.uuidString.prefix(8) }.joined(separator: ", "))")
         }
-        #endif
+#endif
         
         // Fixed transitive closure – always explore children of collapsed ToggleNodes
         while !toHide.isEmpty {
@@ -117,14 +129,14 @@ import WatchKit
             let grandchildren = adj[current] ?? []
             toHide.append(contentsOf: grandchildren)
             
-            #if DEBUG
+#if DEBUG
             print("  Added grandchildren: \(grandchildren.map { $0.uuidString.prefix(8) })")
-            #endif
+#endif
         }
         
-        #if DEBUG
+#if DEBUG
         print("Final hiddenNodeIDs: \(hidden.sorted(by: { $0.uuidString < $1.uuidString }))")
-        #endif
+#endif
         
         return hidden
     }
@@ -211,34 +223,33 @@ import WatchKit
     // MARK: - Visible Nodes & Edges (now also cached indirectly via hiddenNodeIDs)
     
     // In GraphModel.swift (or wherever this extension lives)
-
+    
     @MainActor
     func visibleNodesAndEdges() -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let hidden = hiddenNodeIDs
-
+        
         // Build the set of IDs that are actually visible
         let visibleNodeIDs = Set(nodes.lazy
             .filter { !hidden.contains($0.id) }
             .map { $0.id })
-
-        // Visible nodes – using for…where (preferred by SwiftLint)
+        
         var visibleNodes: [any NodeProtocol] = []
         visibleNodes.reserveCapacity(nodes.count)
-
+        
         for node in nodes where visibleNodeIDs.contains(node.id) {
             visibleNodes.append(node.unwrapped)   // unwrapped is @MainActor-safe
         }
-
+        
         // Visible hierarchy edges only (value types → safe)
         let visibleEdges = edges.filter { edge in
             edge.type == .hierarchy &&
             visibleNodeIDs.contains(edge.from) &&
             visibleNodeIDs.contains(edge.target)
         }
-
+        
         return (visibleNodes, visibleEdges)
     }
-        
+    
     // MARK: - Merge physics results back into full model
     
     @MainActor
@@ -276,6 +287,47 @@ import WatchKit
         // Important: notify SwiftUI + simulator that nodes changed
         objectWillChange.send()
         invalidateHiddenNodesCache()
+    }
+    
+    // MARK: - Control Node Cluster (visual parenting, no physics springs)
+
+    @MainActor
+    public func updateControlNodes(for selectedNodeID: NodeID?) {
+        ephemeralControlNodes.removeAll()
+        ephemeralControlEdges.removeAll()          // we don’t use these anymore, but keep clean
+        
+        guard let selectedID = selectedNodeID,
+              let ownerWrapper = nodes.first(where: { $0.id == selectedID }),
+              let ownerNode = ownerWrapper.unwrapped as? any NodeProtocol else {
+            return
+        }
+        
+        let isToggleNode = ownerWrapper.unwrapped is ToggleNode
+        
+        var kinds: [ControlKind] = [.addNode, .addToggleNode, .delete]
+        if isToggleNode {
+            kinds.append(.toggle)
+        }
+        
+        let clusterRadius: CGFloat = ownerNode.radius * 1.8
+        let controlRadius: CGFloat = Constants.App.nodeModelRadius * 0.75
+        
+        let angleStep = CGFloat.pi * 2 / CGFloat(kinds.count)
+        
+        for (index, kind) in kinds.enumerated() {
+            let angle = CGFloat(index) * angleStep - .pi / 2        // start at top (12 o’clock)
+            let offset = CGPoint(x: cos(angle) * clusterRadius,
+                                 y: sin(angle) * clusterRadius)
+            
+            var control = ControlNode(
+                position: ownerNode.position + offset,
+                ownerID: selectedID,
+                kind: kind
+            )
+            control.radius = controlRadius
+            
+            ephemeralControlNodes.append(control)
+        }
     }
 }
 
