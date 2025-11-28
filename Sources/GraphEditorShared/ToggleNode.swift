@@ -11,7 +11,7 @@ import os
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Updated: Added HierarchicalNode
+public struct ToggleNode: NodeProtocol, Equatable {  // Updated: Added HierarchicalNode
     public let id: NodeID
     public let label: Int
     public var position: CGPoint

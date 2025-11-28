@@ -268,18 +268,41 @@ public struct AnyNode: NodeProtocol {
     
     // MARK: Codable
     public init(from decoder: Decoder) throws {
-        let wrapper = try NodeWrapper(from: decoder)
-        self = AnyNode(wrapper.value)
-        self.velocity = .zero  // instead of decoding whatever garbage was saved
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        
+        switch type {
+        case "node":
+            let node = try container.decode(Node.self, forKey: .data)
+            self.init(node)
+        case "toggleNode":
+            let toggleNode = try container.decode(ToggleNode.self, forKey: .data)
+            self.init(toggleNode)
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .type, in: container,
+                debugDescription: "Unknown node type: \(type)")
+        }
+        
+        // Always reset velocity on load (physics state is transient)
+        self.velocity = .zero
     }
-    
+
     public func encode(to encoder: Encoder) throws {
-        let wrapper: NodeWrapper = {
-            if let node = base as? Node { return .node(node) }
-            if let toggle = base as? ToggleNode { return .toggleNode(toggle) }
-            fatalError("Unsupported node type for encoding")
-        }()
-        try wrapper.encode(to: encoder)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        if let node = base as? Node {
+            try container.encode("node", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let toggleNode = base as? ToggleNode {
+            try container.encode("toggleNode", forKey: .type)
+            try container.encode(toggleNode, forKey: .data)
+        } else {
+            throw EncodingError.invalidValue(base, .init(codingPath: [], debugDescription: "Unknown node type"))
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, data
     }
     
     // MARK: Equatable

@@ -28,8 +28,12 @@ import WatchKit
     @Published public var associationEdgeColor: Color = .white
     // In GraphModel.swift
     
-    private var ephemeralControlNodes: [ControlNode] = []          // only these
-    private var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
+    var ephemeralControlNodes: [ControlNode] = []          // only these
+    var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
+    public var uiConfig: [NodeID: [ControlConfig]] = [:]
+    public var globalUiConfig: [ControlConfig] = []
+    public var isConfigMode: Bool = false
+    var cancellables: Set<AnyCancellable> = []
     
     public var allNodes: [any NodeProtocol] {
         nodes + ephemeralControlNodes
@@ -294,42 +298,34 @@ import WatchKit
     @MainActor
     public func updateControlNodes(for selectedNodeID: NodeID?) {
         ephemeralControlNodes.removeAll()
-        ephemeralControlEdges.removeAll()          // we don’t use these anymore, but keep clean
+        ephemeralControlEdges.removeAll()
         
         guard let selectedID = selectedNodeID,
-              let ownerWrapper = nodes.first(where: { $0.id == selectedID }),
-              let ownerNode = ownerWrapper.unwrapped as? any NodeProtocol else {
-            return
+              let ownerNode = nodes.first(where: { $0.id == selectedID })?.unwrapped
+        else { return }
+        
+        let isToggle = ownerNode is ToggleNode
+        
+        var kinds: [ControlKind] = [.addChild, .deleteNode]
+        if isToggle {
+            kinds.append(.toggleExpansion)
         }
         
-        let isToggleNode = ownerWrapper.unwrapped is ToggleNode
-        
-        var kinds: [ControlKind] = [.addNode, .addToggleNode, .delete]
-        if isToggleNode {
-            kinds.append(.toggle)
-        }
-        
-        let clusterRadius: CGFloat = ownerNode.radius * 1.8
-        let controlRadius: CGFloat = Constants.App.nodeModelRadius * 0.75
-        
-        let angleStep = CGFloat.pi * 2 / CGFloat(kinds.count)
+        let clusterRadius = ownerNode.radius * 2.2
         
         for (index, kind) in kinds.enumerated() {
-            let angle = CGFloat(index) * angleStep - .pi / 2        // start at top (12 o’clock)
-            let offset = CGPoint(x: cos(angle) * clusterRadius,
-                                 y: sin(angle) * clusterRadius)
+            let angle = CGFloat(index) * .pi * 2 / CGFloat(kinds.count) - .pi / 2
+            let offset = CGPoint(x: cos(angle), y: sin(angle)) * clusterRadius
             
-            var control = ControlNode(
+            let control = ControlNode(
                 position: ownerNode.position + offset,
                 ownerID: selectedID,
                 kind: kind
             )
-            control.radius = controlRadius
             
             ephemeralControlNodes.append(control)
         }
-    }
-}
+    }}
 
 extension GraphModel {
     public var visibleNodes: [any NodeProtocol] { visibleNodesAndEdges().nodes }

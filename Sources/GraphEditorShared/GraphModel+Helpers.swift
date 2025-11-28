@@ -132,6 +132,7 @@ extension GraphModel {
         GraphEditorShared.centroid(of: visibleNodes)
     }
     
+    
     public func sortChildren<ComparableValue: Comparable>(of nodeID: NodeID, by keyPath: KeyPath<any NodeProtocol, ComparableValue>) async {
         guard let index = nodes.firstIndex(where: { $0.id == nodeID }),
               let toggleNode = nodes[index].unwrapped as? ToggleNode else {

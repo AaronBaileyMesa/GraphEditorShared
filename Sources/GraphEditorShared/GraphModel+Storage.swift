@@ -45,69 +45,37 @@ extension GraphModel {
         } catch {
             // Fallback to defaults on error
             Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
-            self.nodes = []
-            self.edges = []
-            self.nextNodeLabel = 1
             throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
-        Self.logger.infoLog("loadFromStorage completed for \(name)")
-        invalidateHiddenNodesCache()
-        await simulator.resetVelocityHistory()
-        zeroAllVelocities()
     }
     
-    /// Saves the current graph state — **velocities are deliberately stripped**
     public func saveGraph() async throws {
-        // Strip velocity from every node before persisting
-        let cleanNodes = nodes.map { wrapper -> any NodeProtocol in
-            let node = wrapper.unwrapped
-            return node.with(position: node.position, velocity: .zero)
-        }
-        
-        let state = GraphState(
-            nodes: cleanNodes,
-            edges: edges,
-            hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
-            associationEdgeColor: CodableColor(associationEdgeColor)
-        )
-        
+        Self.logger.infoLog("saveGraph started for \(currentGraphName)")
         do {
+            let cleanNodes = nodes.map { AnyNode($0.unwrapped.with(position: $0.position, velocity: .zero)) }  // Map to AnyNode
+            let state = GraphState(
+                nodes: cleanNodes,
+                edges: edges,
+                hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
+                associationEdgeColor: CodableColor(associationEdgeColor),
+                uiConfig: uiConfig,
+                globalUiConfig: globalUiConfig
+            )
             try await storage.saveGraphState(state, for: currentGraphName)
-            Self.logger.infoLog("Saved \(cleanNodes.count) nodes and \(edges.count) edges for '\(currentGraphName)' (velocities stripped)")
+            Self.logger.infoLog("saveGraph completed for \(currentGraphName)")
         } catch {
-            Self.logger.errorLog("Save failed for '\(currentGraphName)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)
+            Self.logger.errorLog("saveGraph failed for \(currentGraphName)", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
     }
     
-    /// Loads the current graph state.
+    /// Loads the current graph (based on currentGraphName).
     public func loadGraph() async {
         do {
             try await loadFromStorage(for: currentGraphName)
-            await startSimulation()
-            Self.logger.infoLog("Loaded graph '\(self.currentGraphName)'")
         } catch {
-            Self.logger.errorLog("Load failed for \(self.currentGraphName)", error: error)
-            // Handle fallback or error UI in calling code
-        }
-        invalidateHiddenNodesCache()
-        await simulator.resetVelocityHistory()
-        zeroAllVelocities()
-    }
-    
-    /// Creates a new empty graph with the given name and switches to it.
-    public func createNewGraph(name: String) async throws {
-        do {
-            try await storage.createNewGraph(name: name)
-            currentGraphName = name
-            nodes = []
-            edges = []
-            nextNodeLabel = 1
-            await startSimulation()
-            Self.logger.infoLog("Created new graph '\(name)'")
-        } catch {
-            Self.logger.errorLog("Failed to create graph '\(name)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            Self.logger.errorLog("loadGraph failed for \(currentGraphName)", error: error)
+            // Handle fallback, e.g., create default graph
         }
     }
     
@@ -160,4 +128,51 @@ extension GraphModel {
             throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
     }
+    
+    public func createNewGraph(name: String) async throws {
+        // 1. Validate name
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw GraphError.invalidState("Graph name cannot be empty")
+        }
+        
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        
+        // 2. Check if already exists
+        let existingNames = try await storage.listGraphNames()
+        if existingNames.contains(trimmedName) {
+            throw GraphStorageError.graphExists(trimmedName)
+        }
+        
+        // 3. Create empty graph file (PersistenceManager.createNewGraph just checks existence)
+        try await storage.createNewGraph(name: trimmedName)
+        
+        // 4. Switch to the new (empty) graph
+        currentGraphName = trimmedName
+        
+        // 5. Clear current model state
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
+        hierarchyEdgeColor = .blue
+        associationEdgeColor = .white
+        
+        // 6. Clear undo/redo
+        undoStack.removeAll()
+        redoStack.removeAll()
+        
+        // 7. Save empty state (optional but recommended for consistency)
+        try await saveGraph()
+        
+        // 8. Invalidate caches and notify
+        invalidateHiddenNodesCache()
+        objectWillChange.send()
+        
+        Self.logger.infoLog("Created and switched to new empty graph: '\(trimmedName)'")
+    }
+    
+    public func switchToGraph(named name: String) async throws {
+        try await loadGraph(name: name)
+        currentGraphName = name
+    }
+    
 }

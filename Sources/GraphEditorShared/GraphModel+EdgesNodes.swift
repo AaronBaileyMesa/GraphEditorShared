@@ -75,16 +75,17 @@ extension GraphModel {
 
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
-    public func addNode(at position: CGPoint) async {
-        // CHANGED: Qualified; manual CGPoint formatting
-        Self.logger.debugLog("Adding node at position: x=\(position.x), y=\(position.y)")  // Added debug log
+    public func addNode(at position: CGPoint) async -> AnyNode {
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
-        let newNode = AnyNode(Node(label: newLabel, position: position))
-        nodes.append(newNode)
+        let node = Node(label: newLabel, position: position)
+        let anyNode = AnyNode(node)
+        nodes.append(anyNode)
         objectWillChange.send()
+        invalidateHiddenNodesCache()
         await resumeSimulation()
+        return anyNode
     }
 
     // ADDED: @MainActor to isolate this method to the main thread

@@ -9,52 +9,57 @@ import SwiftUI
 
 /// Ephemeral on-screen control that behaves exactly like a normal node
 /// (physics, rendering, hit-testing) but is never persisted.
-public struct ControlNode: NodeProtocol, Codable {
+public struct ControlNode: NodeProtocol {
     
     // MARK: Hierarchical state required by NodeProtocol / AnyNode
-    public var isExpanded: Bool = false               // never used
-    public var children: [NodeID] = []                 // never used
-    public var childOrder: [NodeID] = []               // never used
+    public var isExpanded: Bool = false
+    public var children: [NodeID] = []
+    public var childOrder: [NodeID] = []
     
     // MARK: Core NodeProtocol properties
-    public let id: NodeID = NodeID()
+    public private(set) var id: NodeID = NodeID()
     public var position: CGPoint
     public var velocity: CGPoint = .zero
     public var radius: CGFloat = Constants.App.nodeModelRadius * 0.75
     public var contents: [NodeContent] = []
     
+    // MARK: Display label (required by NodeProtocol)
+    public var label: Int { 0 } // Controls have no numbered label
+    
     // MARK: Control-specific
-    public let ownerID: NodeID
+    public let ownerID: NodeID?
     public let kind: ControlKind
+    public var isVisible: Bool = true
+    public var priority: Int = 0
     
-    // Never displayed as a number
-    public var label: Int { kind.rawValue }
+    // Optional action closure
+    public var action: (() -> Void)?
     
-    public var fillColor: Color {
-        switch kind {
-        case .addNode:          return .green
-        case .addToggleNode:    return .mint
-        case .delete:           return .red
-        case .toggle:           return .orange
-        }
-    }
-    
-    // MARK: Init
+    // MARK: Init – supports both global and per-node controls
     public init(
         position: CGPoint,
-        ownerID: NodeID,
-        kind: ControlKind
+        ownerID: NodeID?,
+        kind: ControlKind,
+        isVisible: Bool = true,
+        priority: Int = 0,
+        action: (() -> Void)? = nil
     ) {
         self.position = position
         self.ownerID = ownerID
         self.kind = kind
+        self.isVisible = isVisible
+        self.priority = priority
+        self.action = action
     }
     
-    // MARK: NodeProtocol required methods
+    // MARK: Required NodeProtocol methods
+    public var displayRadius: CGFloat { radius }
     
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        ControlNode(position: position, ownerID: ownerID, kind: kind)
-            .settingVelocity(velocity)
+        var copy = self
+        copy.position = position
+        copy.velocity = velocity
+        return copy
     }
     
     public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
@@ -63,61 +68,94 @@ public struct ControlNode: NodeProtocol, Codable {
         return copy
     }
     
+    public mutating func collapse() { }
+    public mutating func bulkCollapse() { }
+    
     public func handlingTap() -> Self {
-        self  // actual behaviour is handled in GraphModel
+        action?()
+        return self
     }
     
     public func shouldHideChildren() -> Bool { false }
     
+    public var fillColor: Color {
+        switch kind {
+        case .undo:             return .blue
+        case .redo:             return .purple
+        case .configMode:       return .gray
+        case .addChild:         return .green
+        case .deleteNode:       return .red
+        case .toggleExpansion:  return .orange
+        }
+    }
+    
+    public var mass: CGFloat { 1.0 }
+    
     @available(iOS 15.0, watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-        let iconName: String
-        switch kind {
-        case .addNode:          iconName = "plus.circle.fill"
-        case .addToggleNode:    iconName = "power.circle.fill"
-        case .delete:           iconName = "trash.circle.fill"
-        case .toggle:           iconName = "chevron.up.chevron.down.circle.fill"
+        let iconName: String = switch kind {
+        case .undo:             "arrow.uturn.backward"
+        case .redo:             "arrow.uturn.forward"
+        case .configMode:       "gearshape"
+        case .addChild:         "plus.circle.fill"
+        case .deleteNode:       "trash.circle.fill"
+        case .toggleExpansion:  "chevron.up.chevron.down"
         }
         
         return AnyView(
             ZStack {
                 Circle()
-                    .fill(fillColor)
+                    .fill(fillColor.opacity(0.9))
                     .frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale)
                 
                 Image(systemName: iconName)
-                    .font(.system(size: 18 * zoomScale, weight: .medium))
+                    .font(.system(size: 16 * zoomScale, weight: .medium))
                     .foregroundColor(.white)
             }
-            .opacity(isSelected ? 0.9 : 1.0)
+            .opacity(isSelected ? 1.0 : 0.8)
         )
     }
-    
-    // Helper to avoid duplicating all the properties in `with(position:velocity:)`
-    private func settingVelocity(_ velocity: CGPoint) -> Self {
-        var copy = self
-        copy.velocity = velocity
-        return copy
-    }
 }
 
-// MARK: - ControlKind
-
-public enum ControlKind: Int, Codable, CaseIterable {
-    case addNode
-    case addToggleNode
-    case delete
-    case toggle
-}
-
-// MARK: - Equatable (for AnyNode diffing, even though we filter them out)
-
+// MARK: - Equatable
 extension ControlNode: Equatable {
     public static func == (lhs: ControlNode, rhs: ControlNode) -> Bool {
         lhs.id == rhs.id &&
+        lhs.position == rhs.position &&
+        lhs.velocity == rhs.velocity &&
         lhs.kind == rhs.kind &&
         lhs.ownerID == rhs.ownerID &&
-        lhs.position == rhs.position &&
-        lhs.velocity == rhs.velocity
+        lhs.isVisible == rhs.isVisible
+    }
+}
+
+// MARK: - Codable (optional – only if you ever persist controls, which you don’t)
+extension ControlNode: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, position, velocity, radius, ownerID, kind, isVisible, priority
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(NodeID.self, forKey: .id)
+        self.position = try container.decode(CGPoint.self, forKey: .position)
+        self.velocity = try container.decode(CGPoint.self, forKey: .velocity)
+        self.radius = try container.decode(CGFloat.self, forKey: .radius)
+        self.ownerID = try container.decodeIfPresent(NodeID.self, forKey: .ownerID)
+        self.kind = try container.decode(ControlKind.self, forKey: .kind)
+        self.isVisible = try container.decode(Bool.self, forKey: .isVisible)
+        self.priority = try container.decode(Int.self, forKey: .priority)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(position, forKey: .position)
+        try container.encode(velocity, forKey: .velocity)
+        try container.encode(radius, forKey: .radius)
+        try container.encode(ownerID, forKey: .ownerID)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(isVisible, forKey: .isVisible)
+        try container.encode(priority, forKey: .priority)
     }
 }
