@@ -137,13 +137,6 @@ public struct ToggleNode: NodeProtocol, Equatable {  // Updated: Added Hierarchi
         lhs.childOrder == rhs.childOrder  // UPDATED: Include childOrder
     }
     
-    public var displayRadius: CGFloat {
-        // Match whatever logic you use in NodeView to size the circle
-        let base: CGFloat = 40
-        let contentBonus = CGFloat(contents.reduce(0) { $0 + $1.displayText.count }) * 3.5
-        let labelBonus = CGFloat(String(label).count) * 8
-        return max(base + contentBonus + labelBonus, 50)  // tweak until it matches your visuals
-    }
 }
 
 extension ToggleNode {

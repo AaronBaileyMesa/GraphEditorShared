@@ -11,48 +11,23 @@ import SwiftUI
 
 @available(iOS 16.0, watchOS 6.0, *)
 public struct ViewState: Codable {
-    public var offset: CGPoint
+    public var offset: CGSize
     public var zoomScale: CGFloat
     public var selectedNodeID: UUID?
     public var selectedEdgeID: UUID?
 
-    // Explicit initializer
-    public init(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID? = nil, selectedEdgeID: UUID? = nil) {
+    public init(
+        offset: CGSize = .zero,
+        zoomScale: CGFloat = 1.0,
+        selectedNodeID: UUID? = nil,
+        selectedEdgeID: UUID? = nil
+    ) {
         self.offset = offset
         self.zoomScale = zoomScale
         self.selectedNodeID = selectedNodeID
         self.selectedEdgeID = selectedEdgeID
     }
-
-    // Custom Codable conformance with separate keys for offset
-    enum CodingKeys: String, CodingKey {
-        case offsetX
-        case offsetY
-        case zoomScale
-        case selectedNodeID
-        case selectedEdgeID
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let offsetX = try container.decode(CGFloat.self, forKey: .offsetX)
-        let offsetY = try container.decode(CGFloat.self, forKey: .offsetY)
-        offset = CGPoint(x: offsetX, y: offsetY)
-        zoomScale = try container.decode(CGFloat.self, forKey: .zoomScale)
-        selectedNodeID = try container.decodeIfPresent(UUID.self, forKey: .selectedNodeID)
-        selectedEdgeID = try container.decodeIfPresent(UUID.self, forKey: .selectedEdgeID)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(offset.x, forKey: .offsetX)
-        try container.encode(offset.y, forKey: .offsetY)
-        try container.encode(zoomScale, forKey: .zoomScale)
-        try container.encodeIfPresent(selectedNodeID, forKey: .selectedNodeID)
-        try container.encodeIfPresent(selectedEdgeID, forKey: .selectedEdgeID)
-    }
 }
-
 @available(iOS 16.0, watchOS 6.0, *)
 public protocol GraphStorage {
     /// Saves the full graph state, throwing on failure (e.g., encoding or writing errors).

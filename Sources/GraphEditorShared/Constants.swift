@@ -37,5 +37,3 @@ public enum Constants {
         public static let maxZoom: CGFloat = 8.0  // Maximum zoom level
     }
 }
-
-

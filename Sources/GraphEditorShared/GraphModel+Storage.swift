@@ -110,13 +110,23 @@ extension GraphModel {
         }
     }
     
-    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) async throws {
-        let viewState = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
+    public func saveViewState(
+        offset: CGSize,                    // ← CGSize, not CGPoint
+        zoomScale: CGFloat,
+        selectedNodeID: UUID?,
+        selectedEdgeID: UUID?
+    ) async throws {
+        let viewState = ViewState(
+            offset: offset,                // ← now matches perfectly
+            zoomScale: zoomScale,
+            selectedNodeID: selectedNodeID,
+            selectedEdgeID: selectedEdgeID
+        )
         do {
             try storage.saveViewState(viewState, for: currentGraphName)
         } catch {
             Self.logger.errorLog("Failed to save view state for '\(currentGraphName)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
 
@@ -171,7 +181,7 @@ extension GraphModel {
     }
     
     public func switchToGraph(named name: String) async throws {
-        try await loadGraph(name: name)
+        await loadGraph(name: name)
         currentGraphName = name
     }
     

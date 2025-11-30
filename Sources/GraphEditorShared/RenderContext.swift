@@ -5,8 +5,6 @@
 //  Created by handcart on 11/19/25.
 //
 
-
-// In GraphEditorShared/Sources/GraphEditorShared/RenderContext.swift  (new file)
 import SwiftUI
 
 public struct RenderContext {
@@ -27,4 +25,3 @@ public struct RenderContext {
         self.viewSize = viewSize
     }
 }
-

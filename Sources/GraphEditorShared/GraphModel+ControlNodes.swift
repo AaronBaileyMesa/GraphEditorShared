@@ -19,8 +19,6 @@ import WatchKit
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     // MARK: - Ephemeral Management
-    /// Core func: Regenerates ephemerals based on selection, mode, uiConfig
-    // Change the signature — keep this one
     @MainActor
     public func updateEphemerals(selectedNodeID: NodeID?) {
         ephemeralControlNodes.removeAll()

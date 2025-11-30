@@ -63,7 +63,7 @@ public struct HitTestHelper {
             
             // FIXED: Now using the correct RenderContext overload
             let fromScreen = CoordinateTransformer.modelToScreen(fromNode.position, renderContext)
-            let toScreen   = CoordinateTransformer.modelToScreen(toNode.position,   renderContext)
+            let toScreen = CoordinateTransformer.modelToScreen(toNode.position, renderContext)
             
             let dist = pointToLineDistance(point: screenPos, from: fromScreen, to: toScreen)
             
