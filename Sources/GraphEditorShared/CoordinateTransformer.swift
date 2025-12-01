@@ -42,7 +42,7 @@ public struct CoordinateTransformer {
         // }
         
 #if DEBUG
-        Self.logger.debug("modelToScreen: Model (\(modelPos.x), \(modelPos.y)) -> Screen (\(screenPos.x), \(screenPos.y)), Zoom \(zoomScale), Offset (\(offset.width), \(offset.height)), Centroid (\(effectiveCentroid.x), \(effectiveCentroid.y)), ViewSize (\(viewSize.width), \(viewSize.height))")
+        //Self.logger.debug("modelToScreen: Model (\(modelPos.x), \(modelPos.y)) -> Screen (\(screenPos.x), \(screenPos.y)), Zoom \(zoomScale), Offset (\(offset.width), \(offset.height)), Centroid (\(effectiveCentroid.x), \(effectiveCentroid.y)), ViewSize (\(viewSize.width), \(viewSize.height))")
 #endif
         
         return screenPos

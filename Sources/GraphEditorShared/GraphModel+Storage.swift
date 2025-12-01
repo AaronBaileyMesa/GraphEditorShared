@@ -11,7 +11,7 @@ import os  // Added for Logger
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     private static let logger = Logger.forCategory("graphmodel-storage")  // ADDED: Define local static logger for this extension
-
+    
     func syncCollapsedPositions() {
         for parentIndex in 0..<nodes.count {
             if let toggle = nodes[parentIndex].unwrapped as? ToggleNode, !toggle.isExpanded {
@@ -31,16 +31,19 @@ extension GraphModel {
         objectWillChange.send()
         
     }
-
+    
     private func loadFromStorage(for name: String) async throws {
         Self.logger.infoLog("loadFromStorage started for \(name)")
         do {
-            let loadedState = try await storage.loadGraphState(for: name)  // Updated: Load full GraphState
-            Self.logger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")  // Fixed: removed .unwrappedNodes (assuming GraphState.nodes is [any NodeProtocol])
-            self.nodes = loadedState.nodes.map { AnyNode($0) }
+            let loadedState = try await storage.loadGraphState(for: name)
+            Self.logger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")
+            
+            self.nodes = loadedState.nodes  // ← Direct assignment ([AnyNode])
             self.edges = loadedState.edges
             self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
             self.associationEdgeColor = loadedState.associationEdgeColor.color
+            self.uiConfig = loadedState.uiConfig
+            self.globalUiConfig = loadedState.globalUiConfig
             self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
         } catch {
             // Fallback to defaults on error
@@ -52,9 +55,8 @@ extension GraphModel {
     public func saveGraph() async throws {
         Self.logger.infoLog("saveGraph started for \(currentGraphName)")
         do {
-            let cleanNodes = nodes.map { AnyNode($0.unwrapped.with(position: $0.position, velocity: .zero)) }  // Map to AnyNode
             let state = GraphState(
-                nodes: cleanNodes,
+                nodes: nodes,  // ← CHANGED: Direct [AnyNode], no .map { $0.unwrapped }
                 edges: edges,
                 hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
                 associationEdgeColor: CodableColor(associationEdgeColor),
@@ -129,7 +131,7 @@ extension GraphModel {
             throw GraphError.storageFailure(error.localizedDescription)
         }
     }
-
+    
     public func loadViewState() async throws -> ViewState? {
         do {
             return try storage.loadViewState(for: currentGraphName)
