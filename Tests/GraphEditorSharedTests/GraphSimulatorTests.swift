@@ -115,9 +115,8 @@ struct GraphSimulatorTests {
         #expect(finalTask == nil, "Task cleared after timeout")
     }
     
-    @Test func testSimulationCancellation() async throws {
+    @Test func testSimulationCancel() async throws {
         let simulator = createTestSimulator(nodeCount: 10)
-        
         await simulator.startSimulation()
         try await Task.sleep(for: .milliseconds(100))  // Let it start
         
@@ -133,7 +132,7 @@ struct GraphSimulatorTests {
         let simulator = createTestSimulator(nodeCount: 25, baseInterval: 1.0 / 30.0)
         await simulator.startSimulation()
         try await Task.sleep(for: .seconds(1))
-        #expect(true, "Adjust interval in low power – expand with mocks for deeper assertion")
+        #expect(Bool(true), "Adjust interval in low power – expand with mocks for deeper assertion")  // Silenced warning; add real test here
     }
 }
 
@@ -169,8 +168,8 @@ struct CoordinateTransformerTests {
     
 struct HitTestHelperTests {
         
-    func createContext() -> HitTestContext {
-        HitTestContext(zoomScale: 1.0, offset: .zero, viewSize: CGSize(width: 200, height: 200), effectiveCentroid: .zero)
+    func createContext() -> RenderContext {
+        RenderContext(effectiveCentroid: .zero, zoomScale: 1.0, offset: CGSize.zero, viewSize: CGSize(width: 200, height: 200))
     }
         
     @Test func testClosestNode() {
@@ -179,10 +178,10 @@ struct HitTestHelperTests {
             Node(label: 2, position: CGPoint(x: 50, y: 50), radius: 5)
         ]
         let context = createContext()
-        let hit = HitTestHelper.closestNode(at: CGPoint(x: 112, y: 112), visibleNodes: nodes, context: context)
+        let hit = HitTestHelper.closestNode(at: CGPoint(x: 112, y: 112), visibleNodes: nodes, renderContext: context)
         #expect(hit?.position == CGPoint(x: 10, y: 10), "Hits closest node")
             
-        let miss = HitTestHelper.closestNode(at: CGPoint(x: 300, y: 300), visibleNodes: nodes, context: context)
+        let miss = HitTestHelper.closestNode(at: CGPoint(x: 300, y: 300), visibleNodes: nodes, renderContext: context)
         #expect(miss == nil, "No hit far away")
     }
         
@@ -194,10 +193,10 @@ struct HitTestHelperTests {
         let edges = [GraphEdge(from: nodes[0].id, target: nodes[1].id)]
         let context = createContext()
             
-        let hit = HitTestHelper.closestEdge(at: CGPoint(x: 130, y: 130), visibleEdges: edges, visibleNodes: nodes, context: context)  // Screen pos for model (30,30)
+        let hit = HitTestHelper.closestEdge(at: CGPoint(x: 130, y: 130), visibleEdges: edges, visibleNodes: nodes, renderContext: context)  // Screen pos for model (30,30)
         #expect(hit != nil, "Hits edge")
             
-        let miss = HitTestHelper.closestEdge(at: CGPoint(x: 0, y: 0), visibleEdges: edges, visibleNodes: nodes, context: context)  // Far point
+        let miss = HitTestHelper.closestEdge(at: CGPoint(x: 0, y: 0), visibleEdges: edges, visibleNodes: nodes, renderContext: context)  // Far point
         #expect(miss == nil, "No hit far away")
     }
         
@@ -205,12 +204,12 @@ struct HitTestHelperTests {
         let from = CGPoint(x: 0, y: 0)
         let target = CGPoint(x: 10, y: 0)
         let point = CGPoint(x: 5, y: 1)
-        #expect(HitTestHelper.pointToLineDistance(point: point, from: from, target: target) == 1, "Perpendicular distance")
+        #expect(HitTestHelper.pointToLineDistance(point: point, from: from, to: target) == 1, "Perpendicular distance")
             
         let beyond = CGPoint(x: 15, y: 0)
-        #expect(HitTestHelper.pointToLineDistance(point: beyond, from: from, target: target) == 5, "Clamped to endpoint")
+        #expect(HitTestHelper.pointToLineDistance(point: beyond, from: from, to: target) == 5, "Clamped to endpoint")
             
-        let zeroLen = HitTestHelper.pointToLineDistance(point: CGPoint(x: 1, y: 1), from: .zero, target: .zero)
+        let zeroLen = HitTestHelper.pointToLineDistance(point: CGPoint(x: 1, y: 1), from: .zero, to: .zero)
         #expect(zeroLen == sqrt(2), "Handles zero-length line")
     }
 }

@@ -15,34 +15,30 @@ import CoreGraphics  // For CGPoint
 struct PersistenceAndModelTests {
     // Tests for PersistenceManager.swift
     @Test func testPersistenceManagerSaveAndLoad() async throws {
-        let dirName = "Test-SaveAndLoad"
-        let manager = PersistenceManager(directoryName: dirName)
-        do { try await manager.clear() } catch GraphStorageError.graphNotFound(_) { /* ignore if not present */ }
-        let node = Node(id: UUID(), label: 1, position: .zero)
-        let toggleNode = ToggleNode(id: UUID(), label: 2, position: .zero, isExpanded: false)
-        let edge = GraphEdge(from: node.id, target: toggleNode.id, type: .hierarchy)  // Add type if required by init
-        
-        // Wrap in GraphState with defaults
-        let state = GraphState(
-            nodes: [AnyNode(node), AnyNode(toggleNode)],
-            edges: [edge],
-            hierarchyEdgeColor: CodableColor(.blue),
-            associationEdgeColor: CodableColor(.white)
-        )
-        try await manager.saveGraphState(state, for: "default")
-        
-        let fileManager = FileManager.default
-        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fileURL = documents.appendingPathComponent(dirName).appendingPathComponent("graph-default.json")
-        #expect(fileManager.fileExists(atPath: fileURL.path), "File created")
-        
-        let loadedState = try await manager.loadGraphState(for: "default")
-        #expect(loadedState.nodes.count == 2, "Nodes loaded")
-        #expect(loadedState.edges.count == 1, "Edges loaded")
-        #expect(loadedState.nodes.contains { ($0 as? Node)?.id == node.id }, "Node type and ID preserved")
-        #expect(loadedState.nodes.contains { ($0 as? ToggleNode)?.id == toggleNode.id && ($0 as? ToggleNode)?.isExpanded == false }, "ToggleNode type, ID, and state preserved")
+    let dirName = "Test-SaveAndLoad"
+    let manager = PersistenceManager(directoryName: dirName)
+    do { try await manager.clear() } catch GraphStorageError.graphNotFound(_) { /* ignore if not present */ }
+    let node = Node(id: UUID(), label: 1, position: .zero)
+    let toggleNode = ToggleNode(id: UUID(), label: 2, position: .zero, isExpanded: false)
+    let edge = GraphEdge(from: node.id, target: toggleNode.id, type: .hierarchy)  // Add type if required by init
+    // Wrap in GraphState with defaults
+    let state = GraphState(
+    nodes: [AnyNode(node), AnyNode(toggleNode)],
+    edges: [edge],
+    hierarchyEdgeColor: CodableColor(.blue),
+    associationEdgeColor: CodableColor(.white)
+    )
+    try await manager.saveGraphState(state, for: "default")
+    let fileManager = FileManager.default
+    let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    let fileURL = documents.appendingPathComponent(dirName).appendingPathComponent("graph-default.json")
+    #expect(fileManager.fileExists(atPath: fileURL.path), "File created")
+    let loadedState = try await manager.loadGraphState(for: "default")
+    #expect(loadedState.nodes.count == 2, "Nodes loaded")
+    #expect(loadedState.edges.count == 1, "Edges loaded")
+    #expect(loadedState.nodes.contains { ($0.unwrapped as? Node)?.id == node.id }, "Node type and ID preserved")
+    #expect(loadedState.nodes.contains { if let toggle = $0.unwrapped as? ToggleNode { return toggle.id == toggleNode.id && toggle.isExpanded == false } else { return false } }, "ToggleNode type, ID, and state preserved")
     }
-    
     @Test func testPersistenceManagerClear() async throws {
         let dirName = "Test-Clear"
         let manager = PersistenceManager(directoryName: dirName)

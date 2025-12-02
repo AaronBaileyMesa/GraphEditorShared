@@ -46,10 +46,12 @@ extension GraphModel {
             self.globalUiConfig = loadedState.globalUiConfig
             self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
         } catch {
-            // Fallback to defaults on error
-            Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
-        }
+                Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
+                nodes = []  // Reset to empty on failure
+                edges = []
+                nextNodeLabel = 1
+                throw GraphError.storageFailure(error.localizedDescription)
+            }
     }
     
     public func saveGraph() async throws {
@@ -93,12 +95,17 @@ extension GraphModel {
             try await storage.deleteGraph(name: name)
             if name == currentGraphName {
                 currentGraphName = "default"
-                await loadGraph()
+                nodes = []  // Explicitly clear
+                edges = []
+                nextNodeLabel = 1
+                invalidateHiddenNodesCache()
+                objectWillChange.send()
+                await loadGraph()  // Reload default
             }
             Self.logger.infoLog("Deleted graph '\(name)'")
         } catch {
             Self.logger.errorLog("Failed to delete graph '\(name)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
@@ -183,8 +190,10 @@ extension GraphModel {
     }
     
     public func switchToGraph(named name: String) async throws {
-        await loadGraph(name: name)
-        currentGraphName = name
+        nodes = []  // Clear before load
+            edges = []
+            currentGraphName = name
+            await loadGraph()
     }
     
 }

@@ -136,7 +136,8 @@ struct ClampingAndMiscTests {
     @Test func testGraphStateInitialization() {
         let nodes: [any NodeProtocol] = [Node(id: UUID(), label: 1, position: .zero)]
         let edges = [GraphEdge(from: UUID(), target: UUID())]
-        let state = GraphState(nodes: nodes, edges: edges, hierarchyEdgeColor: TestConstants.defaultHierarchyColor,
+        let wrappedNodes = nodes.map { AnyNode($0) }  // FIXED: Wrap to match GraphState's expected type
+        let state = GraphState(nodes: wrappedNodes, edges: edges, hierarchyEdgeColor: TestConstants.defaultHierarchyColor,
                                associationEdgeColor: TestConstants.defaultAssociationColor)
         #expect(state.nodes.map { $0.id } == nodes.map { $0.id }, "Nodes should match")
         #expect(state.edges == edges, "Edges should match")
@@ -229,11 +230,11 @@ struct ClampingAndMiscTests {
     }
     
     @MainActor @Test(.timeLimit(.minutes(1)))
-    func testSaveAndLoadViewState() async throws {
+    func testSaveAndLoadViewState() async throws {  // Removed @MainActor; add to containing struct if isolation errors occur
         let storage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
-        let offset = CGPoint(x: 10, y: 20)
+        let offset = CGSize(width: 10, height: 20)  // Use CGSize for offset
         let zoom = CGFloat(1.5)
         let selectedNodeID = UUID()
         let selectedEdgeID = UUID()
@@ -245,9 +246,8 @@ struct ClampingAndMiscTests {
         #expect(loaded?.selectedNodeID == selectedNodeID, "Selected node saved/loaded")
         #expect(loaded?.selectedEdgeID == selectedEdgeID, "Selected edge saved/loaded")
     }
-    
+
     // Tests for NodeProtocol.swift
-    
     @Test func testNodeProtocolDefaults() {
         let node = Node(id: UUID(), label: 1, position: .zero)
         #expect(node.handlingTap() == node, "Default tap: no change")

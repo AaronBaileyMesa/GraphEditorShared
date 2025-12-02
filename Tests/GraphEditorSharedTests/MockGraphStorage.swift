@@ -20,7 +20,8 @@ class MockGraphStorage: GraphStorage {
         get { graphs[defaultName]?.nodes ?? [] }
         set {
             let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
-            let updatedState = GraphState(nodes: newValue, edges: currentState.edges, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor)
+            let wrappedNodes = newValue.map { $0 as? AnyNode ?? AnyNode($0) }  // Safe wrap: reuse if already AnyNode
+            let updatedState = GraphState(nodes: wrappedNodes, edges: currentState.edges, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor)
             graphs[defaultName] = updatedState
         }
     }
@@ -42,8 +43,9 @@ class MockGraphStorage: GraphStorage {
     // MARK: - Single-graph (default) methods (using default graph under the hood)
     func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
         let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+        let wrappedNodes = nodes.map { $0 as? AnyNode ?? AnyNode($0) }  // Safe wrap: reuse if already AnyNode
         let updatedState = GraphState(
-            nodes: nodes,
+            nodes: wrappedNodes,
             edges: edges,
             hierarchyEdgeColor: currentState.hierarchyEdgeColor,
             associationEdgeColor: currentState.associationEdgeColor
@@ -86,8 +88,9 @@ class MockGraphStorage: GraphStorage {
     
     func save(nodes: [any NodeProtocol], edges: [GraphEdge], for name: String) async throws {
         let currentState = graphs[name] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+        let wrappedNodes = nodes.map { $0 as? AnyNode ?? AnyNode($0) }  // Safe wrap: reuse if already AnyNode
         let updatedState = GraphState(
-            nodes: nodes,
+            nodes: wrappedNodes,
             edges: edges,
             hierarchyEdgeColor: currentState.hierarchyEdgeColor,
             associationEdgeColor: currentState.associationEdgeColor
