@@ -12,9 +12,11 @@ public enum ControlKind: String, Codable, CaseIterable {
     case undo
     case redo
     case configMode
-    case addChild
+    case addChild  // Adds a child node of the same type as parent
     case deleteNode
-    case toggleExpansion  // optional future use
+    case toggleExpansion  // Toggles expansion for ToggleNodes (first implementation)
+    
+    // Future: Value editor kinds (e.g., .toggleBool, .sliderDouble) for node content editing
     
     public var systemImage: String {
         switch self {
