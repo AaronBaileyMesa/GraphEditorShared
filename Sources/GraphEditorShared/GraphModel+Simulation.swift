@@ -9,8 +9,8 @@ import os  // ADDED: For Logger
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    private static let logger = Logger.forCategory("graphmodel-simulation")  // ADDED: Local static logger for this extension
-
+    fileprivate static let simulationLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "simulation")
+    
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func startSimulation() async {

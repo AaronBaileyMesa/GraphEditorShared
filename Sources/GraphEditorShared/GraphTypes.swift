@@ -95,6 +95,7 @@ extension Node {
 public enum EdgeType: String, Codable {
     case hierarchy  // DAG-enforced, directed
     case association  // Allows cycles, symmetric/undirected feel
+    case spring
 }
 
 // Represents an edge connecting two nodes.

@@ -32,6 +32,7 @@ import WatchKit
     var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
     public var uiConfig: [NodeID: [ControlConfig]] = [:]
     public var globalUiConfig: [ControlConfig] = []
+    @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
     public var isConfigMode: Bool = false
     var cancellables: Set<AnyCancellable> = []
     
@@ -45,7 +46,7 @@ import WatchKit
     
     public let changesPublisher = PassthroughSubject<Void, Never>()
     
-    private static let logger = Logger.forCategory("graphmodel-storage")
+    internal static let logger = Logger.forCategory("graphmodel-storage")  // Changed from private to internal
     
     var simulationTimer: Timer?
     var undoStack: [UndoGraphState] = []
@@ -227,29 +228,40 @@ import WatchKit
     // MARK: - Visible Nodes & Edges (now also cached indirectly via hiddenNodeIDs)
     
     // In GraphModel.swift (or wherever this extension lives)
-    
     @MainActor
     func visibleNodesAndEdges() -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let hidden = hiddenNodeIDs
         
-        // Build the set of IDs that are actually visible
-        let visibleNodeIDs = Set(nodes.lazy
+        // Build the set of IDs that are actually visible (persistent nodes)
+        var visibleNodeIDs = Set(nodes.lazy
             .filter { !hidden.contains($0.id) }
             .map { $0.id })
         
         var visibleNodes: [any NodeProtocol] = []
-        visibleNodes.reserveCapacity(nodes.count)
+        visibleNodes.reserveCapacity(nodes.count + ephemeralControlNodes.count)
         
         for node in nodes where visibleNodeIDs.contains(node.id) {
-            visibleNodes.append(node.unwrapped)   // unwrapped is @MainActor-safe
+            visibleNodes.append(node.unwrapped)
         }
         
-        // Visible hierarchy edges only (value types → safe)
-        let visibleEdges = edges.filter { edge in
+        // NEW: Append ephemerals (always visible)
+        visibleNodes.append(contentsOf: ephemeralControlNodes)
+        
+        // NEW: Add ephemeral IDs to visibleNodeIDs for edge filtering
+        visibleNodeIDs.formUnion(ephemeralControlNodes.map { $0.id })
+        
+        // Visible persistent hierarchy edges
+        var visibleEdges = edges.filter { edge in
             edge.type == .hierarchy &&
             visibleNodeIDs.contains(edge.from) &&
             visibleNodeIDs.contains(edge.target)
         }
+        
+        // NEW: Append ephemeral spring edges if both ends visible
+        visibleEdges.append(contentsOf: ephemeralControlEdges.filter { edge in
+            visibleNodeIDs.contains(edge.from) &&
+            visibleNodeIDs.contains(edge.target)
+        })
         
         return (visibleNodes, visibleEdges)
     }
@@ -259,9 +271,14 @@ import WatchKit
     @MainActor
     private func mergeVisibleNodesIntoFullModel(updatedVisibleNodes: [any NodeProtocol]) {
         var nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+        var updatedEphemerals: [ControlNode] = []
         
         for updatedNode in updatedVisibleNodes {
-            nodeMap[updatedNode.id] = AnyNode(updatedNode)
+            if let control = updatedNode as? ControlNode {
+                updatedEphemerals.append(control)  // NEW: Collect updated controls
+            } else {
+                nodeMap[updatedNode.id] = AnyNode(updatedNode)
+            }
         }
         
         // Freeze hidden nodes so they don’t drift
@@ -274,6 +291,7 @@ import WatchKit
         }
         
         self.nodes = nodeMap.values.sorted { $0.id.uuidString < $1.id.uuidString }
+        self.ephemeralControlNodes = updatedEphemerals  // NEW: Update ephemerals separately
         objectWillChange.send()
     }
     
@@ -294,7 +312,6 @@ import WatchKit
     }
     
     // MARK: - Control Node Cluster (visual parenting, no physics springs)
-
     @MainActor
     public func updateControlNodes(for selectedNodeID: NodeID?) {
         ephemeralControlNodes.removeAll()
@@ -324,8 +341,26 @@ import WatchKit
             )
             
             ephemeralControlNodes.append(control)
+            
+            // NEW: Add spring edge from owner to control
+            let springEdge = GraphEdge(
+                from: selectedID,
+                target: control.id,
+                type: .spring  // Assuming .spring is defined in EdgeType enum; add if missing
+            )
+            ephemeralControlEdges.append(springEdge)
         }
-    }}
+        
+        // NEW: Invalidate caches and notify after changes
+        invalidateHiddenNodesCache()
+        objectWillChange.send()
+        
+        // In updateControlNodes (replace the Task)
+        Task {
+            await simulator.runShortSimulation(steps: 10)  // Tunable: 10-20 for settling
+        }
+    }
+}
 
 extension GraphModel {
     public var visibleNodes: [any NodeProtocol] { visibleNodesAndEdges().nodes }

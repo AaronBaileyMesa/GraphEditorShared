@@ -10,7 +10,7 @@ import os  // Added for Logger
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    private static let logger = Logger.forCategory("graphmodel-storage")  // ADDED: Define local static logger for this extension
+    fileprivate static let storageLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "storage")
     
     func syncCollapsedPositions() {
         for parentIndex in 0..<nodes.count {

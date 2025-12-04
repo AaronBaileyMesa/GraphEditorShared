@@ -10,8 +10,8 @@ import os  // ADDED: For Logger
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     // NEW: Add static logger for this extension
-    private static let logger = Logger.forCategory("graphmodel_edgesnodes")
-
+    fileprivate static let simulationLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "graphmodel_edgesnodes")
+    
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func wouldCreateCycle(withNewEdgeFrom from: NodeID, target: NodeID, type: EdgeType) -> Bool {

@@ -269,4 +269,18 @@ actor GraphSimulator {
         return isStable  // True if should stop (stable and low velocity)
     }
     
+    // In GraphSimulator.swift (add this public method to the actor)
+    public func runShortSimulation(steps: Int, interval: TimeInterval = 1.0 / 60.0) async {
+        for _ in 0..<steps {
+    #if os(watchOS)
+            if !bypassAppCheck {
+                let appState = await WKApplication.shared().applicationState
+                guard appState == .active else { return }
+            }
+    #endif
+            let shouldContinue = await performSimulationStep(baseInterval: interval, nodeCount: await getVisibleNodes().count)
+            if !shouldContinue { break }  // Early exit if stable
+            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+        }
+    }
 }
