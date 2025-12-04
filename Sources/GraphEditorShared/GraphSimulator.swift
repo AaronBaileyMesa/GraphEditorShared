@@ -259,16 +259,6 @@ actor GraphSimulator {
         return !finalStable
     }
     
-    private func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) async -> Bool {
-        recentVelocities.append(result.totalVelocity)
-        if recentVelocities.count > velocityHistoryCount {
-            recentVelocities.removeFirst()
-        }
-        let velocityChange = recentVelocities.max()! - recentVelocities.min()!
-        let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
-        return isStable  // True if should stop (stable and low velocity)
-    }
-    
     // In GraphSimulator.swift (add this public method to the actor)
     public func runShortSimulation(steps: Int, interval: TimeInterval = 1.0 / 60.0) async {
         for _ in 0..<steps {
