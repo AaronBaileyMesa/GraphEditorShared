@@ -187,6 +187,12 @@ extension GraphModel {
         invalidateHiddenNodesCache()          // In case children are hidden/shown
         await simulator.resetVelocityHistory() // Prevent old velocity from re-accelerating
         await resumeSimulation()
+        do {
+                try await saveGraph()
+                Self.logger.info("Auto-saved graph after node move")
+            } catch {
+                Self.logger.error("Auto-save failed after move: \(error.localizedDescription)")
+            }
     }
 
     @MainActor
