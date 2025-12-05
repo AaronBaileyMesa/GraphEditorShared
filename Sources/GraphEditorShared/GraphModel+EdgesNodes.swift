@@ -175,17 +175,27 @@ extension GraphModel {
         await resumeSimulation()
     }
     
-    // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func deleteNode(withID id: NodeID) async {
-        // CHANGED: Qualified
-        Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Added debug log
-        pushUndo()
+        Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Existing
+        
+        pushUndo()  // Existing
+        
+        // NEW: Cleanup ephemerals and configs BEFORE removal (prevents dangling refs)
+        ephemeralControlNodes.removeAll { $0.ownerID == id }  // Assuming ControlNode has ownerID; add if needed
+        ephemeralControlEdges.removeAll { $0.from == id || $0.target == id }
+        uiConfig.removeValue(forKey: id)  // Remove all configs for this node
+        // If globalUiConfig can reference id, filter it too: globalUiConfig.removeAll { $0.ownerID == id }
+        
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.target == id }
+        
         objectWillChange.send()
         invalidateHiddenNodesCache()
         await resumeSimulation()
+        
+        // NEW: Optional post-cleanup log for debugging
+        Self.logger.debugLog("Post-delete cleanup: Ephemerals left: \(ephemeralControlNodes.count), Configs left: \(uiConfig.count)")
     }
     
     // MARK: - Node Movement (drag & drop)
