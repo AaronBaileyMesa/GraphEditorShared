@@ -86,6 +86,7 @@ public struct ControlNode: NodeProtocol {
         case .addChild:         return .green
         case .deleteNode:       return .red
         case .toggleExpansion:  return .orange
+        case .edit:             return .yellow
         }
     }
     
@@ -100,6 +101,7 @@ public struct ControlNode: NodeProtocol {
         case .addChild:         "plus.circle.fill"
         case .deleteNode:       "trash.circle.fill"
         case .toggleExpansion:  "chevron.up.chevron.down"
+        case .edit:             "pencil"
         }
         
         return AnyView(

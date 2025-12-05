@@ -183,7 +183,7 @@ actor GraphSimulator {
         self.onStable?()
     }
     
-    private func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
+    internal func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
 #if os(watchOS)
         if !bypassAppCheck {
             let appState = await WKApplication.shared().applicationState

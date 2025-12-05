@@ -21,6 +21,7 @@ import WatchKit
     @Published public var nodes: [AnyNode] = []
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
+    @Published public var editingNodeID: NodeID? = nil  // NEW: Signals node to edit; nil hides sheet
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
     @Published public var mode: GraphMode = .network
@@ -271,14 +272,9 @@ import WatchKit
     @MainActor
     private func mergeVisibleNodesIntoFullModel(updatedVisibleNodes: [any NodeProtocol]) {
         var nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
-        var updatedEphemerals: [ControlNode] = []
         
         for updatedNode in updatedVisibleNodes {
-            if let control = updatedNode as? ControlNode {
-                updatedEphemerals.append(control)  // NEW: Collect updated controls
-            } else {
-                nodeMap[updatedNode.id] = AnyNode(updatedNode)
-            }
+            nodeMap[updatedNode.id] = AnyNode(updatedNode)
         }
         
         // Freeze hidden nodes so they don’t drift
@@ -291,7 +287,6 @@ import WatchKit
         }
         
         self.nodes = nodeMap.values.sorted { $0.id.uuidString < $1.id.uuidString }
-        self.ephemeralControlNodes = updatedEphemerals  // NEW: Update ephemerals separately
         objectWillChange.send()
     }
     
@@ -355,9 +350,12 @@ import WatchKit
         invalidateHiddenNodesCache()
         objectWillChange.send()
         
-        // In updateControlNodes (replace the Task)
+        // NEW: Trigger brief initial simulation for settling (e.g., 10 steps)
         Task {
-            await simulator.runShortSimulation(steps: 10)  // Tunable: 10-20 for settling
+            for _ in 0..<10 {  // Tunable: More steps for smoother settling
+                _ = await simulator.performSimulationStep(baseInterval: 1.0 / 60.0, nodeCount: allNodes.count)
+                try? await Task.sleep(nanoseconds: 16_666_667)  // ~60 FPS delay
+            }
         }
     }
 }

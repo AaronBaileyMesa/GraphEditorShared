@@ -15,6 +15,7 @@ public enum ControlKind: String, Codable, CaseIterable {
     case addChild  // Adds a child node of the same type as parent
     case deleteNode
     case toggleExpansion  // Toggles expansion for ToggleNodes (first implementation)
+    case edit
     
     // Future: Value editor kinds (e.g., .toggleBool, .sliderDouble) for node content editing
     
@@ -26,6 +27,7 @@ public enum ControlKind: String, Codable, CaseIterable {
         case .addChild: return "plus.circle"
         case .deleteNode: return "trash"
         case .toggleExpansion: return "chevron.up.chevron.down"
+        case .edit: return "pencil"
         }
     }
 }

@@ -49,6 +49,10 @@ extension GraphModel {
     }
     
     private func addGlobalControls() {
+        // Clear existing globals first to prevent duplicates
+        ephemeralControlNodes.removeAll { $0.ownerID == nil }
+        ephemeralControlEdges.removeAll { $0.from == nil || $0.target == nil }  // Assuming globals have nil owner
+        
         let centroid = self.centroid ?? .zero
         var globalKinds: [ControlKind] = []
         
@@ -63,49 +67,45 @@ extension GraphModel {
         let sortedFiltered = filtered.sorted { kind1, kind2 in
             let priority1 = globalUiConfig.first(where: { $0.kind == kind1 })?.priority ?? 0
             let priority2 = globalUiConfig.first(where: { $0.kind == kind2 })?.priority ?? 0
-            return priority1 > priority2
+            return priority1 < priority2
         }
         
-        let clusterRadius: CGFloat = 20.0
-        let angleStep = CGFloat.pi * 2 / CGFloat(max(sortedFiltered.count, 1))
-        
+        let spacing: CGFloat = 40.0
         for (index, kind) in sortedFiltered.enumerated() {
-            let angle = CGFloat(index) * angleStep
-            let offset = CGPoint(x: cos(angle) * clusterRadius, y: sin(angle) * clusterRadius)
-            let position = centroid + offset
+            // Skip if kind already exists (duplicate check)
+            if ephemeralControlNodes.contains(where: { $0.kind == kind && $0.ownerID == nil }) { continue }
             
-            let config = globalUiConfig.first(where: { $0.kind == kind }) ?? ControlConfig(kind: kind)
+            let angle = CGFloat(index) * (360 / CGFloat(sortedFiltered.count))
+            let dx = cos(angle * .pi / 180) * spacing
+            let dy = sin(angle * .pi / 180) * spacing
+            let position = CGPoint(x: centroid.x + dx, y: centroid.y + dy)
+            let clampedPos = clampPosition(position)
             
-            var control = ControlNode(
-                position: position,
-                ownerID: nil,  // Global → no owner
+            let control = ControlNode(
+                position: clampedPos,
+                ownerID: nil,
                 kind: kind,
-                isVisible: config.isVisible,
-                priority: config.priority
+                isVisible: true,  // Default or from config
+                priority: globalUiConfig.first(where: { $0.kind == kind })?.priority ?? 0,
+                action: { [weak self] in Task { await self?.handleControlAction(kind: kind, ownerID: nil) } }  // Wrap async in Task
             )
-            
-            control.action = { [weak self, kind] in
-                Task { @MainActor in
-                    await self?.handleControlAction(kind: kind, ownerID: nil)
-                }
-            }
-            
             ephemeralControlNodes.append(control)
+            
+            // Add ephemeral spring edge to centroid if desired
+            // Example: ephemeralControlEdges.append(GraphEdge(from: nil, target: control.id, type: .spring))
         }
     }
     
     private func addControlsForNode(_ ownerID: NodeID) {
-        guard let ownerNode = nodes.first(where: { $0.id == ownerID }) else { return }
-        let ownerPos = ownerNode.position
-        let ownerRadius = ownerNode.displayRadius
-        let controlRadius: CGFloat = Constants.App.nodeModelRadius * 0.5  // Smaller distinct size
+        // Clear existing for this owner to prevent duplicates
+        ephemeralControlNodes.removeAll { $0.ownerID == ownerID }
+        ephemeralControlEdges.removeAll { $0.from == ownerID || $0.target == ownerID }
         
-        // Tunable base distance (~1/2 combined radii + padding)
-        let baseDistance = (ownerRadius + controlRadius) / 2 + 5.0
+        guard let owner = nodes.first(where: { $0.id == ownerID })?.unwrapped else { return }
         
-        // Existing: Get filtered/sorted kinds
-        let nodeKinds: [ControlKind] = [.toggleExpansion, .addChild, .deleteNode]  // Ordered by priority
+        var nodeKinds: [ControlKind] = [.edit, .addChild, .deleteNode]  // Example; adjust per mode
         
+        // Filter visible
         let filtered = nodeKinds.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
         }
@@ -113,53 +113,44 @@ extension GraphModel {
         let sortedFiltered = filtered.sorted { kind1, kind2 in
             let priority1 = uiConfig[ownerID]?.first(where: { $0.kind == kind1 })?.priority ?? 0
             let priority2 = uiConfig[ownerID]?.first(where: { $0.kind == kind2 })?.priority ?? 0
-            return priority1 > priority2
+            return priority1 < priority2
         }
         
         let freeSlots = getFreeSlots(for: ownerID)
-        let maxControls = min(sortedFiltered.count, freeSlots.count)  // Limit to available slots (e.g., 3 on watchOS via const later)
+        let spacing: CGFloat = owner.radius + 20.0
         
-        for index in 0..<maxControls {
-            let kind = sortedFiltered[index]
-            let angleDeg = freeSlots[index]
-            let angleRad = angleDeg * .pi / 180  // Convert to radians
-            let offset = CGPoint(x: cos(angleRad) * baseDistance, y: sin(angleRad) * baseDistance)
-            let position = ownerPos + offset
+        for (index, kind) in sortedFiltered.enumerated() {
+            // Skip if kind already exists for owner (duplicate check)
+            if ephemeralControlNodes.contains(where: { $0.kind == kind && $0.ownerID == ownerID }) { continue }
             
-            let config = uiConfig[ownerID]?.first(where: { $0.kind == kind }) ?? ControlConfig(kind: kind)
+            guard index < freeSlots.count else { break }  // Limit to available slots
             
-            var control = ControlNode(
-                position: position,
+            let angle = freeSlots[index]
+            let dx = cos(angle * .pi / 180) * spacing
+            let dy = sin(angle * .pi / 180) * spacing
+            let position = CGPoint(x: owner.position.x + dx, y: owner.position.y + dy)
+            let clampedPos = clampPosition(position)
+            
+            let control = ControlNode(
+                position: clampedPos,
                 ownerID: ownerID,
                 kind: kind,
-                isVisible: config.isVisible,
-                priority: config.priority
+                isVisible: true,  // Default or from config
+                priority: uiConfig[ownerID]?.first(where: { $0.kind == kind })?.priority ?? 0,
+                action: { [weak self] in Task { await self?.handleControlAction(kind: kind, ownerID: ownerID) } }  // Wrap async in Task
             )
-            
-            control.action = { [weak self, kind, ownerID] in
-                Task { @MainActor in
-                    await self?.handleControlAction(kind: kind, ownerID: ownerID)
-                }
-            }
-            
             ephemeralControlNodes.append(control)
             
-            // Attach with spring edge (visual for now; physics later)
-            let edge = GraphEdge(from: ownerID, target: control.id, type: .spring)
-            ephemeralControlEdges.append(edge)
-        }
-        // Debug log for tuning (remove later)
-        Self.controlLogger.debug("Added \(maxControls) controls at positions: \(self.ephemeralControlNodes.map { $0.position })")
-        
-        // Brief simulation to "make room" via repulsion/collision
-        Task {
-            await resumeSimulation()
-            try? await Task.sleep(for: .milliseconds(500))  // Tune: 0.5s settling
-            await pauseSimulation()
+            // Add ephemeral spring edge to owner
+            ephemeralControlEdges.append(GraphEdge(from: ownerID, target: control.id, type: .spring))
         }
     }
     
     private func handleControlAction(kind: ControlKind, ownerID: NodeID?) async {
+        guard let ownerID else {
+            Self.controlLogger.warning("Action \(kind.rawValue) triggered without ownerID")
+            return
+        }
         switch kind {
         case .undo:
             await undo()
@@ -167,51 +158,22 @@ extension GraphModel {
             await redo()
         case .configMode:
             isConfigMode.toggle()
+        case .edit:
+            Self.controlLogger.debug("Edit triggered for node \(ownerID.uuidString.prefix(8))")
+            editingNodeID = ownerID  // Triggers sheet in UI
         case .addChild:
-            if let id = ownerID {
-                await addChildToNode(id)  // Existing func; enhance below for same-type
-            }
-        case .deleteNode:
-            if let id = ownerID {
-                await deleteNode(withID: id)
-            }
+            await addChildToNode(ownerID)
+        case .deleteNode:  // Assuming you renamed .delete to .deleteNode as per previous fixes
+            await deleteSelected(selectedNodeID: ownerID, selectedEdgeID: nil)
         case .toggleExpansion:
-            if let id = ownerID, let toggleIndex = nodes.firstIndex(where: { $0.id == id && $0.unwrapped is ToggleNode }) {
-                var updated = nodes[toggleIndex]
-                if var toggle = updated.unwrapped as? ToggleNode {
-                    toggle.isExpanded.toggle()
-                    updated = AnyNode(toggle)
-                    nodes[toggleIndex] = updated
-                    objectWillChange.send()
-                }
-            }
+            Self.controlLogger.debug("Toggle expansion for node \(ownerID.uuidString.prefix(8))")
+            await toggleExpansion(for: ownerID)
         }
-        
-#if os(watchOS)
-        WKInterfaceDevice.current().play(.click)
-#endif
     }
-    
     private func addChildToNode(_ parentID: NodeID) async {
-        guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }) else { return }
-        let parent = nodes[parentIndex]
-        let childPos = parent.position + CGPoint(x: 60, y: 0)
-        
-        let childID = NodeID()  // Generate ID first
-        let child: AnyNode
-        
-        if parent.unwrapped is ToggleNode {
-            let toggleChild = ToggleNode(id: childID, label: self.nextNodeLabel, position: childPos)
-            child = AnyNode(toggleChild)
-            self.nextNodeLabel += 1
-        } else {
-            let basicChild = Node(id: childID, label: self.nextNodeLabel, position: childPos)
-            child = AnyNode(basicChild)
-            self.nextNodeLabel += 1
-        }
-        
-        nodes.append(child)  // Add directly (mirrors likely addNode logic)
-        await addEdge(from: parentID, target: childID, type: .hierarchy)
+        let newChild = Node(label: nodes.count + 1, position: .zero)  // Example; adjust
+        nodes.append(AnyNode(newChild))
+        await addEdge(from: parentID, target: newChild.id, type: .hierarchy)
         
         objectWillChange.send()
         invalidateHiddenNodesCache()
@@ -245,7 +207,8 @@ extension GraphModel {
         updateEphemerals(selectedNodeID: ownerID)
         pushUndo()
     }
-    // MARK: - Init Hook (Subscribe to Changes)    
+    
+    // MARK: - Init Hook (Subscribe to Changes)
     // Call this in main init after setting up other publishers
     public func setupControlSubscriptions(selectedNodePublisher: AnyPublisher<NodeID?, Never>) {
         selectedNodePublisher
@@ -255,6 +218,15 @@ extension GraphModel {
                 self?.updateEphemerals(selectedNodeID: selectedID)
             }
             .store(in: &cancellables)
+    }
+    
+    private func clampPosition(_ pos: CGPoint) -> CGPoint {
+        let minX = CGFloat(0), minY = CGFloat(0)  // Or simulationBounds lower if defined
+        let maxX = self.physicsEngine.simulationBounds.width, maxY = self.physicsEngine.simulationBounds.height
+        return CGPoint(
+            x: pos.x.clamped(to: minX...maxX),
+            y: pos.y.clamped(to: minY...maxY)
+        )
     }
 }
 

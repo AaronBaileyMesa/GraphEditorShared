@@ -9,6 +9,10 @@ import Foundation
 
 public typealias NodeID = UUID
 
+extension NodeID: @retroactive Identifiable {
+    public var id: Self { self }
+}
+
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct Node: NodeProtocol, Codable {  // Updated: Conform to NodeProtocol (which now includes HierarchicalNode)
