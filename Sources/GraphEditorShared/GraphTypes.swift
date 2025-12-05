@@ -151,6 +151,7 @@ public struct GraphState: Codable {
     public let associationEdgeColor: CodableColor
     public let uiConfig: [NodeID: [ControlConfig]]
     public let globalUiConfig: [ControlConfig]
+    public let isSimulating: Bool
     
     public init(
         nodes: [AnyNode],
@@ -158,7 +159,8 @@ public struct GraphState: Codable {
         hierarchyEdgeColor: CodableColor,
         associationEdgeColor: CodableColor,
         uiConfig: [NodeID: [ControlConfig]] = [:],
-        globalUiConfig: [ControlConfig] = []
+        globalUiConfig: [ControlConfig] = [],
+        isSimulating: Bool
     ) {
         self.nodes = nodes
         self.edges = edges
@@ -166,32 +168,35 @@ public struct GraphState: Codable {
         self.associationEdgeColor = associationEdgeColor
         self.uiConfig = uiConfig
         self.globalUiConfig = globalUiConfig
+        self.isSimulating = isSimulating
     }
     
     // MARK: - Codable (Clean, direct, no NodeWrapper needed)
     private enum CodingKeys: String, CodingKey {
-        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig
+        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating
     }
     
     public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.nodes = try container.decode([AnyNode].self, forKey: .nodes)           // Direct!
-        self.edges = try container.decode([GraphEdge].self, forKey: .edges)
-        self.hierarchyEdgeColor = try container.decode(CodableColor.self, forKey: .hierarchyEdgeColor)
-        self.associationEdgeColor = try container.decode(CodableColor.self, forKey: .associationEdgeColor)
-        self.uiConfig = try container.decode([NodeID: [ControlConfig]].self, forKey: .uiConfig)
-        self.globalUiConfig = try container.decode([ControlConfig].self, forKey: .globalUiConfig)
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(nodes, forKey: .nodes)                                 // Direct!
-        try container.encode(edges, forKey: .edges)
-        try container.encode(hierarchyEdgeColor, forKey: .hierarchyEdgeColor)
-        try container.encode(associationEdgeColor, forKey: .associationEdgeColor)
-        try container.encode(uiConfig, forKey: .uiConfig)
-        try container.encode(globalUiConfig, forKey: .globalUiConfig)
-    }
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            nodes = try container.decode([AnyNode].self, forKey: .nodes)
+            edges = try container.decode([GraphEdge].self, forKey: .edges)
+            hierarchyEdgeColor = try container.decode(CodableColor.self, forKey: .hierarchyEdgeColor)
+            associationEdgeColor = try container.decode(CodableColor.self, forKey: .associationEdgeColor)
+            uiConfig = try container.decode([NodeID: [ControlConfig]].self, forKey: .uiConfig)
+            globalUiConfig = try container.decode([ControlConfig].self, forKey: .globalUiConfig)
+            isSimulating = try container.decode(Bool.self, forKey: .isSimulating)  // FIXED: Decode new property (or use decodeIfPresent with default if optional)
+        }
+        
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(nodes, forKey: .nodes)
+            try container.encode(edges, forKey: .edges)
+            try container.encode(hierarchyEdgeColor, forKey: .hierarchyEdgeColor)
+            try container.encode(associationEdgeColor, forKey: .associationEdgeColor)
+            try container.encode(uiConfig, forKey: .uiConfig)
+            try container.encode(globalUiConfig, forKey: .globalUiConfig)
+            try container.encode(isSimulating, forKey: .isSimulating)  // FIXED: Encode new property
+        }
 }
 
 @available(iOS 16.0, *)

@@ -45,13 +45,20 @@ extension GraphModel {
             self.uiConfig = loadedState.uiConfig
             self.globalUiConfig = loadedState.globalUiConfig
             self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
-        } catch {
-                Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
-                nodes = []  // Reset to empty on failure
-                edges = []
-                nextNodeLabel = 1
-                throw GraphError.storageFailure(error.localizedDescription)
+            
+            // FIXED: Moved inside do block
+            self.isSimulating = loadedState.isSimulating  // Restore state
+            if self.isSimulating {
+                await startSimulation()  // Only start if it was simulating on save
             }
+        } catch {
+            Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
+            nodes = []  // Reset to empty on failure
+            edges = []
+            nextNodeLabel = 1
+            self.isSimulating = false  // Safe default on failure
+            throw GraphError.storageFailure(error.localizedDescription)
+        }
     }
     
     public func saveGraph() async throws {
@@ -63,7 +70,8 @@ extension GraphModel {
                 hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
                 associationEdgeColor: CodableColor(associationEdgeColor),
                 uiConfig: uiConfig,
-                globalUiConfig: globalUiConfig
+                globalUiConfig: globalUiConfig,
+                isSimulating: isSimulating  // NEW
             )
             try await storage.saveGraphState(state, for: currentGraphName)
             Self.logger.infoLog("saveGraph completed for \(currentGraphName)")
@@ -81,6 +89,7 @@ extension GraphModel {
             Self.logger.errorLog("loadGraph failed for \(currentGraphName)", error: error)
             // Handle fallback, e.g., create default graph
         }
+        isSimulating = false  // Default to paused on fresh load
     }
     
     /// Loads a specific graph by name and switches to it.

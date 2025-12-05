@@ -165,7 +165,6 @@ extension GraphModel {
     }
     
     // MARK: - Node Movement (drag & drop)
-
     @MainActor
     public func moveNode(withID nodeID: NodeID, to newPosition: CGPoint) async {
         Self.logger.debug("Moving node \(nodeID.uuidString.prefix(8)) → (\(newPosition.x), \(newPosition.y))")
@@ -179,22 +178,26 @@ extension GraphModel {
         
         var node = nodes[index].unwrapped
         node.position = newPosition
-        node.velocity = .zero  // Stop any momentum – feels snappier
+        node.velocity = .zero  // Stop any momentum
         
         nodes[index] = AnyNode(node)
         
         objectWillChange.send()
-        invalidateHiddenNodesCache()          // In case children are hidden/shown
-        await simulator.resetVelocityHistory() // Prevent old velocity from re-accelerating
+        invalidateHiddenNodesCache()
+        await simulator.resetVelocityHistory()
         await resumeSimulation()
+        
+        // NEW: Auto-save after move
         do {
-                try await saveGraph()
-                Self.logger.info("Auto-saved graph after node move")
-            } catch {
-                Self.logger.error("Auto-save failed after move: \(error.localizedDescription)")
-            }
+            try await saveGraph()
+            Self.logger.info("Auto-saved graph after node move")
+        } catch {
+            Self.logger.error("Auto-save failed after move: \(error.localizedDescription)")
+        }
+        // FIXED: Manual string formatting for CGPoint
+        Self.logger.debug("Updated position in model: (\(node.position.x), \(node.position.y))")
     }
-
+    
     @MainActor
     public func moveNode(_ node: any NodeProtocol, to newPosition: CGPoint) async {
         await moveNode(withID: node.id, to: newPosition)
