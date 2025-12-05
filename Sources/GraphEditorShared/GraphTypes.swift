@@ -177,15 +177,15 @@ public struct GraphState: Codable {
     }
     
     public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            nodes = try container.decode([AnyNode].self, forKey: .nodes)
-            edges = try container.decode([GraphEdge].self, forKey: .edges)
-            hierarchyEdgeColor = try container.decode(CodableColor.self, forKey: .hierarchyEdgeColor)
-            associationEdgeColor = try container.decode(CodableColor.self, forKey: .associationEdgeColor)
-            uiConfig = try container.decode([NodeID: [ControlConfig]].self, forKey: .uiConfig)
-            globalUiConfig = try container.decode([ControlConfig].self, forKey: .globalUiConfig)
-            isSimulating = try container.decode(Bool.self, forKey: .isSimulating)  // FIXED: Decode new property (or use decodeIfPresent with default if optional)
-        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        nodes = try container.decode([AnyNode].self, forKey: .nodes)  // Required
+        edges = try container.decode([GraphEdge].self, forKey: .edges)  // Required
+        hierarchyEdgeColor = try container.decode(CodableColor.self, forKey: .hierarchyEdgeColor)
+        associationEdgeColor = try container.decode(CodableColor.self, forKey: .associationEdgeColor)
+        uiConfig = try container.decode([NodeID: [ControlConfig]].self, forKey: .uiConfig)
+        globalUiConfig = try container.decode([ControlConfig].self, forKey: .globalUiConfig)
+        isSimulating = try container.decodeIfPresent(Bool.self, forKey: .isSimulating) ?? false  // Default to false if missing (new key)
+    }
         
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)

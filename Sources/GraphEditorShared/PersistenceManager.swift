@@ -98,18 +98,17 @@ public class PersistenceManager: GraphStorage {
     
     public func loadGraphState(for name: String) async throws -> GraphState {
         let url = fileURL(for: name)
+        logger.debug("Attempting load for \(name) at \(url.path)")
         guard FileManager.default.fileExists(atPath: url.path) else {
-            logger.debug("No saved file for '\(name)'; throwing not found")
             throw GraphStorageError.graphNotFound(name)
         }
         do {
             let data = try Data(contentsOf: url)
-            let state = try JSONDecoder().decode(GraphState.self, from: data)
-            logger.debug("Loaded \(state.nodes.count) nodes and \(state.edges.count) edges for graph '\(name)'")
-            return state
+            return try JSONDecoder().decode(GraphState.self, from: data)
         } catch let error as DecodingError {
             logger.error("Decoding failed for '\(name)': \(error.localizedDescription)")
-            throw GraphStorageError.decodingFailed(error)
+            try? FileManager.default.removeItem(at: url)  // Delete corrupted file
+            throw GraphStorageError.graphNotFound(name)  // Treat as missing → start fresh
         } catch {
             logger.error("Loading failed for '\(name)': \(error.localizedDescription)")
             throw GraphStorageError.loadingFailed(error)
