@@ -135,19 +135,43 @@ extension GraphModel {
         // Create the child using the provided factory (leverages existing types)
         let child = createChild(newLabel, newPosition)
         let newNode = AnyNode(child)
+        
+        // Check for cycles before committing
+        if wouldCreateCycle(withNewEdgeFrom: parentID, target: newNode.id, type: .hierarchy) {
+            Self.logger.warning("Cannot add child: Would create cycle in hierarchy")
+            return
+        }
+        
         nodes.append(newNode)
         edges.append(GraphEdge(from: parentID, target: newNode.id, type: .hierarchy))
         
-        // If parent is ToggleNode, append to its children and childOrder
-        if var parentToggle = nodes[parentIndex].unwrapped as? ToggleNode {
+        // Update parent: Handle both ToggleNode (update) and plain Node (convert and replace)
+        let unwrappedParent = nodes[parentIndex].unwrapped
+        if var parentToggle = unwrappedParent as? ToggleNode {
             if !parentToggle.children.contains(newNode.id) {  // Avoid duplicates
                 parentToggle.children.append(newNode.id)
                 parentToggle.childOrder.append(newNode.id)  // Append to maintain initial order
-                nodes[parentIndex] = AnyNode(parentToggle)
+                nodes[parentIndex] = AnyNode(parentToggle)  // Replace updated parent
             }
+        } else {
+            // Conversion for plain Node: Create new ToggleNode reusing the same ID
+            Self.logger.debugLog("Converting plain parent \(parentID.uuidString.prefix(8)) to ToggleNode")
+            var newToggle = ToggleNode(
+                id: unwrappedParent.id,  // Reuse ID to avoid breaking references/edges
+                label: unwrappedParent.label,
+                position: unwrappedParent.position,
+                velocity: unwrappedParent.velocity,
+                radius: unwrappedParent.radius,
+                isExpanded: true,  // Default for new hierarchy
+                contents: unwrappedParent.contents
+            )
+            newToggle.children.append(newNode.id)
+            newToggle.childOrder.append(newNode.id)
+            nodes[parentIndex] = AnyNode(newToggle)  // FIX: Replace at index, do NOT append!
         }
         
         objectWillChange.send()
+        invalidateHiddenNodesCache()
         await resumeSimulation()
     }
     

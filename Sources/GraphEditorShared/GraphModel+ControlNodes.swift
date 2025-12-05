@@ -36,77 +36,39 @@ extension GraphModel {
         ephemeralControlNodes.removeAll()
         ephemeralControlEdges.removeAll()
         
-        // Global controls
-        addGlobalControls()
-        
-        // Per-node controls
+        // Per-node controls only (no globals)
         if let ownerID = selectedNodeID {
             addControlsForNode(ownerID)
+        }
+        
+        // NEW: Final duplicate ID scan (prevents crash cause)
+        var seenIDs = Set<NodeID>()
+        ephemeralControlNodes.removeAll { control in
+            if seenIDs.contains(control.id) {
+                Self.controlLogger.warning("Removed duplicate control ID: \(control.id.uuidString.prefix(8))")
+                return true
+            }
+            seenIDs.insert(control.id)
+            return false
         }
         
         objectWillChange.send()
         changesPublisher.send()
     }
     
-    private func addGlobalControls() {
-        // Clear existing globals first to prevent duplicates
-        ephemeralControlNodes.removeAll { $0.ownerID == nil }
-        ephemeralControlEdges.removeAll { $0.from == nil || $0.target == nil }  // Assuming globals have nil owner
-        
-        let centroid = self.centroid ?? .zero
-        var globalKinds: [ControlKind] = []
-        
-        if canUndo { globalKinds.append(.undo) }
-        if canRedo { globalKinds.append(.redo) }
-        globalKinds.append(.configMode)  // Always show config entry
-        
-        let filtered = globalKinds.filter { kind in
-            globalUiConfig.first(where: { $0.kind == kind })?.isVisible ?? true
-        }
-        
-        let sortedFiltered = filtered.sorted { kind1, kind2 in
-            let priority1 = globalUiConfig.first(where: { $0.kind == kind1 })?.priority ?? 0
-            let priority2 = globalUiConfig.first(where: { $0.kind == kind2 })?.priority ?? 0
-            return priority1 < priority2
-        }
-        
-        let spacing: CGFloat = 40.0
-        for (index, kind) in sortedFiltered.enumerated() {
-            // Skip if kind already exists (duplicate check)
-            if ephemeralControlNodes.contains(where: { $0.kind == kind && $0.ownerID == nil }) { continue }
-            
-            let angle = CGFloat(index) * (360 / CGFloat(sortedFiltered.count))
-            let dx = cos(angle * .pi / 180) * spacing
-            let dy = sin(angle * .pi / 180) * spacing
-            let position = CGPoint(x: centroid.x + dx, y: centroid.y + dy)
-            let clampedPos = clampPosition(position)
-            
-            let control = ControlNode(
-                position: clampedPos,
-                ownerID: nil,
-                kind: kind,
-                isVisible: true,  // Default or from config
-                priority: globalUiConfig.first(where: { $0.kind == kind })?.priority ?? 0,
-                action: { [weak self] in Task { await self?.handleControlAction(kind: kind, ownerID: nil) } }  // Wrap async in Task
-            )
-            ephemeralControlNodes.append(control)
-            
-            // Add ephemeral spring edge to centroid if desired
-            // Example: ephemeralControlEdges.append(GraphEdge(from: nil, target: control.id, type: .spring))
-        }
-    }
-    
     private func addControlsForNode(_ ownerID: NodeID) {
         // Clear existing for this owner to prevent duplicates
         ephemeralControlNodes.removeAll { $0.ownerID == ownerID }
-        ephemeralControlEdges.removeAll { $0.from == ownerID || $0.target == ownerID }
+        ephemeralControlEdges.removeAll { $0.from == ownerID }
         
-        guard let owner = nodes.first(where: { $0.id == ownerID })?.unwrapped else { return }
+        guard let owner = nodes.first(where: { $0.id == ownerID })?.unwrapped else {
+            Self.controlLogger.warning("Owner node not found for controls: \(ownerID.uuidString.prefix(8))")
+            return
+        }
         
-        var nodeKinds: [ControlKind] = [.edit, .addChild, .deleteNode]  // Example; adjust per mode
+        let kinds: [ControlKind] = [.edit, .addChild, .deleteNode, .toggleExpansion]  // Based on screenshots: pencil, plus, trash, and toggle
         
-        // Filter visible
-        let filtered = nodeKinds.filter { kind in
+        let filtered = kinds.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
         }
         
@@ -117,15 +79,13 @@ extension GraphModel {
         }
         
         let freeSlots = getFreeSlots(for: ownerID)
-        let spacing: CGFloat = owner.radius + 20.0
+        let spacing: CGFloat = 40.0
         
         for (index, kind) in sortedFiltered.enumerated() {
-            // Skip if kind already exists for owner (duplicate check)
+            // Skip if kind already exists (duplicate check)
             if ephemeralControlNodes.contains(where: { $0.kind == kind && $0.ownerID == ownerID }) { continue }
             
-            guard index < freeSlots.count else { break }  // Limit to available slots
-            
-            let angle = freeSlots[index]
+            let angle = freeSlots[index % freeSlots.count]
             let dx = cos(angle * .pi / 180) * spacing
             let dy = sin(angle * .pi / 180) * spacing
             let position = CGPoint(x: owner.position.x + dx, y: owner.position.y + dy)
@@ -134,50 +94,90 @@ extension GraphModel {
             let control = ControlNode(
                 position: clampedPos,
                 ownerID: ownerID,
-                kind: kind,
-                isVisible: true,  // Default or from config
-                priority: uiConfig[ownerID]?.first(where: { $0.kind == kind })?.priority ?? 0,
-                action: { [weak self] in Task { await self?.handleControlAction(kind: kind, ownerID: ownerID) } }  // Wrap async in Task
+                kind: kind
             )
-            ephemeralControlNodes.append(control)
             
-            // Add ephemeral spring edge to owner
-            ephemeralControlEdges.append(GraphEdge(from: ownerID, target: control.id, type: .spring))
+            // NEW: Check for duplicate ID before append (extra safety)
+            if ephemeralControlNodes.contains(where: { $0.id == control.id }) {
+                Self.controlLogger.warning("Skipping duplicate control ID: \(control.id.uuidString.prefix(8))")
+                continue
+            }
+            
+            ephemeralControlNodes.append(control)
+            ephemeralControlEdges.append(GraphEdge(from: ownerID, target: control.id, type: .spring))  // Assuming .spring for dotted attachment
+            
+            // NEW: Debug log for positioning
+            Self.controlLogger.debug("Added control \(String(describing: kind)) for node \(ownerID.uuidString.prefix(8)) at model pos (\(clampedPos.x), \(clampedPos.y))")
         }
     }
     
-    private func handleControlAction(kind: ControlKind, ownerID: NodeID?) async {
-        guard let ownerID else {
-            Self.controlLogger.warning("Action \(kind.rawValue) triggered without ownerID")
+    // MARK: - Action Dispatching (Completed based on truncation/context)
+    public func handleControlTap(on control: ControlNode) async {
+        guard let ownerID = control.ownerID else {
+            Self.controlLogger.warning("Control tap with no owner: \(String(describing: control.kind))")
             return
         }
-        switch kind {
-        case .undo:
-            await undo()
-        case .redo:
-            await redo()
-        case .configMode:
-            isConfigMode.toggle()
+        
+        Self.controlLogger.debug("Handling tap on control \(String(describing: control.kind)) for node \(ownerID.uuidString.prefix(8))")
+        
+        switch control.kind {
         case .edit:
-            Self.controlLogger.debug("Edit triggered for node \(ownerID.uuidString.prefix(8))")
             editingNodeID = ownerID  // Triggers sheet in UI
         case .addChild:
             await addChildToNode(ownerID)
-        case .deleteNode:  // Assuming you renamed .delete to .deleteNode as per previous fixes
+        case .deleteNode:
             await deleteSelected(selectedNodeID: ownerID, selectedEdgeID: nil)
         case .toggleExpansion:
             Self.controlLogger.debug("Toggle expansion for node \(ownerID.uuidString.prefix(8))")
             await toggleExpansion(for: ownerID)
+        // Add other cases if more kinds exist
+        default:
+            Self.controlLogger.warning("Unhandled control kind: \(String(describing: control.kind))")
         }
     }
+    
     private func addChildToNode(_ parentID: NodeID) async {
-        let newChild = Node(label: nodes.count + 1, position: .zero)  // Example; adjust
-        nodes.append(AnyNode(newChild))
+        // NEW: Pause ephemeral updates and simulation to prevent mid-add mutations/duplicates
+        let originalCancellables = cancellables  // Save to restore
+        cancellables.removeAll()  // Temporarily disable subscriptions
+        physicsEngine.isPaused = true
+        defer {
+            cancellables = originalCancellables  // Restore
+            physicsEngine.isPaused = false
+            Self.controlLogger.debug("Resumed updates after add child")
+        }
+        
+        guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }) else {
+            Self.controlLogger.warning("Parent not found for add child: \(parentID.uuidString.prefix(8))")
+            return
+        }
+        
+        let parent = nodes[parentIndex].unwrapped
+        
+        // NEW: Random offset to avoid position overlap (prevents velocity explosions)
+        let angle = CGFloat.random(in: 0 ..< .pi * 2)
+        let dist = parent.radius + Constants.App.nodeModelRadius + 40  // Assume Constants exists; adjust
+        let childPos = parent.position + CGPoint(x: dist * cos(angle), y: dist * sin(angle))
+        
+        let newChild = Node(label: nextNodeLabel, position: childPos)  // Use nextNodeLabel from core model
+        nextNodeLabel += 1
+        let anyChild = AnyNode(newChild)
+        
+        // NEW: Check for duplicate ID before append
+        if nodes.contains(where: { $0.id == anyChild.id }) {
+            Self.controlLogger.error("Duplicate node ID detected: \(anyChild.id.uuidString.prefix(8)) – aborting add")
+            return
+        }
+        
+        nodes.append(anyChild)
         await addEdge(from: parentID, target: newChild.id, type: .hierarchy)
         
         objectWillChange.send()
         invalidateHiddenNodesCache()
         await resumeSimulation()
+        
+        // NEW: Debug log
+        Self.controlLogger.debug("Added child \(newChild.id.uuidString.prefix(8)) to \(parentID.uuidString.prefix(8)) at (\(childPos.x), \(childPos.y))")
     }
     
     public func updateControlPosition(controlID: NodeID, to newPosition: CGPoint) {
@@ -189,21 +189,19 @@ extension GraphModel {
     }
     
     public func toggleControlVisibility(kind: ControlKind, ownerID: NodeID?) {
-        if let ownerID = ownerID {
-            var configs = uiConfig[ownerID] ?? []
-            if let index = configs.firstIndex(where: { $0.kind == kind }) {
-                configs[index].isVisible.toggle()
-            } else {
-                configs.append(ControlConfig(kind: kind, isVisible: false))
-            }
-            uiConfig[ownerID] = configs
-        } else {
-            if let index = globalUiConfig.firstIndex(where: { $0.kind == kind }) {
-                globalUiConfig[index].isVisible.toggle()
-            } else {
-                globalUiConfig.append(ControlConfig(kind: kind, isVisible: false))
-            }
+        guard let ownerID = ownerID else {
+            Self.controlLogger.warning("Toggle visibility called with nil owner – ignoring (globals removed)")
+            return
         }
+        
+        var configs = uiConfig[ownerID] ?? []
+        if let index = configs.firstIndex(where: { $0.kind == kind }) {
+            configs[index].isVisible.toggle()
+        } else {
+            configs.append(ControlConfig(kind: kind, isVisible: false))
+        }
+        uiConfig[ownerID] = configs
+        
         updateEphemerals(selectedNodeID: ownerID)
         pushUndo()
     }
