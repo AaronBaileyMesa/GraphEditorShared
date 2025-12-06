@@ -25,7 +25,7 @@ extension GraphModel {
     
     // NEW: Flag to prevent recursive updates in the subscription sink
     
-    private func getFreeSlots(for ownerID: NodeID) -> [CGFloat] {
+    public func getFreeSlots(for ownerID: NodeID) -> [CGFloat] {
         // v1: Assume no occupations – return all slots
         // Future: Check priorityEdges[ownerID] ?? [], calculate occupied angles from edge directions,
         //         filter out slots within ±22.5° of occupied, return remaining sorted.

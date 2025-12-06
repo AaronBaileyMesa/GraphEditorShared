@@ -138,7 +138,7 @@ struct ClampingAndMiscTests {
         let edges = [GraphEdge(from: UUID(), target: UUID())]
         let wrappedNodes = nodes.map { AnyNode($0) }  // FIXED: Wrap to match GraphState's expected type
         let state = GraphState(nodes: wrappedNodes, edges: edges, hierarchyEdgeColor: TestConstants.defaultHierarchyColor,
-                               associationEdgeColor: TestConstants.defaultAssociationColor)
+                               associationEdgeColor: TestConstants.defaultAssociationColor, isSimulating: false)
         #expect(state.nodes.map { $0.id } == nodes.map { $0.id }, "Nodes should match")
         #expect(state.edges == edges, "Edges should match")
     }

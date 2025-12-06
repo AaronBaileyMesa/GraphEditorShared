@@ -51,7 +51,20 @@ extension GraphModel {
             if self.isSimulating {
                 await startSimulation()  // Only start if it was simulating on save
             }
-        } catch {
+        } catch let storageError as GraphStorageError {  // NEW: Catch specific GraphStorageError
+            if case .graphNotFound(_) = storageError {  // NEW: Handle .graphNotFound gracefully
+                Self.logger.warning("Graph '\(name)' not found – initializing default graph")
+                await initializeDefaultGraph()  // NEW: Call helper to set up defaults
+                try? await saveGraph()  // NEW: Save the defaults to persist for next load (ignore errors to avoid throwing)
+            } else {  // NEW: For other storage errors, log and rethrow as before
+                Self.logger.errorLog("loadFromStorage failed for \(name)", error: storageError)
+                nodes = []  // Reset to empty on failure
+                edges = []
+                nextNodeLabel = 1
+                self.isSimulating = false  // Safe default on failure
+                throw GraphError.storageFailure(storageError.localizedDescription)
+            }
+        } catch {  // NEW: Catch any non-GraphStorageError and handle as before
             Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
             nodes = []  // Reset to empty on failure
             edges = []
@@ -59,6 +72,31 @@ extension GraphModel {
             self.isSimulating = false  // Safe default on failure
             throw GraphError.storageFailure(error.localizedDescription)
         }
+    }
+    
+    // NEW: Private helper to initialize a default graph (add 2 nodes + 1 edge; customize as needed)
+    @MainActor
+    public func initializeDefaultGraph() async {
+        // Reset basics
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
+        hierarchyEdgeColor = .blue
+        associationEdgeColor = .white
+        uiConfig = [:]
+        globalUiConfig = []
+        
+        // Add default nodes and edge
+        let node1 = await addNode(at: CGPoint(x: 0, y: 0))
+        let node2 = await addNode(at: CGPoint(x: 100, y: 0))
+        await addEdge(from: node1.id, target: node2.id, type: .association)  // Or .hierarchy if preferred
+        
+        nextNodeLabel = 3  // After adding 2 nodes
+        
+        invalidateHiddenNodesCache()
+        objectWillChange.send()
+        
+        Self.logger.infoLog("Initialized default graph with 2 nodes and 1 edge")
     }
     
     public func saveGraph() async throws {
@@ -71,46 +109,25 @@ extension GraphModel {
                 associationEdgeColor: CodableColor(associationEdgeColor),
                 uiConfig: uiConfig,
                 globalUiConfig: globalUiConfig,
-                isSimulating: isSimulating  // NEW
+                isSimulating: isSimulating  // NEW: Save simulation state
             )
             try await storage.saveGraphState(state, for: currentGraphName)
-            Self.logger.infoLog("saveGraph completed for \(currentGraphName)")
+            Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for '\(currentGraphName)'")
         } catch {
             Self.logger.errorLog("saveGraph failed for \(currentGraphName)", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
-    /// Loads the current graph (based on currentGraphName).
-    public func loadGraph() async {
-        do {
-            try await loadFromStorage(for: currentGraphName)
-        } catch {
-            Self.logger.errorLog("loadGraph failed for \(currentGraphName)", error: error)
-            // Handle fallback, e.g., create default graph
-        }
-        isSimulating = false  // Default to paused on fresh load
+    public func loadGraph() async throws {
+        try await loadFromStorage(for: currentGraphName)
+        invalidateHiddenNodesCache()
+        objectWillChange.send()
     }
     
-    /// Loads a specific graph by name and switches to it.
-    public func loadGraph(name: String) async {
-        currentGraphName = name
-        await loadGraph()
-    }
-    
-    /// Deletes the graph with the given name (if not current, no change to model).
-    public func deleteGraph(name: String) async throws {
+    public func deleteGraph(named name: String) async throws {
         do {
             try await storage.deleteGraph(name: name)
-            if name == currentGraphName {
-                currentGraphName = "default"
-                nodes = []  // Explicitly clear
-                edges = []
-                nextNodeLabel = 1
-                invalidateHiddenNodesCache()
-                objectWillChange.send()
-                await loadGraph()  // Reload default
-            }
             Self.logger.infoLog("Deleted graph '\(name)'")
         } catch {
             Self.logger.errorLog("Failed to delete graph '\(name)'", error: error)
@@ -202,7 +219,7 @@ extension GraphModel {
         nodes = []  // Clear before load
             edges = []
             currentGraphName = name
-            await loadGraph()
+        try await loadGraph()
     }
     
 }

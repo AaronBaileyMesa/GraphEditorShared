@@ -29,8 +29,8 @@ import WatchKit
     @Published public var associationEdgeColor: Color = .white
     // In GraphModel.swift
     
-    var ephemeralControlNodes: [ControlNode] = []          // only these
-    var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
+    public var ephemeralControlNodes: [ControlNode] = []          // only these
+    public var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
     var isUpdatingEphemerals: Bool = false
 
     public var uiConfig: [NodeID: [ControlConfig]] = [:]

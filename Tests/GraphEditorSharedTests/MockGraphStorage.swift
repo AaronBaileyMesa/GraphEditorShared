@@ -19,9 +19,9 @@ class MockGraphStorage: GraphStorage {
     var nodes: [any NodeProtocol] {
         get { graphs[defaultName]?.nodes ?? [] }
         set {
-            let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+            let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white), isSimulating: false)
             let wrappedNodes = newValue.map { $0 as? AnyNode ?? AnyNode($0) }  // Safe wrap: reuse if already AnyNode
-            let updatedState = GraphState(nodes: wrappedNodes, edges: currentState.edges, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor)
+            let updatedState = GraphState(nodes: wrappedNodes, edges: currentState.edges, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor, isSimulating: false)
             graphs[defaultName] = updatedState
         }
     }
@@ -29,8 +29,8 @@ class MockGraphStorage: GraphStorage {
     var edges: [GraphEdge] {
         get { graphs[defaultName]?.edges ?? [] }
         set {
-            let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
-            let updatedState = GraphState(nodes: currentState.nodes, edges: newValue, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor)
+            let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white), isSimulating: false)
+            let updatedState = GraphState(nodes: currentState.nodes, edges: newValue, hierarchyEdgeColor: currentState.hierarchyEdgeColor, associationEdgeColor: currentState.associationEdgeColor, isSimulating: false)
             graphs[defaultName] = updatedState
         }
     }
@@ -42,13 +42,13 @@ class MockGraphStorage: GraphStorage {
     
     // MARK: - Single-graph (default) methods (using default graph under the hood)
     func save(nodes: [any NodeProtocol], edges: [GraphEdge]) async throws {
-        let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+        let currentState = graphs[defaultName] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white), isSimulating: false)
         let wrappedNodes = nodes.map { $0 as? AnyNode ?? AnyNode($0) }  // Safe wrap: reuse if already AnyNode
         let updatedState = GraphState(
             nodes: wrappedNodes,
             edges: edges,
             hierarchyEdgeColor: currentState.hierarchyEdgeColor,
-            associationEdgeColor: currentState.associationEdgeColor
+            associationEdgeColor: currentState.associationEdgeColor, isSimulating: false
         )
         graphs[defaultName] = updatedState
     }
@@ -82,18 +82,18 @@ class MockGraphStorage: GraphStorage {
         if graphs[name] != nil {
             throw GraphStorageError.graphExists(name)
         }
-        graphs[name] = GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+        graphs[name] = GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white), isSimulating: false)
         viewStates.removeValue(forKey: name)
     }
     
     func save(nodes: [any NodeProtocol], edges: [GraphEdge], for name: String) async throws {
-        let currentState = graphs[name] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white))
+        let currentState = graphs[name] ?? GraphState(nodes: [], edges: [], hierarchyEdgeColor: CodableColor(.blue), associationEdgeColor: CodableColor(.white), isSimulating: false)
         let wrappedNodes = nodes.map { $0 as? AnyNode ?? AnyNode($0) }  // Safe wrap: reuse if already AnyNode
         let updatedState = GraphState(
             nodes: wrappedNodes,
             edges: edges,
             hierarchyEdgeColor: currentState.hierarchyEdgeColor,
-            associationEdgeColor: currentState.associationEdgeColor
+            associationEdgeColor: currentState.associationEdgeColor, isSimulating: false
         )
         graphs[name] = updatedState
     }

@@ -26,7 +26,7 @@ struct PersistenceAndModelTests {
     nodes: [AnyNode(node), AnyNode(toggleNode)],
     edges: [edge],
     hierarchyEdgeColor: CodableColor(.blue),
-    associationEdgeColor: CodableColor(.white)
+    associationEdgeColor: CodableColor(.white), isSimulating: false
     )
     try await manager.saveGraphState(state, for: "default")
     let fileManager = FileManager.default
@@ -50,7 +50,7 @@ struct PersistenceAndModelTests {
             nodes: [AnyNode(node)],
             edges: [],
             hierarchyEdgeColor: CodableColor(.blue),
-            associationEdgeColor: CodableColor(.white)
+            associationEdgeColor: CodableColor(.white), isSimulating: false
         )
         try await manager.saveGraphState(state, for: "default")
         
