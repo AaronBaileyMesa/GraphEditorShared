@@ -23,6 +23,8 @@ extension GraphModel {
     
     private static let controlAngles: [CGFloat] = [0, 45, 90, 135, 180, 225, 270, 315]  // Degrees, starting at 0° (right)
     
+    // NEW: Flag to prevent recursive updates in the subscription sink
+    
     private func getFreeSlots(for ownerID: NodeID) -> [CGFloat] {
         // v1: Assume no occupations – return all slots
         // Future: Check priorityEdges[ownerID] ?? [], calculate occupied angles from edge directions,
@@ -45,15 +47,11 @@ extension GraphModel {
         var seenIDs = Set<NodeID>()
         ephemeralControlNodes.removeAll { control in
             if seenIDs.contains(control.id) {
-                Self.controlLogger.warning("Removed duplicate control ID: \(control.id.uuidString.prefix(8))")
                 return true
             }
             seenIDs.insert(control.id)
             return false
         }
-        
-        objectWillChange.send()
-        changesPublisher.send()
     }
     
     private func addControlsForNode(_ ownerID: NodeID) {
@@ -209,14 +207,20 @@ extension GraphModel {
     // MARK: - Init Hook (Subscribe to Changes)
     // Call this in main init after setting up other publishers
     public func setupControlSubscriptions(selectedNodePublisher: AnyPublisher<NodeID?, Never>) {
-        selectedNodePublisher
-            .combineLatest(changesPublisher)
-            .debounce(for: .milliseconds(50), scheduler: DispatchQueue.main)
-            .sink { [weak self] selectedID, _ in
-                self?.updateEphemerals(selectedNodeID: selectedID)
-            }
-            .store(in: &cancellables)
-    }
+            selectedNodePublisher
+                .combineLatest(changesPublisher)
+                .debounce(for: .milliseconds(50), scheduler: DispatchQueue.main)
+                .sink { [weak self] selectedID, _ in
+                    guard let self = self else { return }
+                    guard !self.isUpdatingEphemerals else { return }  // NEW: Prevent re-entrancy if already updating
+                    
+                    self.isUpdatingEphemerals = true  // Set flag
+                    defer { self.isUpdatingEphemerals = false }  // Reset after block (even on error)
+                    
+                    self.updateEphemerals(selectedNodeID: selectedID)
+                }
+                .store(in: &cancellables)
+        }
     
     private func clampPosition(_ pos: CGPoint) -> CGPoint {
         let minX = CGFloat(0), minY = CGFloat(0)  // Or simulationBounds lower if defined

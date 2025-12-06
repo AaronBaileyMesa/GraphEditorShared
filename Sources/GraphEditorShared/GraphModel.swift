@@ -31,6 +31,8 @@ import WatchKit
     
     var ephemeralControlNodes: [ControlNode] = []          // only these
     var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
+    var isUpdatingEphemerals: Bool = false
+
     public var uiConfig: [NodeID: [ControlConfig]] = [:]
     public var globalUiConfig: [ControlConfig] = []
     @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
