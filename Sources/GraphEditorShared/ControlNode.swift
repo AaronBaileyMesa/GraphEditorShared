@@ -25,13 +25,13 @@ public struct ControlNode: NodeProtocol {
     
     // MARK: Display label (required by NodeProtocol)
     public var label: Int { 0 } // Controls have no numbered label
+    public var relativeAngle: CGFloat = 0.0  // NEW: Stored angle (degrees) relative to owner, set at creation
     
     // MARK: Control-specific
     public let ownerID: NodeID?
     public let kind: ControlKind
     public var isVisible: Bool = true
-    public var priority: Int = 0
-    
+    public var priority: Int = 0    
     // Optional action closure
     public var action: (() -> Void)?
     
@@ -42,7 +42,8 @@ public struct ControlNode: NodeProtocol {
         kind: ControlKind,
         isVisible: Bool = true,
         priority: Int = 0,
-        action: (() -> Void)? = nil
+        action: (() -> Void)? = nil,
+        relativeAngle: CGFloat = 0.0
     ) {
         self.position = position
         self.ownerID = ownerID
@@ -50,6 +51,7 @@ public struct ControlNode: NodeProtocol {
         self.isVisible = isVisible
         self.priority = priority
         self.action = action
+        self.relativeAngle = relativeAngle
     }
     
     // MARK: Required NodeProtocol methods
@@ -127,14 +129,15 @@ extension ControlNode: Equatable {
         lhs.velocity == rhs.velocity &&
         lhs.kind == rhs.kind &&
         lhs.ownerID == rhs.ownerID &&
-        lhs.isVisible == rhs.isVisible
+        lhs.isVisible == rhs.isVisible &&
+        lhs.relativeAngle == rhs.relativeAngle  // NEW
     }
 }
 
 // MARK: - Codable (optional – only if you ever persist controls, which you don’t)
 extension ControlNode: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, position, velocity, radius, ownerID, kind, isVisible, priority
+        case id, position, velocity, radius, ownerID, kind, isVisible, priority, relativeAngle
     }
     
     public init(from decoder: Decoder) throws {
@@ -147,6 +150,7 @@ extension ControlNode: Codable {
         self.kind = try container.decode(ControlKind.self, forKey: .kind)
         self.isVisible = try container.decode(Bool.self, forKey: .isVisible)
         self.priority = try container.decode(Int.self, forKey: .priority)
+        self.relativeAngle = try container.decode(CGFloat.self, forKey: .relativeAngle)
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -159,5 +163,6 @@ extension ControlNode: Codable {
         try container.encode(kind, forKey: .kind)
         try container.encode(isVisible, forKey: .isVisible)
         try container.encode(priority, forKey: .priority)
+        try container.encode(relativeAngle, forKey: .relativeAngle)
     }
 }

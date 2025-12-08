@@ -29,15 +29,15 @@ import WatchKit
     @Published public var associationEdgeColor: Color = .white
     // In GraphModel.swift
     
-    public var ephemeralControlNodes: [ControlNode] = []          // only these
-    public var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
+    @Published public var ephemeralControlNodes: [ControlNode] = []          // only these
+    @Published public var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
     var isUpdatingEphemerals: Bool = false
 
     public var uiConfig: [NodeID: [ControlConfig]] = [:]
     public var globalUiConfig: [ControlConfig] = []
     @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
     public var isConfigMode: Bool = false
-    var cancellables: Set<AnyCancellable> = []
+    @Published public var cancellables: Set<AnyCancellable> = []
     
     public var allNodes: [any NodeProtocol] {
         nodes + ephemeralControlNodes
@@ -155,23 +155,41 @@ import WatchKit
         GraphSimulator(
             getNodes: { [weak self] in
                 await MainActor.run {
-                    self?.visibleNodes ?? []
+                    self?.nodes.map { $0.unwrapped } ?? []
                 }
             },
             setNodes: { [weak self] newNodes in
                 await MainActor.run {
                     guard let self else { return }
-                    
-                    // === POLISH: Throttle SwiftUI updates to ~30 FPS ===
                     let now = Date()
                     if now.timeIntervalSince(self.lastNodeUpdateTime) < self.minimumUpdateInterval {
-                        return  // Drop this physics frame — UI doesn’t need it
+                        return
                     }
                     self.lastNodeUpdateTime = now
-                    
-                    // Apply the update — @Published on `nodes` will notify SwiftUI exactly once
-                    self.mergeVisibleNodesIntoFullModel(updatedVisibleNodes: newNodes)
-                    // Do NOT call objectWillChange.send() — it’s redundant and harmful
+                    var updated = newNodes
+                    for (index, var node) in updated.enumerated() {
+                        if self.hiddenNodeIDs.contains(node.id) {
+                            node = node.with(position: node.position, velocity: .zero)
+                            updated[index] = node
+                        }
+                    }
+                    self.nodes = updated.map { AnyNode($0) }
+                }
+            },
+            getEphemerals: { [weak self] in
+                await MainActor.run {
+                    self?.ephemeralControlNodes ?? []
+                }
+            },
+            setEphemerals: { [weak self] (newEphemerals: [any NodeProtocol]) in  // Parens fix parsing + capture issues
+                await MainActor.run {
+                    guard let self else { return }
+                    let now = Date()
+                    if now.timeIntervalSince(self.lastNodeUpdateTime) < self.minimumUpdateInterval {
+                        return
+                    }
+                    self.lastNodeUpdateTime = now
+                    self.setEphemerals(newEphemerals)
                 }
             },
             getEdges: { [weak self] in
@@ -187,15 +205,12 @@ import WatchKit
             onStable: { [weak self] in
                 Task { @MainActor in
                     guard let self else { return }
-                    
-                    // Final centering + zero velocities
                     let centered = self.physicsEngine.centerNodes(
                         nodes: self.nodes.map { $0.unwrapped }
                     )
                     self.nodes = centered.map {
                         AnyNode($0.with(position: $0.position, velocity: .zero))
                     }
-                    
                     self.isStable = true
                     try? await Task.sleep(for: .seconds(0.5))
                     self.isStable = false
@@ -229,7 +244,6 @@ import WatchKit
     }
     
     // MARK: - Visible Nodes & Edges (now also cached indirectly via hiddenNodeIDs)
-    
     // In GraphModel.swift (or wherever this extension lives)
     @MainActor
     func visibleNodesAndEdges() -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
@@ -270,7 +284,6 @@ import WatchKit
     }
     
     // MARK: - Merge physics results back into full model
-    
     @MainActor
     private func mergeVisibleNodesIntoFullModel(updatedVisibleNodes: [any NodeProtocol]) {
         var nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
@@ -353,16 +366,28 @@ import WatchKit
         objectWillChange.send()
         
         // NEW: Trigger brief initial simulation for settling (e.g., 10 steps)
-        Task {
+        Task.detached(priority: .userInitiated) {  // NEW: Detached for non-blocking; userInitiated for quick response
             for _ in 0..<10 {  // Tunable: More steps for smoother settling
-                _ = await simulator.performSimulationStep(baseInterval: 1.0 / 60.0, nodeCount: allNodes.count)
+                _ = await self.simulator.performSimulationStep(baseInterval: 1.0 / 60.0, nodeCount: self.allNodes.count)
                 try? await Task.sleep(nanoseconds: 16_666_667)  // ~60 FPS delay
             }
+            await MainActor.run {  // NEW: Back to main for publish after simulation
+                self.objectWillChange.send()  // Ensure re-render post-simulation
+                Self.logger.debug("Completed brief simulation for controls – \(self.ephemeralControlNodes.count) nodes settled")
+            }
         }
+    }
+    
+    private func setEphemerals(_ newEphemerals: [any NodeProtocol]) {
+        ephemeralControlNodes = newEphemerals.compactMap { $0 as? ControlNode }
     }
 }
 
 extension GraphModel {
-    public var visibleNodes: [any NodeProtocol] { visibleNodesAndEdges().nodes }
-    public var visibleEdges: [GraphEdge] { visibleNodesAndEdges().edges }
+    public var visibleNodes: [any NodeProtocol] {
+        visibleNodesAndEdges().nodes + ephemeralControlNodes
+    }
+    public var visibleEdges: [GraphEdge] {
+        visibleNodesAndEdges().edges + ephemeralControlEdges
+    }
 }

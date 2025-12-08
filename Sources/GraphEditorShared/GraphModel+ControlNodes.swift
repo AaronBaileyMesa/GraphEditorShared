@@ -34,35 +34,76 @@ extension GraphModel {
     
     // MARK: - Ephemeral Management
     @MainActor
-    public func updateEphemerals(selectedNodeID: NodeID?) {
-        ephemeralControlNodes.removeAll()
-        ephemeralControlEdges.removeAll()
-        
-        // Per-node controls only (no globals)
-        if let ownerID = selectedNodeID {
-            addControlsForNode(ownerID)
+    public func updateEphemerals(selectedNodeID: NodeID?) async {
+        // Clear previous ephemerals safely
+        if let previousOwnerID = ephemeralControlNodes.first?.ownerID {
+            await removeEphemerals(for: previousOwnerID)
+        } else {
+            ephemeralControlNodes.removeAll()
+            ephemeralControlEdges.removeAll()
         }
         
-        // NEW: Final duplicate ID scan (prevents crash cause)
+        // Generate new controls if a node is selected
+        if let ownerID = selectedNodeID {
+            await addControlsForNode(ownerID)
+        }
+        
+        // NEW: Final duplicate ID scan (prevents crashes from duplicates)
         var seenIDs = Set<NodeID>()
         ephemeralControlNodes.removeAll { control in
             if seenIDs.contains(control.id) {
+                Self.controlLogger.warning("Removed duplicate control ID: \(control.id.uuidString.prefix(8))")
                 return true
             }
             seenIDs.insert(control.id)
             return false
         }
+        
+        // NEW: Debug print for verification (remove or gate in production)
+        print("Ephemerals updated: \(ephemeralControlNodes.count) controls for owner \(selectedNodeID?.uuidString.prefix(8) ?? "none")")
+        
+        Self.controlLogger.debug("Added controls for owner \(selectedNodeID?.uuidString.prefix(8) ?? "none") – kinds: \(self.ephemeralControlNodes.map { $0.kind.rawValue }.joined(separator: ", "))")
     }
     
-    private func addControlsForNode(_ ownerID: NodeID) {
+    // MARK: - Live Repositioning for Drags
+    @MainActor
+    public func repositionEphemerals(for ownerID: NodeID, to newPosition: CGPoint) {
+        for index in ephemeralControlNodes.indices {
+            if ephemeralControlNodes[index].ownerID == ownerID {
+                var control = ephemeralControlNodes[index]
+                let spacing: CGFloat = 40.0  // Reuse from addControlsForNode
+                let angle = control.relativeAngle  // NEW: Use stored value (stable across drags)
+                let dx = cos(angle * .pi / 180) * spacing
+                let dy = sin(angle * .pi / 180) * spacing
+                control.position = clampPosition(CGPoint(x: newPosition.x + dx, y: newPosition.y + dy))
+                control.velocity = .zero  // Reset velocity during manual drag to prevent drift
+                ephemeralControlNodes[index] = control
+                Self.controlLogger.debug("Repositioning control \(String(describing: control.kind)) for owner \(ownerID.uuidString.prefix(8)) at stored angle \(angle), new offset (\(dx), \(dy)), new pos (\(newPosition.x + dx), \(newPosition.y + dy))")
+            }
+        }
+        objectWillChange.send()  // Trigger redraw
+    }
+    
+    private func addControlsForNode(_ ownerID: NodeID) async {
         // Clear existing for this owner to prevent duplicates
         ephemeralControlNodes.removeAll { $0.ownerID == ownerID }
         ephemeralControlEdges.removeAll { $0.from == ownerID }
         
-        guard let owner = nodes.first(where: { $0.id == ownerID })?.unwrapped else {
+        guard let ownerIndex = nodes.firstIndex(where: { $0.id == ownerID }) else {
             Self.controlLogger.warning("Owner node not found for controls: \(ownerID.uuidString.prefix(8))")
             return
         }
+        
+        Self.controlLogger.debug("Adding controls for owner \(ownerID.uuidString.prefix(8))")
+        
+        // NEW: Stabilize existing nodes before adding ephemerals
+        for i in nodes.indices {
+            let currentNode = nodes[i].unwrapped
+            nodes[i] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
+        }
+        physicsEngine.temporaryDampingBoost(steps: 30)
+        
+        let owner = nodes[ownerIndex].unwrapped
         
         let kinds: [ControlKind] = [.edit, .addChild, .deleteNode, .toggleExpansion]  // Based on screenshots: pencil, plus, trash, and toggle
         
@@ -86,47 +127,70 @@ extension GraphModel {
             let angle = freeSlots[index % freeSlots.count]
             let dx = cos(angle * .pi / 180) * spacing
             let dy = sin(angle * .pi / 180) * spacing
+            
             let position = CGPoint(x: owner.position.x + dx, y: owner.position.y + dy)
             let clampedPos = clampPosition(position)
             
             let control = ControlNode(
                 position: clampedPos,
                 ownerID: ownerID,
-                kind: kind
+                kind: kind,
+                relativeAngle: angle  // Store for stable repositioning
             )
             
-            // NEW: Check for duplicate ID before append (extra safety)
-            if ephemeralControlNodes.contains(where: { $0.id == control.id }) {
-                Self.controlLogger.warning("Skipping duplicate control ID: \(control.id.uuidString.prefix(8))")
-                continue
-            }
-            
             ephemeralControlNodes.append(control)
-            ephemeralControlEdges.append(GraphEdge(from: ownerID, target: control.id, type: .spring))  // Assuming .spring for dotted attachment
             
-            // NEW: Debug log for positioning
-            Self.controlLogger.debug("Added control \(String(describing: kind)) for node \(ownerID.uuidString.prefix(8)) at model pos (\(clampedPos.x), \(clampedPos.y))")
+            // NEW: Use .spring for strong attraction to owner
+            let edge = GraphEdge(from: ownerID, target: control.id, type: .spring)
+            ephemeralControlEdges.append(edge)
         }
+        
+        // NEW: Update owner in nodes after changes
+        nodes[ownerIndex] = AnyNode(owner)
+        
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+        
+        // NEW: Run short simulation to let physics integrate ephemerals smoothly
+        await simulator.runShortSimulation(steps: 20)
     }
     
-    // MARK: - Action Dispatching (Completed based on truncation/context)
-    public func handleControlTap(on control: ControlNode) async {
+    private func removeEphemerals(for ownerID: NodeID) async {
+        // NEW: Stabilize before removal for smooth contraction
+        for i in nodes.indices {
+            let currentNode = nodes[i].unwrapped
+            nodes[i] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
+        }
+        physicsEngine.temporaryDampingBoost(steps: 20)
+        
+        ephemeralControlNodes.removeAll { $0.ownerID == ownerID }
+        ephemeralControlEdges.removeAll { $0.from == ownerID }
+        
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+        
+        // NEW: Run short simulation to let graph settle after removal
+        await simulator.runShortSimulation(steps: 10)
+    }
+    
+    @MainActor
+    public func handleControlTap(control: ControlNode) async {
+        Self.controlLogger.debug("Handling tap on control \(String(describing: control.kind)) for owner \(control.ownerID?.uuidString.prefix(8) ?? "nil")")
+        
         guard let ownerID = control.ownerID else {
-            Self.controlLogger.warning("Control tap with no owner: \(String(describing: control.kind))")
+            Self.controlLogger.warning("Control tap with nil ownerID – ignoring")
             return
         }
         
-        Self.controlLogger.debug("Handling tap on control \(String(describing: control.kind)) for node \(ownerID.uuidString.prefix(8))")
-        
         switch control.kind {
         case .edit:
-            editingNodeID = ownerID  // Triggers sheet in UI
+            editingNodeID = ownerID
         case .addChild:
             await addChildToNode(ownerID)
         case .deleteNode:
-            await deleteSelected(selectedNodeID: ownerID, selectedEdgeID: nil)
+            await deleteNode(withID: ownerID)
         case .toggleExpansion:
-            Self.controlLogger.debug("Toggle expansion for node \(ownerID.uuidString.prefix(8))")
+            Self.controlLogger.debug("Toggling expansion for node \(ownerID.uuidString.prefix(8))")
             await toggleExpansion(for: ownerID)
         // Add other cases if more kinds exist
         default:
@@ -200,26 +264,32 @@ extension GraphModel {
         }
         uiConfig[ownerID] = configs
         
-        updateEphemerals(selectedNodeID: ownerID)
+        Task { await updateEphemerals(selectedNodeID: ownerID) }  // Async to match new signature
         pushUndo()
     }
     
     // MARK: - Init Hook (Subscribe to Changes)
     // Call this in main init after setting up other publishers
     public func setupControlSubscriptions(selectedNodePublisher: AnyPublisher<NodeID?, Never>) {
-            selectedNodePublisher
-                .combineLatest(changesPublisher)
-                .debounce(for: .milliseconds(50), scheduler: DispatchQueue.main)
-                .sink { [weak self] selectedID, _ in
-                    guard let self = self else { return }
-                    guard !self.isUpdatingEphemerals else { return }  // NEW: Prevent re-entrancy if already updating
-                    
-                    self.isUpdatingEphemerals = true  // Set flag
-                    defer { self.isUpdatingEphemerals = false }  // Reset after block (even on error)
-                    
-                    self.updateEphemerals(selectedNodeID: selectedID)
+        selectedNodePublisher
+            .combineLatest(changesPublisher)
+            .debounce(for: .milliseconds(20), scheduler: DispatchQueue.main)  // CHANGED: Reduced from 50ms for quicker response
+            .sink { [weak self] selectedID, _ in
+                guard let self = self else { return }
+                guard !self.isUpdatingEphemerals else {
+                    Self.controlLogger.warning("Skipping ephemeral update due to re-entrancy guard")
+                    return
                 }
-                .store(in: &cancellables)
+                
+                self.isUpdatingEphemerals = true
+                defer { self.isUpdatingEphemerals = false }
+                
+                Task {
+                    await self.updateEphemerals(selectedNodeID: selectedID)
+                    Self.controlLogger.debug("Completed ephemeral update for selectedID: \(selectedID?.uuidString.prefix(8) ?? "nil") via subscription")
+                }
+            }
+            .store(in: &cancellables)
         }
     
     private func clampPosition(_ pos: CGPoint) -> CGPoint {
