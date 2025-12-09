@@ -13,7 +13,7 @@ import WatchKit  // Only if using haptics; otherwise remove
 #endif
 
 @available(iOS 16.0, watchOS 6.0, *)
-actor GraphSimulator {
+public actor GraphSimulator {
     private let logger = Logger.forCategory("graphsimulator")  // Added: Define logger instance
     
 #if DEBUG
@@ -294,5 +294,30 @@ actor GraphSimulator {
             if !shouldContinue { break }  // Early exit if stable
             try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
         }
+    }
+    
+    // NEW: Runs simulation indefinitely until stable, with timed intervals for animation (e.g., 30 FPS)
+    public func runAnimatedSimulation(interval: TimeInterval = 1.0 / 30.0, maxSteps: Int = 300) async {
+        var step = 0
+        while step < maxSteps {
+    #if os(watchOS)
+            if !bypassAppCheck {
+                let appState = await WKApplication.shared().applicationState
+                guard appState == .active else { return }
+            }
+    #endif
+            let nodeCount = await getVisibleNodes().count
+            let shouldContinue = await performSimulationStep(baseInterval: interval, nodeCount: nodeCount)
+            if !shouldContinue { break }  // Early exit if stable (uses your velocity checks)
+            
+            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))  // Pause for next frame
+            
+            step += 1
+        }
+        // Optional: Call onStable or onPostStable if needed (already in performSimulationStep)
+    }
+    
+    public func resetVelocityHistory() {
+        recentVelocities = []
     }
 }

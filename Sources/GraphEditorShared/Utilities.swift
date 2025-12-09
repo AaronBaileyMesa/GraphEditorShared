@@ -154,3 +154,22 @@ extension CGFloat {
         return (self * divisor).rounded() / divisor
     }
 }
+
+public func computeBoundingBox(for nodes: [any NodeProtocol]) -> CGRect {
+    guard !nodes.isEmpty else { return .zero }
+
+    var minX = CGFloat.greatestFiniteMagnitude
+    var minY = CGFloat.greatestFiniteMagnitude
+    var maxX = -CGFloat.greatestFiniteMagnitude
+    var maxY = -CGFloat.greatestFiniteMagnitude
+
+    for node in nodes {
+        let pos = node.position
+        minX = min(minX, pos.x - node.radius)
+        minY = min(minY, pos.y - node.radius)
+        maxX = max(maxX, pos.x + node.radius)
+        maxY = max(maxY, pos.y + node.radius)
+    }
+
+    return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+}

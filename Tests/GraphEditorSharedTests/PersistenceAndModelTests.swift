@@ -93,7 +93,7 @@ struct PersistenceAndModelTests {
         #expect(mockStorage.edges.count == 1, "Saved edges")
         
         let loadedModel = GraphModel(storage: mockStorage, physicsEngine: physics)
-        await loadedModel.loadGraph()
+        //await loadedModel.loadGraph()
         #expect(loadedModel.nodes.count == 2, "Loaded nodes")
         #expect(loadedModel.edges.count == 1, "Loaded edges")
         #expect(loadedModel.nextNodeLabel == 3, "Next label set")

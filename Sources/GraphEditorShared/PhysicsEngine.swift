@@ -31,7 +31,8 @@ public class PhysicsEngine {
     internal let positionUpdater: PositionUpdater
     public var useAsymmetricAttraction: Bool = false
     public var alpha: CGFloat = 1.0  // New: Cooling parameter
-    public var usePreferredAngles: Bool = false  // NEW: Toggle for angular forces (default off)
+    public var usePreferredAngles: Bool = false
+    public var damping: CGFloat = 0.95  // NEW: Scale velocities each step for smooth settling
         
         public init(simulationBounds: CGSize) {
             self.simulationBounds = simulationBounds
@@ -76,7 +77,7 @@ public class PhysicsEngine {
             }
         }
         
-        let (tempNodes, isActive) = updatePositions(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
+        let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree, damping: self.damping)
         
         // NEW: For fixed nodes, enforce position/velocity in post-processing
         let updatedNodes = postProcessNodes(tempNodes: tempNodes, isActive: isActive, fixedIDs: fixedIDs)
@@ -88,7 +89,15 @@ public class PhysicsEngine {
 #if DEBUG
         Self.signposter.endInterval("SimulationStep", stepState, "Active: \(isActive)")
         #endif
-       
+        
+        // In updatePositions (or at the end of simulationStep)
+        let dampedNodes = updatedNodes.map { node in
+            var dampedNode = node
+            dampedNode.velocity = dampedNode.velocity * damping
+            return dampedNode
+        }
+        // Then use dampedNodes for the return
+        
         return (updatedNodes, isActive)
     }
     
@@ -140,7 +149,7 @@ public class PhysicsEngine {
         #if DEBUG
         let updateState = Self.signposter.beginInterval("PositionUpdate")
         #endif
-        let result = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: forces, edges: edges, quadtree: quadtree)
+        let result = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: forces, edges: edges, quadtree: quadtree, damping: damping)
         if dampingBoostSteps > 0 { dampingBoostSteps -= 1 }
         #if DEBUG
         Self.signposter.endInterval("PositionUpdate", updateState)
@@ -199,16 +208,8 @@ public class PhysicsEngine {
         let state = Self.signposter.beginInterval("BoundingBoxCalculation", "Nodes: \(nodes.count)")
         defer { Self.signposter.endInterval("BoundingBoxCalculation", state) }
         #endif
-        guard !nodes.isEmpty else { return .zero }
-        var minX = nodes[0].position.x, minY = nodes[0].position.y
-        var maxX = nodes[0].position.x, maxY = nodes[0].position.y
-        for node in nodes {
-            minX = min(minX, node.position.x - node.radius)
-            minY = min(minY, node.position.y - node.radius)
-            maxX = max(maxX, node.position.x + node.radius)
-            maxY = max(maxY, node.position.y + node.radius)
-        }
-        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+
+        return computeBoundingBox(for: nodes)  // Reuse shared func
     }
     
     public func centerNodes(nodes: [any NodeProtocol], around center: CGPoint? = nil) -> [any NodeProtocol] {

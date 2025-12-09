@@ -32,7 +32,7 @@ import WatchKit
     @Published public var ephemeralControlNodes: [ControlNode] = []          // only these
     @Published public var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
     var isUpdatingEphemerals: Bool = false
-
+    
     public var uiConfig: [NodeID: [ControlConfig]] = [:]
     public var globalUiConfig: [ControlConfig] = []
     @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
@@ -364,17 +364,20 @@ import WatchKit
         // NEW: Invalidate caches and notify after changes
         invalidateHiddenNodesCache()
         objectWillChange.send()
+        Self.logger.debug("Added \(self.ephemeralControlNodes.count) controls for owner \(selectedID.uuidString ?? "nil") – initial redraw triggered")
         
         // NEW: Trigger brief initial simulation for settling (e.g., 10 steps)
-        Task.detached(priority: .userInitiated) {  // NEW: Detached for non-blocking; userInitiated for quick response
+        Task {  // Change to non-detached (runs on current actor, safer for MainActor model)
             for _ in 0..<10 {  // Tunable: More steps for smoother settling
                 _ = await self.simulator.performSimulationStep(baseInterval: 1.0 / 60.0, nodeCount: self.allNodes.count)
                 try? await Task.sleep(nanoseconds: 16_666_667)  // ~60 FPS delay
+                await MainActor.run {  // NEW: Publish per step for incremental redraws
+                    self.objectWillChange.send()
+                    Self.logger.debug("Control simulation step complete – positions updated")
+                }
             }
-            await MainActor.run {  // NEW: Back to main for publish after simulation
-                self.objectWillChange.send()  // Ensure re-render post-simulation
-                Self.logger.debug("Completed brief simulation for controls – \(self.ephemeralControlNodes.count) nodes settled")
-            }
+            
+            Self.logger.debug("Completed brief simulation for controls – \(self.ephemeralControlNodes.count) nodes settled")
         }
     }
     

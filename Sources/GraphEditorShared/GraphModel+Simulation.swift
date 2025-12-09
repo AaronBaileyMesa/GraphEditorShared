@@ -36,6 +36,15 @@ extension GraphModel {
             await startSimulation()
         }
     }
+    
+    // NEW: Public wrapper for animated simulation (add at end of class)
+    public func runAnimatedSimulation(interval: TimeInterval = 1.0 / 30.0, maxSteps: Int = 300) async {
+        await simulator.runAnimatedSimulation(interval: interval, maxSteps: maxSteps)
+    }
+    
+    public func resetVelocityHistory() async {
+            await simulator.resetVelocityHistory()
+        }
 
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor

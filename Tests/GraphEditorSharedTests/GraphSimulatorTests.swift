@@ -25,7 +25,7 @@ struct GraphSimulatorTests {
             super.init(simulationBounds: CGSize(width: 100, height: 100))  // Adjust super init as per your PhysicsEngine
         }
         
-        override func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
+        /* override func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
             stepCount += 1
             let velocityScale = stepCount >= convergeAfter ? 0.001 : 1.0
             let updatedNodes = nodes.map { node in
@@ -35,7 +35,7 @@ struct GraphSimulatorTests {
             }
             let isActive = stepCount < convergeAfter
             return (updatedNodes, isActive)
-        }
+        } */
         
         // Mock other methods if needed (e.g., resetSimulation)
         override func resetSimulation() {

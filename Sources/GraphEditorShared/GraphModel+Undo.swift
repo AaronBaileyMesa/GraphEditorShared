@@ -17,7 +17,7 @@ struct UndoGraphState {
 extension GraphModel {
     fileprivate static let undoLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "undo")
     
-    internal func pushUndo() {
+    public func pushUndo() {
         undoStack.append(currentState())
         if undoStack.count > maxUndo { undoStack.removeFirst() }
         redoStack = []
