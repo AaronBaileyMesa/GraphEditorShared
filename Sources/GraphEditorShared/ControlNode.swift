@@ -31,7 +31,7 @@ public struct ControlNode: NodeProtocol {
     public let ownerID: NodeID?
     public let kind: ControlKind
     public var isVisible: Bool = true
-    public var priority: Int = 0    
+    public var priority: Int = 0
     // Optional action closure
     public var action: (() -> Void)?
     
@@ -80,29 +80,16 @@ public struct ControlNode: NodeProtocol {
     
     public func shouldHideChildren() -> Bool { false }
     
-    public var fillColor: Color {
-        switch kind {
-        case .undo:             return .blue
-        case .redo:             return .purple
-        case .configMode:       return .gray
-        case .addChild:         return .green
-        case .deleteNode:       return .red
-        case .toggleExpansion:  return .orange
-        case .edit:             return .yellow
-        }
-    }
-    
     public var mass: CGFloat { 1.0 }
     
     @available(iOS 15.0, watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         let iconName: String = switch kind {
-        case .undo:             "arrow.uturn.backward"
-        case .redo:             "arrow.uturn.forward"
+        
+        
         case .configMode:       "gearshape"
         case .addChild:         "plus.circle.fill"
-        case .deleteNode:       "trash.circle.fill"
-        case .toggleExpansion:  "chevron.up.chevron.down"
+        case .addEdge:          "arrow.right.circle.fill"
         case .edit:             "pencil"
         }
         

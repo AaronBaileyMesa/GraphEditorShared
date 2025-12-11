@@ -91,9 +91,9 @@ public class PhysicsEngine {
         #endif
         
         // In updatePositions (or at the end of simulationStep)
-        let dampedNodes = updatedNodes.map { node in
+        _ = updatedNodes.map { node in
             var dampedNode = node
-            dampedNode.velocity = dampedNode.velocity * damping
+            dampedNode.velocity *= damping
             return dampedNode
         }
         // Then use dampedNodes for the return

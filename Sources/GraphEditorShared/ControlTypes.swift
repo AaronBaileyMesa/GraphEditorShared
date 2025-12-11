@@ -9,25 +9,20 @@ import Foundation
 
 @available(iOS 16.0, watchOS 6.0, *)
 public enum ControlKind: String, Codable, CaseIterable {
-    case undo
-    case redo
+
     case configMode
     case addChild  // Adds a child node of the same type as parent
-    case deleteNode
-    case toggleExpansion  // Toggles expansion for ToggleNodes (first implementation)
     case edit
+    case addEdge
     
     // Future: Value editor kinds (e.g., .toggleBool, .sliderDouble) for node content editing
     
     public var systemImage: String {
         switch self {
-        case .undo: return "arrow.uturn.backward"
-        case .redo: return "arrow.uturn.forward"
         case .configMode: return "gear"
         case .addChild: return "plus.circle"
-        case .deleteNode: return "trash"
-        case .toggleExpansion: return "chevron.up.chevron.down"
         case .edit: return "pencil"
+        case .addEdge: return "arrow.right.circle"
         }
     }
 }

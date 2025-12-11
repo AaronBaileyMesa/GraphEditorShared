@@ -333,10 +333,7 @@ import WatchKit
         
         let isToggle = ownerNode is ToggleNode
         
-        var kinds: [ControlKind] = [.addChild, .deleteNode]
-        if isToggle {
-            kinds.append(.toggleExpansion)
-        }
+        var kinds: [ControlKind] = [.addChild, .addEdge, .edit, .configMode]
         
         let clusterRadius = ownerNode.radius * 2.2
         

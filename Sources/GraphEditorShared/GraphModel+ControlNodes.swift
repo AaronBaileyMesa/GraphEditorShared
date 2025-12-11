@@ -97,15 +97,15 @@ extension GraphModel {
         Self.controlLogger.debug("Adding controls for owner \(ownerID.uuidString.prefix(8))")
         
         // NEW: Stabilize existing nodes before adding ephemerals
-        for i in nodes.indices {
-            let currentNode = nodes[i].unwrapped
-            nodes[i] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
+        for index in nodes.indices {
+            let currentNode = nodes[index].unwrapped
+            nodes[index] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
         }
         physicsEngine.temporaryDampingBoost(steps: 30)
         
         let owner = nodes[ownerIndex].unwrapped
         
-        let kinds: [ControlKind] = [.edit, .addChild, .deleteNode, .toggleExpansion]  // Based on screenshots: pencil, plus, trash, and toggle
+        let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .configMode]  // Based on screenshots: pencil, plus, trash, and toggle
         
         let filtered = kinds.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
@@ -157,9 +157,9 @@ extension GraphModel {
     
     private func removeEphemerals(for ownerID: NodeID) async {
         // NEW: Stabilize before removal for smooth contraction
-        for i in nodes.indices {
-            let currentNode = nodes[i].unwrapped
-            nodes[i] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
+        for index in nodes.indices {
+            let currentNode = nodes[index].unwrapped
+            nodes[index] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
         }
         physicsEngine.temporaryDampingBoost(steps: 20)
         
@@ -187,13 +187,10 @@ extension GraphModel {
             editingNodeID = ownerID
         case .addChild:
             await addChildToNode(ownerID)
-        case .deleteNode:
-            await deleteNode(withID: ownerID)
-        case .toggleExpansion:
-            Self.controlLogger.debug("Toggling expansion for node \(ownerID.uuidString.prefix(8))")
-            await toggleExpansion(for: ownerID)
-        // Add other cases if more kinds exist
-        default:
+        case .addEdge:
+            await addChildToNode(ownerID)
+        case .configMode:
+            await addChildToNode(ownerID)
             Self.controlLogger.warning("Unhandled control kind: \(String(describing: control.kind))")
         }
     }
