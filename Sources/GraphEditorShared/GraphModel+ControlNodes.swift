@@ -181,18 +181,6 @@ extension GraphModel {
             Self.controlLogger.warning("Control tap with nil ownerID – ignoring")
             return
         }
-        
-        switch control.kind {
-        case .edit:
-            editingNodeID = ownerID
-        case .addChild:
-            await addChildToNode(ownerID)
-        case .addEdge:
-            await addChildToNode(ownerID)
-        case .configMode:
-            await addChildToNode(ownerID)
-            Self.controlLogger.warning("Unhandled control kind: \(String(describing: control.kind))")
-        }
     }
     
     private func addChildToNode(_ parentID: NodeID) async {

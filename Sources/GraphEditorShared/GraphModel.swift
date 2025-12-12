@@ -222,7 +222,10 @@ import WatchKit
                     self?.isSimulating = false
                     Self.logger.infoLog("Auto-paused simulation after inactivity")
                 }
-            }
+            } /*,
+             getAllEdges: { self.allEdges },
+             getHiddenNodeIDs: { self.hiddenNodeIDs },  // If private, add public getter or change visibility
+             invalidateHiddenNodesCache: { self.invalidateHiddenNodesCache() },*/
         )
     }()
     
