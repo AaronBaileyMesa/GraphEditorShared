@@ -10,7 +10,6 @@ import Foundation
 @available(iOS 16.0, watchOS 6.0, *)
 public enum ControlKind: String, Codable, CaseIterable {
 
-    case configMode
     case addChild  // Adds a child node of the same type as parent
     case edit
     case addEdge
@@ -19,7 +18,6 @@ public enum ControlKind: String, Codable, CaseIterable {
     
     public var systemImage: String {
         switch self {
-        case .configMode: return "gear"
         case .addChild: return "plus.circle"
         case .edit: return "pencil"
         case .addEdge: return "arrow.right.circle"

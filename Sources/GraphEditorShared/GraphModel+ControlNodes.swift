@@ -105,7 +105,7 @@ extension GraphModel {
         
         let owner = nodes[ownerIndex].unwrapped
         
-        let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .configMode]  // Based on screenshots: pencil, plus, trash, and toggle
+        let kinds: [ControlKind] = [.edit, .addChild, .addEdge]  // Based on screenshots: pencil, plus, trash, and toggle
         
         let filtered = kinds.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true

@@ -86,8 +86,6 @@ public struct ControlNode: NodeProtocol {
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         let iconName: String = switch kind {
         
-        
-        case .configMode:       "gearshape"
         case .addChild:         "plus.circle.fill"
         case .addEdge:          "arrow.right.circle.fill"
         case .edit:             "pencil"
