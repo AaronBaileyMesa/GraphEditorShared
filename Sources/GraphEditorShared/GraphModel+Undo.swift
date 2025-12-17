@@ -15,9 +15,9 @@ struct UndoGraphState {
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    private static let logger = Logger(subsystem: "io.handcart.GraphEditor", category: "graphmodel_undo")
+    fileprivate static let undoLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "undo")
     
-    internal func pushUndo() {
+    public func pushUndo() {
         undoStack.append(currentState())
         if undoStack.count > maxUndo { undoStack.removeFirst() }
         redoStack = []

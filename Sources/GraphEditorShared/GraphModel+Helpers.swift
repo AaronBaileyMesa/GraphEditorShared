@@ -204,4 +204,36 @@ extension GraphModel {
         guard let id else { return nil }
         return nodes.first(where: { $0.id == id })?.unwrapped as? ToggleNode
     }
+    
+    /// Recursively updates positions of hidden children in the subtree of a collapsed ToggleNode.
+        /// Call this after manually moving a parent during drag (when simulation is paused).
+    public func updateSubtreePositions(for parentID: NodeID, to newParentPos: CGPoint) {
+            guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }),
+                  let toggle = nodes[parentIndex].unwrapped as? ToggleNode,
+                  !toggle.isExpanded else {
+                return  // Not a collapsed ToggleNode; no-op
+            }
+            
+            let children = edges
+                .filter { $0.from == parentID && $0.type == .hierarchy }
+                .map { $0.target }
+            
+            for (index, childID) in children.enumerated() {
+                guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
+                
+                let angle = CGFloat(index) * (2 * .pi / CGFloat(max(children.count, 1)))  // Avoid div-by-zero
+                let jitterX = cos(angle) * 5.0  // Matches syncCollapsedPositions jitter
+                let jitterY = sin(angle) * 5.0
+                let newChildPos = newParentPos + CGPoint(x: jitterX, y: jitterY)
+                
+                var updatedChild = nodes[childIndex]
+                updatedChild = AnyNode(updatedChild.unwrapped.with(position: newChildPos, velocity: .zero))
+                nodes[childIndex] = updatedChild
+                
+                // Recurse for nested subtrees
+                updateSubtreePositions(for: childID, to: newChildPos)
+            }
+            
+            objectWillChange.send()  // Trigger UI update after batch mutations
+        }
 }

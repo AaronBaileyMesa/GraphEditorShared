@@ -37,7 +37,7 @@ extension GraphModel {
     // Mode-enforced addEdge (unchanged)
     public func addEdge(source: UUID, target: UUID) {
         if mode == .tree {
-            let tempEdge = GraphEdge(from: source, target: target)
+            let tempEdge = GraphEdge(from: source, target: target, type: .hierarchy)  // Added type
             edges.append(tempEdge)
             if !isTree() {
                 edges.removeLast()
@@ -45,7 +45,7 @@ extension GraphModel {
             }
             edges.removeLast()
         }
-        let edge = GraphEdge(from: source, target: target)
+        let edge = GraphEdge(from: source, target: target, type: .association)  // Added type, assume default
         edges.append(edge)
         objectWillChange.send()
         changesPublisher.send()

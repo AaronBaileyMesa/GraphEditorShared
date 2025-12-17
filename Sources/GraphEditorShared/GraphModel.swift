@@ -21,15 +21,35 @@ import WatchKit
     @Published public var nodes: [AnyNode] = []
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
+    @Published public var editingNodeID: NodeID? = nil  // NEW: Signals node to edit; nil hides sheet
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
     @Published public var mode: GraphMode = .network
     @Published public var hierarchyEdgeColor: Color = .blue
     @Published public var associationEdgeColor: Color = .white
+    // In GraphModel.swift
+    
+    @Published public var ephemeralControlNodes: [ControlNode] = []          // only these
+    @Published public var ephemeralControlEdges: [GraphEdge] = []            // spring edges to owner
+    var isUpdatingEphemerals: Bool = false
+    
+    public var uiConfig: [NodeID: [ControlConfig]] = [:]
+    public var globalUiConfig: [ControlConfig] = []
+    @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
+    public var isConfigMode: Bool = false
+    @Published public var cancellables: Set<AnyCancellable> = []
+    
+    public var allNodes: [any NodeProtocol] {
+        nodes + ephemeralControlNodes
+    }
+    
+    public var allEdges: [GraphEdge] {
+        edges + ephemeralControlEdges
+    }
     
     public let changesPublisher = PassthroughSubject<Void, Never>()
     
-    private static let logger = Logger.forCategory("graphmodel-storage")
+    internal static let logger = Logger.forCategory("graphmodel-storage")  // Changed from private to internal
     
     var simulationTimer: Timer?
     var undoStack: [UndoGraphState] = []
@@ -73,17 +93,17 @@ import WatchKit
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
         
-        #if DEBUG
+#if DEBUG
         print("=== Computing hiddenNodeIDs ===")
-        #endif
+#endif
         
         for wrapper in nodes {
             guard let toggleNode = wrapper.unwrapped as? ToggleNode, !toggleNode.isExpanded else {
-                #if DEBUG
+#if DEBUG
                 if let toggle = wrapper.unwrapped as? ToggleNode {
                     print("ToggleNode.shouldHideChildren for label \(toggle.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
                 }
-                #endif
+#endif
                 continue
             }
             
@@ -91,22 +111,22 @@ import WatchKit
                 .filter { $0.from == wrapper.id && $0.type == .hierarchy }
                 .map { $0.target }
             
-            #if DEBUG
+#if DEBUG
             print("ToggleNode.shouldHideChildren for label \(toggleNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
             print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
-            #endif
+#endif
             
             toHide.append(contentsOf: children)
         }
         
         let adj = buildAdjacencyList(for: .hierarchy)
         
-        #if DEBUG
+#if DEBUG
         print("Adjacency list:")
         for (from, tos) in adj.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
             print("  \(from.uuidString.prefix(8)): \(tos.map { $0.uuidString.prefix(8) }.joined(separator: ", "))")
         }
-        #endif
+#endif
         
         // Fixed transitive closure – always explore children of collapsed ToggleNodes
         while !toHide.isEmpty {
@@ -117,14 +137,14 @@ import WatchKit
             let grandchildren = adj[current] ?? []
             toHide.append(contentsOf: grandchildren)
             
-            #if DEBUG
+#if DEBUG
             print("  Added grandchildren: \(grandchildren.map { $0.uuidString.prefix(8) })")
-            #endif
+#endif
         }
         
-        #if DEBUG
+#if DEBUG
         print("Final hiddenNodeIDs: \(hidden.sorted(by: { $0.uuidString < $1.uuidString }))")
-        #endif
+#endif
         
         return hidden
     }
@@ -135,23 +155,41 @@ import WatchKit
         GraphSimulator(
             getNodes: { [weak self] in
                 await MainActor.run {
-                    self?.visibleNodes ?? []
+                    self?.nodes.map { $0.unwrapped } ?? []
                 }
             },
             setNodes: { [weak self] newNodes in
                 await MainActor.run {
                     guard let self else { return }
-                    
-                    // === POLISH: Throttle SwiftUI updates to ~30 FPS ===
                     let now = Date()
                     if now.timeIntervalSince(self.lastNodeUpdateTime) < self.minimumUpdateInterval {
-                        return  // Drop this physics frame — UI doesn’t need it
+                        return
                     }
                     self.lastNodeUpdateTime = now
-                    
-                    // Apply the update — @Published on `nodes` will notify SwiftUI exactly once
-                    self.mergeVisibleNodesIntoFullModel(updatedVisibleNodes: newNodes)
-                    // Do NOT call objectWillChange.send() — it’s redundant and harmful
+                    var updated = newNodes
+                    for (index, var node) in updated.enumerated() {
+                        if self.hiddenNodeIDs.contains(node.id) {
+                            node = node.with(position: node.position, velocity: .zero)
+                            updated[index] = node
+                        }
+                    }
+                    self.nodes = updated.map { AnyNode($0) }
+                }
+            },
+            getEphemerals: { [weak self] in
+                await MainActor.run {
+                    self?.ephemeralControlNodes ?? []
+                }
+            },
+            setEphemerals: { [weak self] (newEphemerals: [any NodeProtocol]) in  // Parens fix parsing + capture issues
+                await MainActor.run {
+                    guard let self else { return }
+                    let now = Date()
+                    if now.timeIntervalSince(self.lastNodeUpdateTime) < self.minimumUpdateInterval {
+                        return
+                    }
+                    self.lastNodeUpdateTime = now
+                    self.setEphemerals(newEphemerals)
                 }
             },
             getEdges: { [weak self] in
@@ -167,15 +205,12 @@ import WatchKit
             onStable: { [weak self] in
                 Task { @MainActor in
                     guard let self else { return }
-                    
-                    // Final centering + zero velocities
                     let centered = self.physicsEngine.centerNodes(
                         nodes: self.nodes.map { $0.unwrapped }
                     )
                     self.nodes = centered.map {
                         AnyNode($0.with(position: $0.position, velocity: .zero))
                     }
-                    
                     self.isStable = true
                     try? await Task.sleep(for: .seconds(0.5))
                     self.isStable = false
@@ -187,7 +222,10 @@ import WatchKit
                     self?.isSimulating = false
                     Self.logger.infoLog("Auto-paused simulation after inactivity")
                 }
-            }
+            } /*,
+             getAllEdges: { self.allEdges },
+             getHiddenNodeIDs: { self.hiddenNodeIDs },  // If private, add public getter or change visibility
+             invalidateHiddenNodesCache: { self.invalidateHiddenNodesCache() },*/
         )
     }()
     
@@ -209,38 +247,46 @@ import WatchKit
     }
     
     // MARK: - Visible Nodes & Edges (now also cached indirectly via hiddenNodeIDs)
-    
     // In GraphModel.swift (or wherever this extension lives)
-
     @MainActor
     func visibleNodesAndEdges() -> (nodes: [any NodeProtocol], edges: [GraphEdge]) {
         let hidden = hiddenNodeIDs
-
-        // Build the set of IDs that are actually visible
-        let visibleNodeIDs = Set(nodes.lazy
+        
+        // Build the set of IDs that are actually visible (persistent nodes)
+        var visibleNodeIDs = Set(nodes.lazy
             .filter { !hidden.contains($0.id) }
             .map { $0.id })
-
-        // Visible nodes – using for…where (preferred by SwiftLint)
+        
         var visibleNodes: [any NodeProtocol] = []
-        visibleNodes.reserveCapacity(nodes.count)
-
+        visibleNodes.reserveCapacity(nodes.count + ephemeralControlNodes.count)
+        
         for node in nodes where visibleNodeIDs.contains(node.id) {
-            visibleNodes.append(node.unwrapped)   // unwrapped is @MainActor-safe
+            visibleNodes.append(node.unwrapped)
         }
-
-        // Visible hierarchy edges only (value types → safe)
-        let visibleEdges = edges.filter { edge in
+        
+        // NEW: Append ephemerals (always visible)
+        visibleNodes.append(contentsOf: ephemeralControlNodes)
+        
+        // NEW: Add ephemeral IDs to visibleNodeIDs for edge filtering
+        visibleNodeIDs.formUnion(ephemeralControlNodes.map { $0.id })
+        
+        // Visible persistent hierarchy edges
+        var visibleEdges = edges.filter { edge in
             edge.type == .hierarchy &&
             visibleNodeIDs.contains(edge.from) &&
             visibleNodeIDs.contains(edge.target)
         }
-
+        
+        // NEW: Append ephemeral spring edges if both ends visible
+        visibleEdges.append(contentsOf: ephemeralControlEdges.filter { edge in
+            visibleNodeIDs.contains(edge.from) &&
+            visibleNodeIDs.contains(edge.target)
+        })
+        
         return (visibleNodes, visibleEdges)
     }
-        
-    // MARK: - Merge physics results back into full model
     
+    // MARK: - Merge physics results back into full model
     @MainActor
     private func mergeVisibleNodesIntoFullModel(updatedVisibleNodes: [any NodeProtocol]) {
         var nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
@@ -277,9 +323,74 @@ import WatchKit
         objectWillChange.send()
         invalidateHiddenNodesCache()
     }
+    
+    // MARK: - Control Node Cluster (visual parenting, no physics springs)
+    @MainActor
+    public func updateControlNodes(for selectedNodeID: NodeID?) {
+        ephemeralControlNodes.removeAll()
+        ephemeralControlEdges.removeAll()
+        
+        guard let selectedID = selectedNodeID,
+              let ownerNode = nodes.first(where: { $0.id == selectedID })?.unwrapped
+        else { return }
+        
+        let isToggle = ownerNode is ToggleNode
+        
+        var kinds: [ControlKind] = [.addChild, .addEdge, .edit]
+        
+        let clusterRadius = ownerNode.radius * 2.2
+        
+        for (index, kind) in kinds.enumerated() {
+            let angle = CGFloat(index) * .pi * 2 / CGFloat(kinds.count) - .pi / 2
+            let offset = CGPoint(x: cos(angle), y: sin(angle)) * clusterRadius
+            
+            let control = ControlNode(
+                position: ownerNode.position + offset,
+                ownerID: selectedID,
+                kind: kind
+            )
+            
+            ephemeralControlNodes.append(control)
+            
+            // NEW: Add spring edge from owner to control
+            let springEdge = GraphEdge(
+                from: selectedID,
+                target: control.id,
+                type: .spring  // Assuming .spring is defined in EdgeType enum; add if missing
+            )
+            ephemeralControlEdges.append(springEdge)
+        }
+        
+        // NEW: Invalidate caches and notify after changes
+        invalidateHiddenNodesCache()
+        objectWillChange.send()
+        Self.logger.debug("Added \(self.ephemeralControlNodes.count) controls for owner \(selectedID.uuidString ?? "nil") – initial redraw triggered")
+        
+        // NEW: Trigger brief initial simulation for settling (e.g., 10 steps)
+        Task {  // Change to non-detached (runs on current actor, safer for MainActor model)
+            for _ in 0..<10 {  // Tunable: More steps for smoother settling
+                _ = await self.simulator.performSimulationStep(baseInterval: 1.0 / 60.0, nodeCount: self.allNodes.count)
+                try? await Task.sleep(nanoseconds: 16_666_667)  // ~60 FPS delay
+                await MainActor.run {  // NEW: Publish per step for incremental redraws
+                    self.objectWillChange.send()
+                    Self.logger.debug("Control simulation step complete – positions updated")
+                }
+            }
+            
+            Self.logger.debug("Completed brief simulation for controls – \(self.ephemeralControlNodes.count) nodes settled")
+        }
+    }
+    
+    private func setEphemerals(_ newEphemerals: [any NodeProtocol]) {
+        ephemeralControlNodes = newEphemerals.compactMap { $0 as? ControlNode }
+    }
 }
 
 extension GraphModel {
-    public var visibleNodes: [any NodeProtocol] { visibleNodesAndEdges().nodes }
-    public var visibleEdges: [GraphEdge] { visibleNodesAndEdges().edges }
+    public var visibleNodes: [any NodeProtocol] {
+        visibleNodesAndEdges().nodes + ephemeralControlNodes
+    }
+    public var visibleEdges: [GraphEdge] {
+        visibleNodesAndEdges().edges + ephemeralControlEdges
+    }
 }

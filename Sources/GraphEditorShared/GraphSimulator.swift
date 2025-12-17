@@ -13,7 +13,7 @@ import WatchKit  // Only if using haptics; otherwise remove
 #endif
 
 @available(iOS 16.0, watchOS 6.0, *)
-actor GraphSimulator {
+public actor GraphSimulator {
     private let logger = Logger.forCategory("graphsimulator")  // Added: Define logger instance
     
 #if DEBUG
@@ -46,6 +46,8 @@ actor GraphSimulator {
     
     init(getNodes: @escaping () async -> [any NodeProtocol],
          setNodes: @escaping ([any NodeProtocol]) async -> Void,
+         getEphemerals: @escaping () async -> [any NodeProtocol] = { [] },  // Default: empty array (no-op)
+         setEphemerals: @escaping ([any NodeProtocol]) async -> Void = { _ in },  // Default: ignore input (no-op)
          getEdges: @escaping () async -> [GraphEdge],
          getVisibleNodes: @escaping () async -> [any NodeProtocol],
          getVisibleEdges: @escaping () async -> [GraphEdge],
@@ -61,6 +63,8 @@ actor GraphSimulator {
         self.getNodes = getNodes
         self.setNodes = setNodes
         self.getEdges = getEdges
+        self.getEphemerals = getEphemerals  // NEW
+        self.setEphemerals = setEphemerals  // NEW
         self.physicsEngine = physicsEngine
         self.onStable = onStable
         
@@ -76,6 +80,9 @@ actor GraphSimulator {
         self.bypassAppCheck = bypassAppCheck
         self.testStepDelay = testStepDelay
     }
+    
+    private let getEphemerals: () async -> [any NodeProtocol]  // NEW
+    private let setEphemerals: ([any NodeProtocol]) async -> Void  // NEW
     
     struct SimulationStepResult {
         let updatedNodes: [any NodeProtocol]
@@ -119,13 +126,13 @@ actor GraphSimulator {
     }
     
     // MARK: - Public API for GraphModel
-
+    
     /// Call this whenever the set of visible nodes changes significantly
     /// (e.g. ToggleNode collapse/expand, hierarchy edge add/delete, undo/redo, load graph)
     public func resetVelocityHistory() async {
         self.clearVelocityHistory()
     }
-
+    
     private func clearVelocityHistory() {
         recentVelocities.removeAll(keepingCapacity: true)
         logger.debug("Velocity history cleared – graph visibility changed")
@@ -183,46 +190,62 @@ actor GraphSimulator {
         self.onStable?()
     }
     
-    private func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
-#if os(watchOS)
-        if !bypassAppCheck {
-            let appState = await WKApplication.shared().applicationState
-            if appState != .active { return false }
-        }
-#endif
-        
-        if physicsEngine.isPaused { return false }
-        
+    // Replace the entire performSimulationStep function with this version
+    // (It includes the safe write-back logic, integrates ephemerals, and fits the current init params)
+    
+    func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
 #if DEBUG
-        let stepState = signposter.beginInterval("SimulationStep", "Nodes: \(nodeCount)")
+        let stepState = signposter.beginInterval("SimulationStep")
 #endif
         
-        // Use the visible closures that GraphModel already provides
+        // NEW: Adaptive interval based on node count (e.g., slower for large graphs)
+        let adaptiveInterval = baseInterval * (1.0 + CGFloat(log(max(Double(nodeCount), 1.0))))
+        
         let visibleNodes = await getVisibleNodes()
         let visibleEdges = await getVisibleEdges()
-        
-        guard !visibleNodes.isEmpty else {
-#if DEBUG
-            signposter.endInterval("SimulationStep", stepState, "No visible nodes")
-#endif
-            return false
-        }
         
         let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges)
         let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
         
-        // Write back only the updated visible nodes
-        _ = await getNodes()
-        var nodeMap: [NodeID: any NodeProtocol] = Dictionary(
-            uniqueKeysWithValues: (await getNodes()).map { ($0.id, $0) }
-        )
+        // Safe write-back with duplicate handling
+        let currentPersistent = await getNodes()
+        let currentEphemerals = await getEphemerals()
+        
+        var nodeMap: [NodeID: any NodeProtocol] = [:]
+        
+        for node in currentPersistent {
+            if nodeMap[node.id] != nil {
+                logger.error("Duplicate in persistent nodes: \(node.id)")
+            } else {
+                nodeMap[node.id] = node
+            }
+        }
+        
+        for node in currentEphemerals {
+            if nodeMap[node.id] != nil {
+                logger.error("Duplicate between persistent and ephemeral: \(node.id)")
+            } else {
+                nodeMap[node.id] = node
+            }
+        }
         
         for updatedNode in updatedVisibleNodes {
             nodeMap[updatedNode.id] = updatedNode
         }
         
-        let finalNodes = Array(nodeMap.values)
-        await setNodes(finalNodes)
+        var newPersistent: [any NodeProtocol] = []
+        var newEphemerals: [any NodeProtocol] = []
+        
+        for (_, node) in nodeMap {
+            if node is ControlNode {
+                newEphemerals.append(node)
+            } else {
+                newPersistent.append(node)
+            }
+        }
+        
+        await setNodes(newPersistent)
+        await setEphemerals(newEphemerals)
         
         logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count))")
         
@@ -258,15 +281,43 @@ actor GraphSimulator {
         
         return !finalStable
     }
-    
-    private func shouldStopSimulation(result: SimulationStepResult, nodeCount: Int) async -> Bool {
-        recentVelocities.append(result.totalVelocity)
-        if recentVelocities.count > velocityHistoryCount {
-            recentVelocities.removeFirst()
+    // In GraphSimulator.swift (add this public method to the actor)
+    public func runShortSimulation(steps: Int, interval: TimeInterval = 1.0 / 60.0) async {
+        for _ in 0..<steps {
+#if os(watchOS)
+            if !bypassAppCheck {
+                let appState = await WKApplication.shared().applicationState
+                guard appState == .active else { return }
+            }
+#endif
+            let shouldContinue = await performSimulationStep(baseInterval: interval, nodeCount: await getVisibleNodes().count)
+            if !shouldContinue { break }  // Early exit if stable
+            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
         }
-        let velocityChange = recentVelocities.max()! - recentVelocities.min()!
-        let isStable = velocityChange < velocityChangeThreshold && recentVelocities.allSatisfy { $0 < 0.5 }
-        return isStable  // True if should stop (stable and low velocity)
     }
     
+    // NEW: Runs simulation indefinitely until stable, with timed intervals for animation (e.g., 30 FPS)
+    public func runAnimatedSimulation(interval: TimeInterval = 1.0 / 30.0, maxSteps: Int = 300) async {
+        var step = 0
+        while step < maxSteps {
+    #if os(watchOS)
+            if !bypassAppCheck {
+                let appState = await WKApplication.shared().applicationState
+                guard appState == .active else { return }
+            }
+    #endif
+            let nodeCount = await getVisibleNodes().count
+            let shouldContinue = await performSimulationStep(baseInterval: interval, nodeCount: nodeCount)
+            if !shouldContinue { break }  // Early exit if stable (uses your velocity checks)
+            
+            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))  // Pause for next frame
+            
+            step += 1
+        }
+        // Optional: Call onStable or onPostStable if needed (already in performSimulationStep)
+    }
+    
+    public func resetVelocityHistory() {
+        recentVelocities = []
+    }
 }

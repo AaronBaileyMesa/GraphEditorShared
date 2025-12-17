@@ -10,8 +10,8 @@ import os  // Added for Logger
 
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
-    private static let logger = Logger.forCategory("graphmodel-storage")  // ADDED: Define local static logger for this extension
-
+    fileprivate static let storageLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "storage")
+    
     func syncCollapsedPositions() {
         for parentIndex in 0..<nodes.count {
             if let toggle = nodes[parentIndex].unwrapped as? ToggleNode, !toggle.isExpanded {
@@ -31,104 +31,107 @@ extension GraphModel {
         objectWillChange.send()
         
     }
-
+    
     private func loadFromStorage(for name: String) async throws {
         Self.logger.infoLog("loadFromStorage started for \(name)")
         do {
-            let loadedState = try await storage.loadGraphState(for: name)  // Updated: Load full GraphState
-            Self.logger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")  // Fixed: removed .unwrappedNodes (assuming GraphState.nodes is [any NodeProtocol])
-            self.nodes = loadedState.nodes.map { AnyNode($0) }
+            let loadedState = try await storage.loadGraphState(for: name)
+            Self.logger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")
+            
+            self.nodes = loadedState.nodes  // ← Direct assignment ([AnyNode])
             self.edges = loadedState.edges
             self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
             self.associationEdgeColor = loadedState.associationEdgeColor.color
+            self.uiConfig = loadedState.uiConfig
+            self.globalUiConfig = loadedState.globalUiConfig
             self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
-        } catch {
-            // Fallback to defaults on error
+            
+            // FIXED: Moved inside do block
+            self.isSimulating = loadedState.isSimulating  // Restore state
+            if self.isSimulating {
+                await startSimulation()  // Only start if it was simulating on save
+            }
+        } catch let storageError as GraphStorageError {  // NEW: Catch specific GraphStorageError
+            if case .graphNotFound(_) = storageError {  // NEW: Handle .graphNotFound gracefully
+                Self.logger.warning("Graph '\(name)' not found – initializing default graph")
+                await initializeDefaultGraph()  // NEW: Call helper to set up defaults
+                try? await saveGraph()  // NEW: Save the defaults to persist for next load (ignore errors to avoid throwing)
+            } else {  // NEW: For other storage errors, log and rethrow as before
+                Self.logger.errorLog("loadFromStorage failed for \(name)", error: storageError)
+                nodes = []  // Reset to empty on failure
+                edges = []
+                nextNodeLabel = 1
+                self.isSimulating = false  // Safe default on failure
+                throw GraphError.storageFailure(storageError.localizedDescription)
+            }
+        } catch {  // NEW: Catch any non-GraphStorageError and handle as before
             Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
-            self.nodes = []
-            self.edges = []
-            self.nextNodeLabel = 1
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
-        }
-        Self.logger.infoLog("loadFromStorage completed for \(name)")
-        invalidateHiddenNodesCache()
-        await simulator.resetVelocityHistory()
-        zeroAllVelocities()
-    }
-    
-    /// Saves the current graph state — **velocities are deliberately stripped**
-    public func saveGraph() async throws {
-        // Strip velocity from every node before persisting
-        let cleanNodes = nodes.map { wrapper -> any NodeProtocol in
-            let node = wrapper.unwrapped
-            return node.with(position: node.position, velocity: .zero)
-        }
-        
-        let state = GraphState(
-            nodes: cleanNodes,
-            edges: edges,
-            hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
-            associationEdgeColor: CodableColor(associationEdgeColor)
-        )
-        
-        do {
-            try await storage.saveGraphState(state, for: currentGraphName)
-            Self.logger.infoLog("Saved \(cleanNodes.count) nodes and \(edges.count) edges for '\(currentGraphName)' (velocities stripped)")
-        } catch {
-            Self.logger.errorLog("Save failed for '\(currentGraphName)'", error: error)
+            nodes = []  // Reset to empty on failure
+            edges = []
+            nextNodeLabel = 1
+            self.isSimulating = false  // Safe default on failure
             throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
-    /// Loads the current graph state.
-    public func loadGraph() async {
-        do {
-            try await loadFromStorage(for: currentGraphName)
-            await startSimulation()
-            Self.logger.infoLog("Loaded graph '\(self.currentGraphName)'")
-        } catch {
-            Self.logger.errorLog("Load failed for \(self.currentGraphName)", error: error)
-            // Handle fallback or error UI in calling code
-        }
+    // NEW: Private helper to initialize a default graph (add 2 nodes + 1 edge; customize as needed)
+    @MainActor
+    public func initializeDefaultGraph() async {
+        // Reset basics
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
+        hierarchyEdgeColor = .blue
+        associationEdgeColor = .white
+        uiConfig = [:]
+        globalUiConfig = []
+        
+        // Add default nodes and edge
+        let node1 = await addNode(at: CGPoint(x: 0, y: 0))
+        let node2 = await addNode(at: CGPoint(x: 100, y: 0))
+        await addEdge(from: node1.id, target: node2.id, type: .association)  // Or .hierarchy if preferred
+        
+        nextNodeLabel = 3  // After adding 2 nodes
+        
         invalidateHiddenNodesCache()
-        await simulator.resetVelocityHistory()
-        zeroAllVelocities()
+        objectWillChange.send()
+        
+        Self.logger.infoLog("Initialized default graph with 2 nodes and 1 edge")
     }
     
-    /// Creates a new empty graph with the given name and switches to it.
-    public func createNewGraph(name: String) async throws {
+    public func saveGraph() async throws {
+        Self.logger.infoLog("saveGraph started for \(currentGraphName)")
         do {
-            try await storage.createNewGraph(name: name)
-            currentGraphName = name
-            nodes = []
-            edges = []
-            nextNodeLabel = 1
-            await startSimulation()
-            Self.logger.infoLog("Created new graph '\(name)'")
+            let state = GraphState(
+                nodes: nodes,  // ← CHANGED: Direct [AnyNode], no .map { $0.unwrapped }
+                edges: edges,
+                hierarchyEdgeColor: CodableColor(hierarchyEdgeColor),
+                associationEdgeColor: CodableColor(associationEdgeColor),
+                uiConfig: uiConfig,
+                globalUiConfig: globalUiConfig,
+                isSimulating: isSimulating  // NEW: Save simulation state
+            )
+            try await storage.saveGraphState(state, for: currentGraphName)
+            Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for '\(currentGraphName)'")
         } catch {
-            Self.logger.errorLog("Failed to create graph '\(name)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            Self.logger.errorLog("saveGraph failed for \(currentGraphName)", error: error)
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
-    /// Loads a specific graph by name and switches to it.
-    public func loadGraph(name: String) async {
-        currentGraphName = name
-        await loadGraph()
+    public func loadGraph() async throws {
+        try await loadFromStorage(for: currentGraphName)
+        invalidateHiddenNodesCache()
+        objectWillChange.send()
     }
     
-    /// Deletes the graph with the given name (if not current, no change to model).
-    public func deleteGraph(name: String) async throws {
+    public func deleteGraph(named name: String) async throws {
         do {
             try await storage.deleteGraph(name: name)
-            if name == currentGraphName {
-                currentGraphName = "default"
-                await loadGraph()
-            }
             Self.logger.infoLog("Deleted graph '\(name)'")
         } catch {
             Self.logger.errorLog("Failed to delete graph '\(name)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
     
@@ -142,16 +145,26 @@ extension GraphModel {
         }
     }
     
-    public func saveViewState(offset: CGPoint, zoomScale: CGFloat, selectedNodeID: UUID?, selectedEdgeID: UUID?) async throws {
-        let viewState = ViewState(offset: offset, zoomScale: zoomScale, selectedNodeID: selectedNodeID, selectedEdgeID: selectedEdgeID)
+    public func saveViewState(
+        offset: CGSize,                    // ← CGSize, not CGPoint
+        zoomScale: CGFloat,
+        selectedNodeID: UUID?,
+        selectedEdgeID: UUID?
+    ) async throws {
+        let viewState = ViewState(
+            offset: offset,                // ← now matches perfectly
+            zoomScale: zoomScale,
+            selectedNodeID: selectedNodeID,
+            selectedEdgeID: selectedEdgeID
+        )
         do {
             try storage.saveViewState(viewState, for: currentGraphName)
         } catch {
             Self.logger.errorLog("Failed to save view state for '\(currentGraphName)'", error: error)
-            throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
+            throw GraphError.storageFailure(error.localizedDescription)
         }
     }
-
+    
     public func loadViewState() async throws -> ViewState? {
         do {
             return try storage.loadViewState(for: currentGraphName)
@@ -160,4 +173,53 @@ extension GraphModel {
             throw GraphError.storageFailure(error.localizedDescription)  // Added propagation
         }
     }
+    
+    public func createNewGraph(name: String) async throws {
+        // 1. Validate name
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw GraphError.invalidState("Graph name cannot be empty")
+        }
+        
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        
+        // 2. Check if already exists
+        let existingNames = try await storage.listGraphNames()
+        if existingNames.contains(trimmedName) {
+            throw GraphStorageError.graphExists(trimmedName)
+        }
+        
+        // 3. Create empty graph file (PersistenceManager.createNewGraph just checks existence)
+        try await storage.createNewGraph(name: trimmedName)
+        
+        // 4. Switch to the new (empty) graph
+        currentGraphName = trimmedName
+        
+        // 5. Clear current model state
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
+        hierarchyEdgeColor = .blue
+        associationEdgeColor = .white
+        
+        // 6. Clear undo/redo
+        undoStack.removeAll()
+        redoStack.removeAll()
+        
+        // 7. Save empty state (optional but recommended for consistency)
+        try await saveGraph()
+        
+        // 8. Invalidate caches and notify
+        invalidateHiddenNodesCache()
+        objectWillChange.send()
+        
+        Self.logger.infoLog("Created and switched to new empty graph: '\(trimmedName)'")
+    }
+    
+    public func switchToGraph(named name: String) async throws {
+        nodes = []  // Clear before load
+            edges = []
+            currentGraphName = name
+        try await loadGraph()
+    }
+    
 }

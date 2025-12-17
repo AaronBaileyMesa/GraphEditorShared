@@ -11,7 +11,7 @@ import os
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Updated: Added HierarchicalNode
+public struct ToggleNode: NodeProtocol, Equatable {  // Updated: Added HierarchicalNode
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
@@ -137,13 +137,6 @@ public struct ToggleNode: NodeProtocol, HierarchicalNode, Equatable {  // Update
         lhs.childOrder == rhs.childOrder  // UPDATED: Include childOrder
     }
     
-    public var displayRadius: CGFloat {
-        // Match whatever logic you use in NodeView to size the circle
-        let base: CGFloat = 40
-        let contentBonus = CGFloat(contents.reduce(0) { $0 + $1.displayText.count }) * 3.5
-        let labelBonus = CGFloat(String(label).count) * 8
-        return max(base + contentBonus + labelBonus, 50)  // tweak until it matches your visuals
-    }
 }
 
 extension ToggleNode {

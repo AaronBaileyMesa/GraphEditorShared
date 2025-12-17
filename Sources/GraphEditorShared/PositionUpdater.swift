@@ -10,7 +10,7 @@ import CoreGraphics
 
 struct PositionUpdater {
     let simulationBounds: CGSize
-
+    
     private func clampedPositionAndBouncedVelocity(for tentativePosition: CGPoint, with tentativeVelocity: CGPoint) -> (CGPoint, CGPoint) {
         let oldPosition = tentativePosition
         var newPosition = tentativePosition
@@ -25,7 +25,7 @@ struct PositionUpdater {
         }
         return (newPosition, newVelocity)
     }
-
+    
     private func adjustPositionForCollisions(_ position: CGPoint, excluding nodeID: NodeID, using quadtree: Quadtree?, allNodes nodes: [any NodeProtocol]) -> CGPoint {
         let minDist: CGFloat = 35.0
         var newPosition = position
@@ -49,7 +49,7 @@ struct PositionUpdater {
         }
         return newPosition
     }
-
+    
     private func buildParentMap(from edges: [GraphEdge]) -> [NodeID: [NodeID]] {
         var parentMap = [NodeID: [NodeID]]()
         for edge in edges {
@@ -57,7 +57,7 @@ struct PositionUpdater {
         }
         return parentMap
     }
-
+    
     private func finalPositionAndVelocity(for nodeID: NodeID, tentative: (position: CGPoint, velocity: CGPoint), parentMap: [NodeID: [NodeID]], isExpandedMap: [NodeID: Bool], tentativeUpdates: [NodeID: (position: CGPoint, velocity: CGPoint)]) -> (CGPoint, CGPoint) {
         var newPosition = tentative.position
         var newVelocity = tentative.velocity
@@ -77,42 +77,42 @@ struct PositionUpdater {
         }
         return (newPosition, newVelocity)
     }
-
-    func updatePositionsAndVelocities(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge], quadtree: Quadtree?) -> ([any NodeProtocol], Bool) {
+    
+    func updatePositionsAndVelocities(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge], quadtree: Quadtree?, damping: CGFloat) -> ([any NodeProtocol], Bool) {  // ADDED: damping param
         let timeStep: CGFloat = Constants.Physics.timeStep  // Updated: Use constant
         var tentativeUpdates: [NodeID: (position: CGPoint, velocity: CGPoint)] = [:]
         var isActive = false
-
+        
         for node in nodes {
             let force = forces[node.id] ?? .zero
             var newVelocity = node.velocity + force / node.mass * timeStep
             var newPosition = node.position + newVelocity * timeStep
-
-            newVelocity *= Constants.Physics.damping  // Apply global damping
-
+            
+            newVelocity *= damping  // UPDATED: Use passed-in damping (replaces Constants.Physics.damping)
+            
             let (clampedPosition, bouncedVelocity) = clampedPositionAndBouncedVelocity(for: newPosition, with: newVelocity)
             newPosition = clampedPosition
             newVelocity = bouncedVelocity
-
+            
             newPosition = adjustPositionForCollisions(newPosition, excluding: node.id, using: quadtree, allNodes: nodes)
-
+            
             if hypot(newVelocity.x, newVelocity.y) > 0.001 {
                 isActive = true
             }
-
+            
             tentativeUpdates[node.id] = (newPosition, newVelocity)
         }
-
+        
         let parentMap = buildParentMap(from: edges)
         let isExpandedMap = nodes.reduce(into: [NodeID: Bool]()) { $0[$1.id] = $1.isExpanded }
         var updatedNodes: [any NodeProtocol] = []
-
+        
         for node in nodes {
             let tentative = tentativeUpdates[node.id]!
             let (finalPosition, finalVelocity) = finalPositionAndVelocity(for: node.id, tentative: tentative, parentMap: parentMap, isExpandedMap: isExpandedMap, tentativeUpdates: tentativeUpdates)
             updatedNodes.append(node.with(position: finalPosition, velocity: finalVelocity))
         }
-
+        
         return (updatedNodes, isActive)
     }
 }

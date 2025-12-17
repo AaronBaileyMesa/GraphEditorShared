@@ -10,8 +10,8 @@ import os  // ADDED: For Logger
 @available(iOS 16.0, watchOS 6.0, *)
 extension GraphModel {
     // NEW: Add static logger for this extension
-    private static let logger = Logger.forCategory("graphmodel_edgesnodes")
-
+    fileprivate static let simulationLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "graphmodel_edgesnodes")
+    
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func wouldCreateCycle(withNewEdgeFrom from: NodeID, target: NodeID, type: EdgeType) -> Bool {
@@ -75,16 +75,17 @@ extension GraphModel {
 
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
-    public func addNode(at position: CGPoint) async {
-        // CHANGED: Qualified; manual CGPoint formatting
-        Self.logger.debugLog("Adding node at position: x=\(position.x), y=\(position.y)")  // Added debug log
+    public func addNode(at position: CGPoint) async -> AnyNode {
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
-        let newNode = AnyNode(Node(label: newLabel, position: position))
-        nodes.append(newNode)
+        let node = Node(label: newLabel, position: position)
+        let anyNode = AnyNode(node)
+        nodes.append(anyNode)
         objectWillChange.send()
+        invalidateHiddenNodesCache()
         await resumeSimulation()
+        return anyNode
     }
 
     // ADDED: @MainActor to isolate this method to the main thread
@@ -134,37 +135,70 @@ extension GraphModel {
         // Create the child using the provided factory (leverages existing types)
         let child = createChild(newLabel, newPosition)
         let newNode = AnyNode(child)
+        
+        // Check for cycles before committing
+        if wouldCreateCycle(withNewEdgeFrom: parentID, target: newNode.id, type: .hierarchy) {
+            Self.logger.warning("Cannot add child: Would create cycle in hierarchy")
+            return
+        }
+        
         nodes.append(newNode)
         edges.append(GraphEdge(from: parentID, target: newNode.id, type: .hierarchy))
         
-        // If parent is ToggleNode, append to its children and childOrder
-        if var parentToggle = nodes[parentIndex].unwrapped as? ToggleNode {
+        // Update parent: Handle both ToggleNode (update) and plain Node (convert and replace)
+        let unwrappedParent = nodes[parentIndex].unwrapped
+        if var parentToggle = unwrappedParent as? ToggleNode {
             if !parentToggle.children.contains(newNode.id) {  // Avoid duplicates
                 parentToggle.children.append(newNode.id)
                 parentToggle.childOrder.append(newNode.id)  // Append to maintain initial order
-                nodes[parentIndex] = AnyNode(parentToggle)
+                nodes[parentIndex] = AnyNode(parentToggle)  // Replace updated parent
             }
+        } else {
+            // Conversion for plain Node: Create new ToggleNode reusing the same ID
+            Self.logger.debugLog("Converting plain parent \(parentID.uuidString.prefix(8)) to ToggleNode")
+            var newToggle = ToggleNode(
+                id: unwrappedParent.id,  // Reuse ID to avoid breaking references/edges
+                label: unwrappedParent.label,
+                position: unwrappedParent.position,
+                velocity: unwrappedParent.velocity,
+                radius: unwrappedParent.radius,
+                isExpanded: true,  // Default for new hierarchy
+                contents: unwrappedParent.contents
+            )
+            newToggle.children.append(newNode.id)
+            newToggle.childOrder.append(newNode.id)
+            nodes[parentIndex] = AnyNode(newToggle)  // FIX: Replace at index, do NOT append!
         }
         
-        objectWillChange.send()
-        await resumeSimulation()
-    }
-    
-    // ADDED: @MainActor to isolate this method to the main thread
-    @MainActor
-    public func deleteNode(withID id: NodeID) async {
-        // CHANGED: Qualified
-        Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Added debug log
-        pushUndo()
-        nodes.removeAll { $0.id == id }
-        edges.removeAll { $0.from == id || $0.target == id }
         objectWillChange.send()
         invalidateHiddenNodesCache()
         await resumeSimulation()
     }
     
+    @MainActor
+    public func deleteNode(withID id: NodeID) async {
+        Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Existing
+        
+        pushUndo()  // Existing
+        
+        // NEW: Cleanup ephemerals and configs BEFORE removal (prevents dangling refs)
+        ephemeralControlNodes.removeAll { $0.ownerID == id }  // Assuming ControlNode has ownerID; add if needed
+        ephemeralControlEdges.removeAll { $0.from == id || $0.target == id }
+        uiConfig.removeValue(forKey: id)  // Remove all configs for this node
+        // If globalUiConfig can reference id, filter it too: globalUiConfig.removeAll { $0.ownerID == id }
+        
+        nodes.removeAll { $0.id == id }
+        edges.removeAll { $0.from == id || $0.target == id }
+        
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+        await resumeSimulation()
+        
+        // NEW: Optional post-cleanup log for debugging
+        Self.logger.debugLog("Post-delete cleanup: Ephemerals left: \(ephemeralControlNodes.count), Configs left: \(uiConfig.count)")
+    }
+    
     // MARK: - Node Movement (drag & drop)
-
     @MainActor
     public func moveNode(withID nodeID: NodeID, to newPosition: CGPoint) async {
         Self.logger.debug("Moving node \(nodeID.uuidString.prefix(8)) → (\(newPosition.x), \(newPosition.y))")
@@ -178,16 +212,26 @@ extension GraphModel {
         
         var node = nodes[index].unwrapped
         node.position = newPosition
-        node.velocity = .zero  // Stop any momentum – feels snappier
+        node.velocity = .zero  // Stop any momentum
         
         nodes[index] = AnyNode(node)
         
         objectWillChange.send()
-        invalidateHiddenNodesCache()          // In case children are hidden/shown
-        await simulator.resetVelocityHistory() // Prevent old velocity from re-accelerating
+        invalidateHiddenNodesCache()
+        await simulator.resetVelocityHistory()
         await resumeSimulation()
+        
+        // NEW: Auto-save after move
+        do {
+            try await saveGraph()
+            Self.logger.info("Auto-saved graph after node move")
+        } catch {
+            Self.logger.error("Auto-save failed after move: \(error.localizedDescription)")
+        }
+        // FIXED: Manual string formatting for CGPoint
+        Self.logger.debug("Updated position in model: (\(node.position.x), \(node.position.y))")
     }
-
+    
     @MainActor
     public func moveNode(_ node: any NodeProtocol, to newPosition: CGPoint) async {
         await moveNode(withID: node.id, to: newPosition)

@@ -31,7 +31,8 @@ public class PhysicsEngine {
     internal let positionUpdater: PositionUpdater
     public var useAsymmetricAttraction: Bool = false
     public var alpha: CGFloat = 1.0  // New: Cooling parameter
-    public var usePreferredAngles: Bool = false  // NEW: Toggle for angular forces (default off)
+    public var usePreferredAngles: Bool = false
+    public var damping: CGFloat = 0.95  // NEW: Scale velocities each step for smooth settling
         
         public init(simulationBounds: CGSize) {
             self.simulationBounds = simulationBounds
@@ -56,7 +57,7 @@ public class PhysicsEngine {
     public var isPaused: Bool = false
     
     @discardableResult
-    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
+    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge], fixedIDs: Set<NodeID>? = nil) -> ([any NodeProtocol], Bool) {
         if isPaused || stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
         stepCount += 1
         
@@ -69,8 +70,17 @@ public class PhysicsEngine {
         updatedForces = applyCentering(forces: updatedForces, nodes: nodes)
         updatedForces = scaleForcesByAlpha(forces: updatedForces)
         
-        let (tempNodes, isActive) = updatePositions(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree)
-        let updatedNodes = postProcessNodes(tempNodes: tempNodes, isActive: isActive)
+        // NEW: Skip forces for fixed nodes (set to .zero)
+        if let fixed = fixedIDs {
+            for id in fixed {
+                updatedForces[id] = .zero
+            }
+        }
+        
+        let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree, damping: self.damping)
+        
+        // NEW: For fixed nodes, enforce position/velocity in post-processing
+        let updatedNodes = postProcessNodes(tempNodes: tempNodes, isActive: isActive, fixedIDs: fixedIDs)
         
         logVelocityIfNeeded(nodes: updatedNodes)
 
@@ -79,7 +89,15 @@ public class PhysicsEngine {
 #if DEBUG
         Self.signposter.endInterval("SimulationStep", stepState, "Active: \(isActive)")
         #endif
-       
+        
+        // In updatePositions (or at the end of simulationStep)
+        _ = updatedNodes.map { node in
+            var dampedNode = node
+            dampedNode.velocity *= damping
+            return dampedNode
+        }
+        // Then use dampedNodes for the return
+        
         return (updatedNodes, isActive)
     }
     
@@ -118,57 +136,44 @@ public class PhysicsEngine {
     
     private func scaleForcesByAlpha(forces: [NodeID: CGPoint]) -> [NodeID: CGPoint] {
         #if DEBUG
-        let scalingState = Self.signposter.beginInterval("ForceScaling", "Alpha: \(self.alpha)")
+        let scalingState = Self.signposter.beginInterval("ForceScaling")
         #endif
-        var updatedForces = forces
-        for id in updatedForces.keys {
-            updatedForces[id]! *= alpha
-        }
+        let result = forces.mapValues { $0 * alpha }
         #if DEBUG
         Self.signposter.endInterval("ForceScaling", scalingState)
-        #endif
-        return updatedForces
-    }
-    
-    private func updatePositions(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge], quadtree: Quadtree?) -> ([any NodeProtocol], Bool) {
-        #if DEBUG
-        let positionState = Self.signposter.beginInterval("PositionUpdate")
-        #endif
-        let result = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: forces, edges: edges, quadtree: quadtree)
-        #if DEBUG
-        Self.signposter.endInterval("PositionUpdate", positionState)
         #endif
         return result
     }
     
-    private func postProcessNodes(tempNodes: [any NodeProtocol], isActive: Bool) -> [any NodeProtocol] {
-        let updatedNodes = tempNodes.map { node in
-            var clamped = node
-            if hypot(clamped.velocity.x, clamped.velocity.y) < 0.001 {
-                clamped.velocity = .zero
+    private func updatePositions(nodes: [any NodeProtocol], forces: [NodeID: CGPoint], edges: [GraphEdge], quadtree: Quadtree?) -> ([any NodeProtocol], Bool) {
+        #if DEBUG
+        let updateState = Self.signposter.beginInterval("PositionUpdate")
+        #endif
+        let result = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: forces, edges: edges, quadtree: quadtree, damping: damping)
+        if dampingBoostSteps > 0 { dampingBoostSteps -= 1 }
+        #if DEBUG
+        Self.signposter.endInterval("PositionUpdate", updateState)
+        #endif
+        return result
+    }
+    
+    private func postProcessNodes(tempNodes: [any NodeProtocol], isActive: Bool, fixedIDs: Set<NodeID>? = nil) -> [any NodeProtocol] {
+        #if DEBUG
+        let postState = Self.signposter.beginInterval("PostProcessing")
+        #endif
+        
+        let result = tempNodes.map { node in
+            if let fixed = fixedIDs, fixed.contains(node.id) {
+                // NEW: Enforce fixed: keep original position, zero velocity (no .with(isFixed); use .with(position:velocity:)
+                return node.with(position: node.position, velocity: .zero)  // Position unchanged, velocity reset
             }
-            return clamped
+            return node
         }
         
-        var resetNodes = isActive ? updatedNodes : updatedNodes.map { $0.with(position: $0.position, velocity: CGPoint.zero) }
-        
-        if dampingBoostSteps > 0 {
-            #if DEBUG
-            let dampingState = Self.signposter.beginInterval("DampingBoost", "Remaining steps: \(self.dampingBoostSteps)")
-            #endif
-            let extraDamping = Constants.Physics.damping * 1.2
-            resetNodes = resetNodes.map { node in
-                var boostedNode = node
-                boostedNode.velocity *= extraDamping
-                return boostedNode
-            }
-            dampingBoostSteps -= 1
-            #if DEBUG
-            Self.signposter.endInterval("DampingBoost", dampingState)
-            #endif
-        }
-        
-        return resetNodes
+        #if DEBUG
+        Self.signposter.endInterval("PostProcessing", postState)
+        #endif
+        return result
     }
     
     private func logVelocityIfNeeded(nodes: [any NodeProtocol]) {
@@ -182,13 +187,13 @@ public class PhysicsEngine {
     }
     
     // Add to PhysicsEngine class
-    public func runSimulation(steps: Int, nodes: [any NodeProtocol], edges: [GraphEdge]) -> [any NodeProtocol] {
+    public func runSimulation(steps: Int, nodes: [any NodeProtocol], edges: [GraphEdge], fixedIDs: Set<NodeID>? = nil) -> [any NodeProtocol] {
         #if DEBUG
         let runState = Self.signposter.beginInterval("RunSimulation", "Steps: \(steps), Nodes: \(nodes.count)")
         #endif
         var currentNodes = nodes
         for _ in 0..<steps {
-            let (updatedNodes, isActive) = simulationStep(nodes: currentNodes, edges: edges)
+            let (updatedNodes, isActive) = simulationStep(nodes: currentNodes, edges: edges, fixedIDs: fixedIDs)
             currentNodes = updatedNodes
             if !isActive { break }  // Early exit if stable
         }
@@ -203,16 +208,8 @@ public class PhysicsEngine {
         let state = Self.signposter.beginInterval("BoundingBoxCalculation", "Nodes: \(nodes.count)")
         defer { Self.signposter.endInterval("BoundingBoxCalculation", state) }
         #endif
-        guard !nodes.isEmpty else { return .zero }
-        var minX = nodes[0].position.x, minY = nodes[0].position.y
-        var maxX = nodes[0].position.x, maxY = nodes[0].position.y
-        for node in nodes {
-            minX = min(minX, node.position.x - node.radius)
-            minY = min(minY, node.position.y - node.radius)
-            maxX = max(maxX, node.position.x + node.radius)
-            maxY = max(maxY, node.position.y + node.radius)
-        }
-        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+
+        return computeBoundingBox(for: nodes)  // Reuse shared func
     }
     
     public func centerNodes(nodes: [any NodeProtocol], around center: CGPoint? = nil) -> [any NodeProtocol] {

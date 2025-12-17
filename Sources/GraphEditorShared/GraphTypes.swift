@@ -9,6 +9,10 @@ import Foundation
 
 public typealias NodeID = UUID
 
+extension NodeID: @retroactive Identifiable {
+    public var id: Self { self }
+}
+
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public struct Node: NodeProtocol, Codable {  // Updated: Conform to NodeProtocol (which now includes HierarchicalNode)
@@ -95,6 +99,7 @@ extension Node {
 public enum EdgeType: String, Codable {
     case hierarchy  // DAG-enforced, directed
     case association  // Allows cycles, symmetric/undirected feel
+    case spring
 }
 
 // Represents an edge connecting two nodes.
@@ -139,103 +144,63 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 // Snapshot of the graph state for undo/redo.
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct GraphState: Codable {  // NEW: Make Codable
-    public let nodes: [any NodeProtocol]
+public struct GraphState: Codable {
+    public let nodes: [AnyNode]
     public let edges: [GraphEdge]
-    public let hierarchyEdgeColor: CodableColor  // NEW
-    public let associationEdgeColor: CodableColor  // NEW
+    public let hierarchyEdgeColor: CodableColor
+    public let associationEdgeColor: CodableColor
+    public let uiConfig: [NodeID: [ControlConfig]]
+    public let globalUiConfig: [ControlConfig]
+    public let isSimulating: Bool
     
-    public init(nodes: [any NodeProtocol], edges: [GraphEdge], hierarchyEdgeColor: CodableColor, associationEdgeColor: CodableColor) {
+    public init(
+        nodes: [AnyNode],
+        edges: [GraphEdge],
+        hierarchyEdgeColor: CodableColor,
+        associationEdgeColor: CodableColor,
+        uiConfig: [NodeID: [ControlConfig]] = [:],
+        globalUiConfig: [ControlConfig] = [],
+        isSimulating: Bool
+    ) {
         self.nodes = nodes
         self.edges = edges
         self.hierarchyEdgeColor = hierarchyEdgeColor
         self.associationEdgeColor = associationEdgeColor
+        self.uiConfig = uiConfig
+        self.globalUiConfig = globalUiConfig
+        self.isSimulating = isSimulating
     }
     
-    // NEW: Codable conformance (leverage existing Codable types)
+    // MARK: - Codable (Clean, direct, no NodeWrapper needed)
+    private enum CodingKeys: String, CodingKey {
+        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating
+    }
+    
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        // Nodes: Assume NodeProtocol gets a Codable extension if needed; for now, use NodeWrapper if available
-        let wrappedNodes = try container.decode([NodeWrapper].self, forKey: .nodes)
-        nodes = wrappedNodes.map { $0.value }
-        edges = try container.decode([GraphEdge].self, forKey: .edges)
+        nodes = try container.decode([AnyNode].self, forKey: .nodes)  // Required
+        edges = try container.decode([GraphEdge].self, forKey: .edges)  // Required
         hierarchyEdgeColor = try container.decode(CodableColor.self, forKey: .hierarchyEdgeColor)
         associationEdgeColor = try container.decode(CodableColor.self, forKey: .associationEdgeColor)
+        uiConfig = try container.decode([NodeID: [ControlConfig]].self, forKey: .uiConfig)
+        globalUiConfig = try container.decode([ControlConfig].self, forKey: .globalUiConfig)
+        isSimulating = try container.decodeIfPresent(Bool.self, forKey: .isSimulating) ?? false  // Default to false if missing (new key)
     }
-    
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        // Nodes: Wrap in NodeWrapper for encoding
-        let wrappedNodes = nodes.map { NodeWrapper(wrapping: $0) }  // Wrap NodeProtocol using NodeWrapper.init(wrapping:)
-        try container.encode(wrappedNodes, forKey: .nodes)
-        try container.encode(edges, forKey: .edges)
-        try container.encode(hierarchyEdgeColor, forKey: .hierarchyEdgeColor)
-        try container.encode(associationEdgeColor, forKey: .associationEdgeColor)
-    }
-    
-    enum CodingKeys: String, CodingKey {  // NEW
-        case nodes, edges, hierarchyEdgeColor, associationEdgeColor
-    }
+        
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(nodes, forKey: .nodes)
+            try container.encode(edges, forKey: .edges)
+            try container.encode(hierarchyEdgeColor, forKey: .hierarchyEdgeColor)
+            try container.encode(associationEdgeColor, forKey: .associationEdgeColor)
+            try container.encode(uiConfig, forKey: .uiConfig)
+            try container.encode(globalUiConfig, forKey: .globalUiConfig)
+            try container.encode(isSimulating, forKey: .isSimulating)  // FIXED: Encode new property
+        }
 }
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public enum NodeWrapper: Codable {
-    case node(Node)
-    case toggleNode(ToggleNode)
-    
-    enum CodingKeys: String, CodingKey {
-        case type, data
-    }
-    
-    // Convenience initializer to wrap any NodeProtocol into a concrete case
-    public init(wrapping node: any NodeProtocol) {
-        if let anyNode = node as? AnyNode {
-            // Handle already-wrapped: Flatten by wrapping the inner unwrapped node
-            self.init(wrapping: anyNode.unwrapped)
-        } else if let concrete = node as? Node {
-            self = .node(concrete)
-        } else if let concrete = node as? ToggleNode {
-            self = .toggleNode(concrete)
-        } else {
-            // Fallback: attempt to downcast via Mirror if more types are added in future
-            fatalError("Unsupported NodeProtocol concrete type: \(type(of: node))")
-        }
-    }
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(String.self, forKey: .type)
-        switch type {
-        case "node":
-            let data = try container.decode(Node.self, forKey: .data)
-            self = .node(data)
-        case "toggleNode":
-            let data = try container.decode(ToggleNode.self, forKey: .data)
-            self = .toggleNode(data)
-        default:
-            throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown node type")
-        }
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .node(let node):
-            try container.encode("node", forKey: .type)
-            try container.encode(node, forKey: .data)
-        case .toggleNode(let toggleNode):
-            try container.encode("toggleNode", forKey: .type)
-            try container.encode(toggleNode, forKey: .data)
-        }
-    }
-    
-    public var value: any NodeProtocol {
-        switch self {
-        case .node(let node): return node
-        case .toggleNode(let toggleNode): return toggleNode
-        }
-    }
-}
 
 public enum GraphMode: Codable {  // Codable for saving
     case network  // General graphs, allows cycles/associations
