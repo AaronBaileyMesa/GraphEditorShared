@@ -222,9 +222,8 @@ public struct AnyNode: NodeProtocol {
     }
     public var fillColor: Color { base.fillColor }
     public var unwrapped: any NodeProtocol { base }
-   
     
-    // MARK: THE CRITICAL INIT – This fixes the "can't expand back" bug
+
     public init(_ base: any NodeProtocol) {
         self.base = base
         
