@@ -29,10 +29,11 @@ extension GraphModel {
 
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
-    public func resumeSimulation() async {
-        Self.logger.debugLog("Resuming simulation")  // Qualified with Self
+    public func resumeSimulation(resume: Bool = true) async {  // ← Param unchanged
+        Self.logger.debugLog("Resuming simulation")
         physicsEngine.isPaused = false
-        if await simulator.simulationTask == nil {
+        let task = await simulator.simulationTask  // ← Await and assign first
+        if resume && task == nil {
             await startSimulation()
         }
     }

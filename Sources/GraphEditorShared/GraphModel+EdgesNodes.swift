@@ -12,10 +12,15 @@ extension GraphModel {
     // NEW: Add static logger for this extension
     fileprivate static let simulationLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GraphEditorShared", category: "graphmodel_edgesnodes")
     
-    // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func wouldCreateCycle(withNewEdgeFrom from: NodeID, target: NodeID, type: EdgeType) -> Bool {
         guard type == .hierarchy else { return false }
+        
+        // NEW: If target does not yet exist in the graph, adding a leaf cannot create a cycle
+        if !nodes.contains(where: { $0.id == target }) {
+            return false
+        }
+        
         var tempEdges = edges.filter { $0.type == .hierarchy }
         tempEdges.append(GraphEdge(from: from, target: target, type: type))
         return !isAcyclic(edges: tempEdges)
@@ -101,21 +106,28 @@ extension GraphModel {
         await resumeSimulation()
     }
 
-    // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func addPlainChild(to parentID: NodeID) async {
-        Self.logger.debugLog("Adding plain child to parent ID: \(parentID.uuidString.prefix(8))")
+        guard nodes.first(where: { $0.id == parentID })?.unwrapped is ToggleNode else {
+            Self.logger.warning("Cannot add plain child to non-ToggleNode parent \(parentID.uuidString.prefix(8))")
+            return
+        }
+        
+        Self.logger.debugLog("Adding plain child to ToggleNode parent ID: \(parentID.uuidString.prefix(8))")
         await addChildInternal(to: parentID, createChild: { label, position in
-            Node(label: label, position: position)  // Use existing Node type
+            Node(label: label, position: position)
         })
     }
 
-    // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func addToggleChild(to parentID: NodeID) async {
-        Self.logger.debugLog("Adding toggle child to parent ID: \(parentID.uuidString.prefix(8))")
+        guard nodes.first(where: { $0.id == parentID })?.unwrapped is ToggleNode else {
+            Self.logger.warning("Cannot add toggle child to non-ToggleNode parent \(parentID.uuidString.prefix(8))")
+            return
+        }
+        
         await addChildInternal(to: parentID, createChild: { label, position in
-            ToggleNode(label: label, position: position)  // Use existing ToggleNode type
+            ToggleNode(label: label, position: position)
         })
     }
     

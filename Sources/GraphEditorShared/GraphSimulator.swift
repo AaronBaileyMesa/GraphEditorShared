@@ -205,7 +205,9 @@ public actor GraphSimulator {
         let visibleEdges = await getVisibleEdges()
         
         let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges)
-        let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+        // let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
+        
+        // Removed stray debug line that referenced self.stepCount, self.engine, and finalStable before declaration
         
         // Safe write-back with duplicate handling
         let currentPersistent = await getNodes()
@@ -247,33 +249,37 @@ public actor GraphSimulator {
         await setNodes(newPersistent)
         await setEphemerals(newEphemerals)
         
-        logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count))")
+        let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + $1.velocity.magnitude }
+
+            // Existing log (kept for reference)
+            logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count))")
+            
+            recentVelocities.append(totalVelocity)
+            if recentVelocities.count > velocityHistoryCount {
+                recentVelocities.removeFirst()
+            }
         
-        recentVelocities.append(totalVelocity)
-        if recentVelocities.count > velocityHistoryCount {
-            recentVelocities.removeFirst()
-        }
-        
-        // MARK: - NEW STABILIZATION LOGIC (November 18, 2025)
-        // We now use a strict absolute velocity threshold + required consecutive samples
-        // This prevents false stabilization when forces decay slowly (your exact case)
         let absoluteVelocityThreshold: CGFloat = 0.065   // TUNABLE: 0.04 = rock solid, 0.08 = slightly forgiving
-        let requiredStableSamples: Int = 20              // Must stay below threshold for N consecutive steps
-        
-        let recentCount = recentVelocities.count
-        let allBelowThreshold = recentVelocities.allSatisfy { $0 < absoluteVelocityThreshold }
-        let enoughSamples = recentCount >= requiredStableSamples
-        
-        let isStable = enoughSamples && allBelowThreshold
-        
-        // Optional: Add a tiny velocity change check as secondary confirmation (prevents oscillation)
-        let velocityChange = recentVelocities.max()! - recentVelocities.min()!
-        let isNearlyFlat = velocityChange < 0.04
-        
-        let finalStable = isStable && isNearlyFlat
-        
-        logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count)) | Stable: \(finalStable) (samples: \(recentCount)/\(requiredStableSamples), maxV: \(self.recentVelocities.max() ?? 0))")
-        
+            let requiredStableSamples: Int = 20              // Must stay below threshold for N consecutive steps
+            
+            let recentCount = recentVelocities.count
+            let allBelowThreshold = recentVelocities.allSatisfy { $0 < absoluteVelocityThreshold }
+            let enoughSamples = recentCount >= requiredStableSamples
+            
+            let isStable = enoughSamples && allBelowThreshold
+            
+            // Optional: Add a tiny velocity change check as secondary confirmation (prevents oscillation)
+            let velocityChange = recentVelocities.max()! - recentVelocities.min()!
+            let isNearlyFlat = velocityChange < 0.04
+            
+            let finalStable = isStable && isNearlyFlat
+            
+            // NEW: Added logging here to confirm root cause (includes all computed values)
+            logger.debug("Step \(self.physicsEngine.stepCount): Total Velocity = \(totalVelocity) | Alpha = \(self.physicsEngine.alpha) | Recent Min/Max = \(self.recentVelocities.min() ?? 0)/\(self.recentVelocities.max() ?? 0) | Stable? \(finalStable)")
+            
+            // Existing log (kept for reference)
+            logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count)) | Stable: \(finalStable) (samples: \(recentCount)/\(requiredStableSamples), maxV: \(self.recentVelocities.max() ?? 0))")
+            
 #if DEBUG
         signposter.endInterval("SimulationStep", stepState,
                                "Vel: \(String(format: "%.3f", totalVelocity)), Stable: \(finalStable), Samples: \(recentCount)/\(requiredStableSamples)")

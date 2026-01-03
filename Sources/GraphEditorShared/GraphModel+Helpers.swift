@@ -88,8 +88,6 @@ extension GraphModel {
         let updatedUnwrapped = physicsEngine.runSimulation(steps: 20, nodes: unwrappedNodes, edges: edges)
         nodes = updatedUnwrapped.map { AnyNode($0) }
         print("handleTap: Post-simulation - model.nodes[\(index)] isExpanded: \((nodes[index].unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Check if sim overwrote
-
-        await resumeSimulation()
     }
     
     public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {

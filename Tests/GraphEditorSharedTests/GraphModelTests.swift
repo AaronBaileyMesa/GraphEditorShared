@@ -109,11 +109,15 @@ struct GraphModelTests {
         let storage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
-        let parentID = UUID()
-        model.nodes = [AnyNode(Node(id: parentID, label: 1, position: CGPoint.zero))]
-        model.nextNodeLabel = 2
+        model.nextNodeLabel = 1  // Set for label consistency
         
-        await model.addPlainChild(to: parentID)
+        await model.addToggleNode(at: CGPoint.zero)  // Creates ToggleNode parent (label 1)
+        #expect(model.nodes.count == 1, "Parent ToggleNode added")
+        #expect(model.nodes[0].unwrapped is ToggleNode, "Confirm parent type")  // Validates fix
+        let parentID = model.nodes[0].id
+        #expect(model.nextNodeLabel == 2, "Label incremented")
+        
+        await model.addPlainChild(to: parentID)  // Adds child (label 2)
         #expect(model.nodes.count == 2, "Child added")
         #expect(model.edges.count == 1, "Hierarchy edge added")
         #expect(model.edges[0].type == EdgeType.hierarchy, "Correct edge type")

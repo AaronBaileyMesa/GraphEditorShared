@@ -33,71 +33,113 @@ extension GraphModel {
     }
     
     private func loadFromStorage(for name: String) async throws {
-        Self.logger.infoLog("loadFromStorage started for \(name)")
-        do {
-            let loadedState = try await storage.loadGraphState(for: name)
-            Self.logger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")
-            
-            self.nodes = loadedState.nodes  // ← Direct assignment ([AnyNode])
-            self.edges = loadedState.edges
-            self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
-            self.associationEdgeColor = loadedState.associationEdgeColor.color
-            self.uiConfig = loadedState.uiConfig
-            self.globalUiConfig = loadedState.globalUiConfig
-            self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
-            
-            // FIXED: Moved inside do block
-            self.isSimulating = loadedState.isSimulating  // Restore state
-            if self.isSimulating {
-                await startSimulation()  // Only start if it was simulating on save
-            }
-        } catch let storageError as GraphStorageError {  // NEW: Catch specific GraphStorageError
-            if case .graphNotFound(_) = storageError {  // NEW: Handle .graphNotFound gracefully
-                Self.logger.warning("Graph '\(name)' not found – initializing default graph")
-                await initializeDefaultGraph()  // NEW: Call helper to set up defaults
-                try? await saveGraph()  // NEW: Save the defaults to persist for next load (ignore errors to avoid throwing)
-            } else {  // NEW: For other storage errors, log and rethrow as before
-                Self.logger.errorLog("loadFromStorage failed for \(name)", error: storageError)
-                nodes = []  // Reset to empty on failure
+            Self.storageLogger.infoLog("loadFromStorage started for \(name)")
+            do {
+                let loadedState = try await storage.loadGraphState(for: name)
+                Self.storageLogger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")
+                
+                self.nodes = loadedState.nodes
+                self.edges = loadedState.edges
+                self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
+                self.associationEdgeColor = loadedState.associationEdgeColor.color
+                self.uiConfig = loadedState.uiConfig
+                self.globalUiConfig = loadedState.globalUiConfig
+                self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
+                
+                self.isSimulating = loadedState.isSimulating
+                if self.isSimulating {
+                    await startSimulation()
+                }
+            } catch let storageError as GraphStorageError {
+                if case .graphNotFound(_) = storageError {
+                    Self.storageLogger.warning("Graph '\(name)' not found")
+                    if name != "default" {
+                        Self.storageLogger.infoLog("Falling back to default graph")
+                        currentGraphName = "default"
+                        do {
+                            let loadedState = try await storage.loadGraphState(for: "default")
+                            Self.storageLogger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for default")
+                            
+                            self.nodes = loadedState.nodes
+                            self.edges = loadedState.edges
+                            self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
+                            self.associationEdgeColor = loadedState.associationEdgeColor.color
+                            self.uiConfig = loadedState.uiConfig
+                            self.globalUiConfig = loadedState.globalUiConfig
+                            self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
+                            
+                            self.isSimulating = loadedState.isSimulating
+                            if self.isSimulating {
+                                await startSimulation()
+                            }
+                        } catch let defaultError as GraphStorageError {
+                            if case .graphNotFound(_) = defaultError {
+                                Self.storageLogger.warning("Default graph not found – initializing")
+                                await initializeDefaultGraph()
+                                try? await saveGraph()
+                            } else {
+                                Self.storageLogger.errorLog("loadFromStorage failed for default", error: defaultError)
+                                nodes = []
+                                edges = []
+                                nextNodeLabel = 1
+                                self.isSimulating = false
+                                throw GraphError.storageFailure(defaultError.localizedDescription)
+                            }
+                        } catch {
+                            Self.storageLogger.errorLog("loadFromStorage failed for default", error: error)
+                            nodes = []
+                            edges = []
+                            nextNodeLabel = 1
+                            self.isSimulating = false
+                            throw GraphError.storageFailure(error.localizedDescription)
+                        }
+                    } else {
+                        Self.storageLogger.warning("Default graph not found – initializing")
+                        await initializeDefaultGraph()
+                        try? await saveGraph()
+                    }
+                } else {
+                    Self.storageLogger.errorLog("loadFromStorage failed for \(name)", error: storageError)
+                    nodes = []
+                    edges = []
+                    nextNodeLabel = 1
+                    self.isSimulating = false
+                    throw GraphError.storageFailure(storageError.localizedDescription)
+                }
+            } catch {
+                Self.storageLogger.errorLog("loadFromStorage failed for \(name)", error: error)
+                nodes = []
                 edges = []
                 nextNodeLabel = 1
-                self.isSimulating = false  // Safe default on failure
-                throw GraphError.storageFailure(storageError.localizedDescription)
+                self.isSimulating = false
+                throw GraphError.storageFailure(error.localizedDescription)
             }
-        } catch {  // NEW: Catch any non-GraphStorageError and handle as before
-            Self.logger.errorLog("loadFromStorage failed for \(name)", error: error)
-            nodes = []  // Reset to empty on failure
+        }
+        
+        @MainActor
+        public func initializeDefaultGraph() async {
+            // Reset basics
+            nodes = []
             edges = []
             nextNodeLabel = 1
-            self.isSimulating = false  // Safe default on failure
-            throw GraphError.storageFailure(error.localizedDescription)
+            hierarchyEdgeColor = .blue
+            associationEdgeColor = .white
+            uiConfig = [:]
+            globalUiConfig = []
+            self.isSimulating = false  // Added to ensure consistent default
+            
+            // Add default nodes and edge
+            let node1 = await addNode(at: CGPoint(x: 0, y: 0))
+            let node2 = await addNode(at: CGPoint(x: 100, y: 0))
+            await addEdge(from: node1.id, target: node2.id, type: .association)
+            
+            nextNodeLabel = 3
+            
+            invalidateHiddenNodesCache()
+            objectWillChange.send()
+            
+            Self.storageLogger.infoLog("Initialized default graph with 2 nodes and 1 edge")
         }
-    }
-    
-    // NEW: Private helper to initialize a default graph (add 2 nodes + 1 edge; customize as needed)
-    @MainActor
-    public func initializeDefaultGraph() async {
-        // Reset basics
-        nodes = []
-        edges = []
-        nextNodeLabel = 1
-        hierarchyEdgeColor = .blue
-        associationEdgeColor = .white
-        uiConfig = [:]
-        globalUiConfig = []
-        
-        // Add default nodes and edge
-        let node1 = await addNode(at: CGPoint(x: 0, y: 0))
-        let node2 = await addNode(at: CGPoint(x: 100, y: 0))
-        await addEdge(from: node1.id, target: node2.id, type: .association)  // Or .hierarchy if preferred
-        
-        nextNodeLabel = 3  // After adding 2 nodes
-        
-        invalidateHiddenNodesCache()
-        objectWillChange.send()
-        
-        Self.logger.infoLog("Initialized default graph with 2 nodes and 1 edge")
-    }
     
     public func saveGraph() async throws {
         Self.logger.infoLog("saveGraph started for \(currentGraphName)")

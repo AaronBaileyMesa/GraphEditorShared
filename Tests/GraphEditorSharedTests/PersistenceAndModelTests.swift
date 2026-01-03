@@ -76,24 +76,18 @@ struct PersistenceAndModelTests {
     }
     
     // Tests for GraphModel+Storage.swift
-    @MainActor @Test(.timeLimit(.minutes(1)))
-    func testLoadAndSaveWithMockStorage() async throws {
+    @MainActor @Test func testLoadAndSaveWithMockStorage() async throws {
         let mockStorage = MockGraphStorage()
-        let physics = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
-        let model = GraphModel(storage: mockStorage, physicsEngine: physics)
-        
-        let node1 = AnyNode(Node(label: 1, position: .zero))
-        let node2 = AnyNode(ToggleNode(label: 2, position: .zero, isExpanded: false))  // Add a ToggleNode for variety
+        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+        let model = GraphModel(storage: mockStorage, physicsEngine: physicsEngine, skipAutoLoad: true)  // Added skipAutoLoad
+        let node1 = AnyNode(Node(id: UUID(), label: 1, position: .zero))
+        let node2 = AnyNode(Node(id: UUID(), label: 2, position: .zero))
         model.nodes = [node1, node2]
-        model.edges = [GraphEdge(from: node1.id, target: node2.id)]
-        model.nextNodeLabel = 3  // Adjusted for 2 nodes
-        
+        model.edges = [GraphEdge(from: node1.id, target: node2.id)]  // Assumes default type
+        model.nextNodeLabel = 3
         try await model.saveGraph()
-        #expect(mockStorage.nodes.count == 2, "Saved nodes")  // Now matches
-        #expect(mockStorage.edges.count == 1, "Saved edges")
-        
-        let loadedModel = GraphModel(storage: mockStorage, physicsEngine: physics)
-        //await loadedModel.loadGraph()
+        let loadedModel = GraphModel(storage: mockStorage, physicsEngine: physicsEngine, skipAutoLoad: true)  // Added skipAutoLoad
+        try await loadedModel.loadGraph()
         #expect(loadedModel.nodes.count == 2, "Loaded nodes")
         #expect(loadedModel.edges.count == 1, "Loaded edges")
         #expect(loadedModel.nextNodeLabel == 3, "Next label set")

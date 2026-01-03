@@ -21,7 +21,7 @@ public class PhysicsEngine {
     #endif
     
     var simulationBounds: CGSize
-    private var stepCount: Int = 0
+    var stepCount: Int = 0
     private let maxNodesForQuadtree = 200
     private let symmetricFactor: CGFloat = 0.5
     internal let repulsionCalculator: RepulsionCalculator

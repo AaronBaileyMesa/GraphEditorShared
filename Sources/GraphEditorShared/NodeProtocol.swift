@@ -194,7 +194,7 @@ extension NodeProtocol {
 // MARK: - AnyNode – Type-Erased Wrapper (FINAL VERSION)
 
 public struct AnyNode: NodeProtocol {
-    private var base: any NodeProtocol
+    var base: any NodeProtocol
     
     // Hierarchical state we must preserve across type erasure
     public var isExpanded: Bool
@@ -222,6 +222,7 @@ public struct AnyNode: NodeProtocol {
     }
     public var fillColor: Color { base.fillColor }
     public var unwrapped: any NodeProtocol { base }
+   
     
     // MARK: THE CRITICAL INIT – This fixes the "can't expand back" bug
     public init(_ base: any NodeProtocol) {
@@ -319,4 +320,14 @@ public struct AnyNode: NodeProtocol {
 
 extension NodeProtocol {
     public var displayRadius: CGFloat { radius } 
+}
+
+extension NodeProtocol {
+    public func fullyUnwrapped() -> any NodeProtocol {
+        // Default: For concrete types (e.g., ControlNode, ToggleNode), return self (no unwrapping needed)
+        if let anyNode = self as? AnyNode {
+            return anyNode.base.fullyUnwrapped()  // Recurse for wrapped
+        }
+        return self
+    }
 }

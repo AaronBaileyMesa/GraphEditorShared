@@ -13,7 +13,11 @@ import CoreGraphics
 struct GraphSimulatorTests {
     // Mock class for PhysicsEngine to control convergence (non-actor class for subclassing)
     class MockPhysicsEngine: PhysicsEngine {
-        var stepCount = 0
+        private var _stepCount: Int = 0
+        override var stepCount: Int {
+            get { _stepCount }
+            set { _stepCount = newValue }
+        }
         let convergeAfter: Int
         override var isPaused: Bool {  // Override as computed if needed
             get { super.isPaused }
@@ -25,7 +29,7 @@ struct GraphSimulatorTests {
             super.init(simulationBounds: CGSize(width: 100, height: 100))  // Adjust super init as per your PhysicsEngine
         }
         
-        /* override func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
+        func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge]) -> ([any NodeProtocol], Bool) {
             stepCount += 1
             let velocityScale = stepCount >= convergeAfter ? 0.001 : 1.0
             let updatedNodes = nodes.map { node in
@@ -35,12 +39,12 @@ struct GraphSimulatorTests {
             }
             let isActive = stepCount < convergeAfter
             return (updatedNodes, isActive)
-        } */
+        }
         
         // Mock other methods if needed (e.g., resetSimulation)
         override func resetSimulation() {
-            stepCount = 0
             super.resetSimulation()
+            stepCount = 0
         }
     }
     
