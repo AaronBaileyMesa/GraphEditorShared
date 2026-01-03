@@ -79,14 +79,14 @@ struct PersistenceAndModelTests {
     @MainActor @Test func testLoadAndSaveWithMockStorage() async throws {
         let mockStorage = MockGraphStorage()
         let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
-        let model = GraphModel(storage: mockStorage, physicsEngine: physicsEngine, skipAutoLoad: true)  // Added skipAutoLoad
+        let model = GraphModel(storage: mockStorage, physicsEngine: physicsEngine)  // Added skipAutoLoad
         let node1 = AnyNode(Node(id: UUID(), label: 1, position: .zero))
         let node2 = AnyNode(Node(id: UUID(), label: 2, position: .zero))
         model.nodes = [node1, node2]
         model.edges = [GraphEdge(from: node1.id, target: node2.id)]  // Assumes default type
         model.nextNodeLabel = 3
         try await model.saveGraph()
-        let loadedModel = GraphModel(storage: mockStorage, physicsEngine: physicsEngine, skipAutoLoad: true)  // Added skipAutoLoad
+        let loadedModel = GraphModel(storage: mockStorage, physicsEngine: physicsEngine)  // Added skipAutoLoad
         try await loadedModel.loadGraph()
         #expect(loadedModel.nodes.count == 2, "Loaded nodes")
         #expect(loadedModel.edges.count == 1, "Loaded edges")
