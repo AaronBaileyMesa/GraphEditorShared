@@ -70,4 +70,64 @@ extension GraphModel {
     private func saveState() {
         changesPublisher.send()
     }
+    
+    // NEW: Overload with optional position (defaults to random). Integrates with isTree() for validation.
+    @MainActor
+    public func addChild(to parentID: NodeID, at position: CGPoint? = nil) async {
+        Self.logger.debugLog("Adding child to parent \(parentID.uuidString.prefix(8))")
+        
+        pushUndo()  // Snapshot for undo
+        
+        guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }),
+              let parent = nodes[parentIndex].unwrapped as? ToggleNode else {  // Restrict to ToggleNode
+            Self.logger.warning("addChild: Parent not found or not ToggleNode – \(parentID.uuidString.prefix(8))")
+            return
+        }
+        
+        let newLabel = nextNodeLabel
+        nextNodeLabel += 1
+        
+        // Compute position: Use provided or randomize around parent
+        let newPos: CGPoint
+        if let pos = position {
+            newPos = pos
+        } else {
+            let angle = CGFloat.random(in: 0..<CGFloat.pi * 2)
+            let distance = Constants.App.nodeModelRadius * 4
+            newPos = parent.position + CGPoint(x: cos(angle) * distance, y: sin(angle) * distance)
+        }
+        
+        let newNode = Node(id: NodeID(), label: newLabel, position: newPos, velocity: .zero)
+        let anyNewNode = AnyNode(newNode)
+        
+        // Temporarily add for tree validation
+        nodes.append(anyNewNode)
+        edges.append(GraphEdge(from: parentID, target: newNode.id, type: .hierarchy))
+        
+        // Validate tree structure
+        if !isTree() {
+            // Rollback if invalid
+            nodes.removeLast()
+            edges.removeLast()
+            Self.logger.warning("addChild: Aborted – would violate tree structure for parent \(parentID.uuidString.prefix(8))")
+            return
+        }
+        
+        // Append to parent's children and childOrder (mutate parent)
+        var updatedParent = parent
+        updatedParent.children.append(newNode.id)
+        updatedParent.childOrder.append(newNode.id)  // Maintain order
+        nodes[parentIndex] = AnyNode(updatedParent)
+        
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+        await resumeSimulation()
+        
+        // Auto-save
+        do {
+            try await saveGraph()
+        } catch {
+            Self.logger.error("Auto-save failed after addChild: \(error.localizedDescription)")
+        }
+    }
 }

@@ -143,4 +143,52 @@ struct GraphModelTests {
         #expect(model.edges.count == 2)  // Third edge not added
         // Optionally, check logs if you have a way to capture them
     }
+    
+    @MainActor @Test func testAddChildWithPosition() async {
+            let model = await setupModel()
+            
+            // Setup: Add a ToggleNode parent
+            let parentPos = CGPoint(x: 0, y: 0)
+            let parent = ToggleNode(label: 1, position: parentPos)
+            model.nodes.append(AnyNode(parent))  // No 'await' needed – now on main actor
+            
+            // Test: Add child at specific position
+            let childPos = CGPoint(x: 50, y: 50)
+            await model.addChild(to: parent.id, at: childPos)
+            
+            // Assertions with safe unwraps
+            #expect(model.nodes.count == 2, "Should add one child node")
+            guard let addedChild = model.nodes.last?.unwrapped as? Node else {
+                Issue.record("Failed to unwrap added child as Node")
+                return
+            }
+            #expect(addedChild.position == childPos, "Child position should match provided")
+            #expect(model.edges.count == 1, "Should add one hierarchy edge")
+            #expect(model.edges.first?.from == parent.id && model.edges.first?.target == addedChild.id, "Edge should connect parent to child")
+            
+            guard let updatedParent = model.nodes.first(where: { $0.id == parent.id })?.unwrapped as? ToggleNode else {
+                Issue.record("Failed to unwrap updated parent as ToggleNode")
+                return
+            }
+            #expect(updatedParent.children == [addedChild.id], "Parent children should include new child")
+            #expect(updatedParent.childOrder == [addedChild.id], "Parent childOrder should match")
+            
+            #expect(model.isTree(), "Graph should remain a valid tree")
+            
+            // Bonus: Test random position fallback (no 'at')
+            await model.addChild(to: parent.id)
+            #expect(model.nodes.count == 3, "Should add another child with random position")
+            guard let randomChild = model.nodes.last?.unwrapped as? Node else {
+                Issue.record("Failed to unwrap random child as Node")
+                return
+            }
+            #expect(hypot(randomChild.position.x - parentPos.x, randomChild.position.y - parentPos.y) > 0, "Random position should be offset from parent")
+        }
+        
+        // Helper (ensure this is non-actor or wrap if needed)
+        private func setupModel() async -> GraphModel {
+            let storage = MockGraphStorage()
+            let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
+            return await GraphModel(storage: storage, physicsEngine: physicsEngine)  // No 'await' – init is sync
+        }
 }
