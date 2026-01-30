@@ -264,4 +264,18 @@ extension GraphModel {
         try await loadGraph()
     }
     
+    @MainActor
+    public func initializeDefaultGraph() {
+        nodes = []
+        edges = []
+        nextNodeLabel = 1
+        hierarchyEdgeColor = .blue
+        associationEdgeColor = .white
+        uiConfig = [:]
+        globalUiConfig = []
+        isSimulating = false
+        objectWillChange.send()
+        invalidateHiddenNodesCache()  // If this exists; otherwise remove
+        Self.storageLogger.infoLog("Initialized default empty graph")
+    }
 }
