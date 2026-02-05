@@ -35,24 +35,24 @@ extension GraphModel {
     // MARK: - Ephemeral Management
     @MainActor
     public func updateEphemerals(selectedNodeID: NodeID?) async {
-        print("updateEphemerals started for selectedNodeID: \(selectedNodeID?.uuidString.prefix(8) ?? "nil"), time: \(Date().timeIntervalSinceReferenceDate)")  // DEBUG: Entry timestamp
+        #if DEBUG
+        Self.controlLogger.debug("updateEphemerals started for selectedNodeID: \(selectedNodeID?.uuidString.prefix(8) ?? "nil")")
+        #endif
         
         // Clear previous ephemerals safely
         if let previousOwnerID = ephemeralControlNodes.first?.ownerID {
-            print("Clearing previous ephemerals for owner: \(previousOwnerID.uuidString.prefix(8))")  // DEBUG: Clearing start
+            #if DEBUG
+            Self.controlLogger.debug("Clearing previous ephemerals for owner: \(previousOwnerID.uuidString.prefix(8))")
+            #endif
             await removeEphemerals(for: previousOwnerID)
-            print("Cleared previous ephemerals for owner: \(previousOwnerID.uuidString.prefix(8))")  // DEBUG: Clearing end
         } else {
-            print("No previous owner; removing all ephemerals")  // DEBUG: Fallback clearing
             ephemeralControlNodes.removeAll()
             ephemeralControlEdges.removeAll()
         }
         
         // Generate new controls if a node is selected
         if let ownerID = selectedNodeID {
-            print("Adding controls for new owner: \(ownerID.uuidString.prefix(8))")  // DEBUG: Adding start
             await addControlsForNode(ownerID)
-            print("Added controls for new owner: \(ownerID.uuidString.prefix(8))")  // DEBUG: Adding end
         }
         
         // NEW: Final duplicate ID scan (prevents crashes from duplicates)
@@ -66,12 +66,9 @@ extension GraphModel {
             return false
         }
         
-        // NEW: Debug print for verification (remove or gate in production)
-        print("Ephemerals updated: \(ephemeralControlNodes.count) controls for owner \(selectedNodeID?.uuidString.prefix(8) ?? "none")")
-        
-        Self.controlLogger.debug("Added controls for owner \(selectedNodeID?.uuidString.prefix(8) ?? "none") – kinds: \(self.ephemeralControlNodes.map { $0.kind.rawValue }.joined(separator: ", "))")
-        
-        print("updateEphemerals completed for selectedNodeID: \(selectedNodeID?.uuidString.prefix(8) ?? "nil"), time: \(Date().timeIntervalSinceReferenceDate)")  // DEBUG: Exit timestamp
+        #if DEBUG
+        Self.controlLogger.debug("Ephemerals updated: \(self.ephemeralControlNodes.count) controls for owner \(selectedNodeID?.uuidString.prefix(8) ?? "none") – kinds: \(self.ephemeralControlNodes.map { $0.kind.rawValue }.joined(separator: ", "))")
+        #endif
     }
     
     // MARK: - Live Repositioning for Drags
