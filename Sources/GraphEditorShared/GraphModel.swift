@@ -15,13 +15,17 @@ import Foundation
 import WatchKit
 #endif
 
+// swiftlint:disable type_body_length
+// Rationale: GraphModel is the core domain model managing graph state, simulation lifecycle,
+// ephemeral nodes, and persistence. Already split into extensions; further splitting would harm cohesion.
+
 @available(iOS 16.0, watchOS 6.0, *)
 @MainActor public class GraphModel: ObservableObject {
     @Published public var currentGraphName: String = "default"
     @Published public var nodes: [AnyNode] = []
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
-    @Published public var editingNodeID: NodeID? = nil  // NEW: Signals node to edit; nil hides sheet
+    @Published public var editingNodeID: NodeID?  // NEW: Signals node to edit; nil hides sheet
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
     @Published public var mode: GraphMode = .network
@@ -167,11 +171,9 @@ import WatchKit
                     }
                     self.lastNodeUpdateTime = now
                     var updated = newNodes
-                    for (index, var node) in updated.enumerated() {
-                        if self.hiddenNodeIDs.contains(node.id) {
-                            node = node.with(position: node.position, velocity: .zero)
-                            updated[index] = node
-                        }
+                    for (index, var node) in updated.enumerated() where self.hiddenNodeIDs.contains(node.id) {
+                        node = node.with(position: node.position, velocity: .zero)
+                        updated[index] = node
                     }
                     self.nodes = updated.map { AnyNode($0) }
                 }
@@ -333,10 +335,10 @@ import WatchKit
         guard let selectedID = selectedNodeID,
               let ownerNode = nodes.first(where: { $0.id == selectedID })?.unwrapped
         else { return }
-        
-        let isToggle = ownerNode is ToggleNode
-        
-        var kinds: [ControlKind] = [.addChild, .addEdge, .edit]
+
+        _ = ownerNode is ToggleNode
+
+        let kinds: [ControlKind] = [.addChild, .addEdge, .edit]
         
         let clusterRadius = ownerNode.radius * 2.2
         
@@ -364,7 +366,7 @@ import WatchKit
         // NEW: Invalidate caches and notify after changes
         invalidateHiddenNodesCache()
         objectWillChange.send()
-        Self.logger.debug("Added \(self.ephemeralControlNodes.count) controls for owner \(selectedID.uuidString ?? "nil") – initial redraw triggered")
+        Self.logger.debug("Added \(self.ephemeralControlNodes.count) controls for owner \(selectedID.uuidString) – initial redraw triggered")
         
         // NEW: Trigger brief initial simulation for settling (e.g., 10 steps)
         Task {  // Change to non-detached (runs on current actor, safer for MainActor model)
@@ -394,3 +396,4 @@ extension GraphModel {
         visibleNodesAndEdges().edges + ephemeralControlEdges
     }
 }
+// swiftlint:enable type_body_length

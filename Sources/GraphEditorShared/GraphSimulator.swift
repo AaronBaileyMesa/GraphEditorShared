@@ -192,15 +192,17 @@ public actor GraphSimulator {
     
     // Replace the entire performSimulationStep function with this version
     // (It includes the safe write-back logic, integrates ephemerals, and fits the current init params)
-    
+
+    // Rationale: Single cohesive simulation step including physics, stability checking, and node updates
+    // swiftlint:disable:next function_body_length
     func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
 #if DEBUG
         let stepState = signposter.beginInterval("SimulationStep")
 #endif
-        
+
         // NEW: Adaptive interval based on node count (e.g., slower for large graphs)
-        let adaptiveInterval = baseInterval * (1.0 + CGFloat(log(max(Double(nodeCount), 1.0))))
-        
+        _ = baseInterval * (1.0 + CGFloat(log(max(Double(nodeCount), 1.0))))
+
         let visibleNodes = await getVisibleNodes()
         let visibleEdges = await getVisibleEdges()
         

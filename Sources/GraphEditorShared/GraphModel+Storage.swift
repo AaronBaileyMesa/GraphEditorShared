@@ -29,9 +29,11 @@ extension GraphModel {
             }
         }
         objectWillChange.send()
-        
+
     }
-    
+
+    // Rationale: Cohesive error handling and fallback logic for graph loading with proper state recovery
+    // swiftlint:disable:next function_body_length
     private func loadFromStorage(for name: String) async throws {
             Self.storageLogger.infoLog("loadFromStorage started for \(name)")
             do {
@@ -51,7 +53,7 @@ extension GraphModel {
                     await startSimulation()
                 }
             } catch let storageError as GraphStorageError {
-                if case .graphNotFound(_) = storageError {
+                if case .graphNotFound = storageError {
                     Self.storageLogger.warning("Graph '\(name)' not found")
                     if name != "default" {
                         Self.storageLogger.infoLog("Falling back to default graph")
@@ -73,7 +75,7 @@ extension GraphModel {
                                 await startSimulation()
                             }
                         } catch let defaultError as GraphStorageError {
-                            if case .graphNotFound(_) = defaultError {
+                            if case .graphNotFound = defaultError {
                                 Self.storageLogger.warning("Default graph not found – initializing")
                                 await initializeDefaultGraph()
                                 try? await saveGraph()

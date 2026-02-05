@@ -77,18 +77,16 @@ extension GraphModel {
     // MARK: - Live Repositioning for Drags
     @MainActor
     public func repositionEphemerals(for ownerID: NodeID, to newPosition: CGPoint) {
-        for index in ephemeralControlNodes.indices {
-            if ephemeralControlNodes[index].ownerID == ownerID {
-                var control = ephemeralControlNodes[index]
-                let spacing: CGFloat = 40.0  // Reuse from addControlsForNode
-                let angle = control.relativeAngle  // NEW: Use stored value (stable across drags)
-                let dx = cos(angle * .pi / 180) * spacing
-                let dy = sin(angle * .pi / 180) * spacing
-                control.position = clampPosition(CGPoint(x: newPosition.x + dx, y: newPosition.y + dy))
-                control.velocity = .zero  // Reset velocity during manual drag to prevent drift
-                ephemeralControlNodes[index] = control
-                Self.controlLogger.debug("Repositioning control \(String(describing: control.kind)) for owner \(ownerID.uuidString.prefix(8)) at stored angle \(angle), new offset (\(dx), \(dy)), new pos (\(newPosition.x + dx), \(newPosition.y + dy))")
-            }
+        for index in ephemeralControlNodes.indices where ephemeralControlNodes[index].ownerID == ownerID {
+            var control = ephemeralControlNodes[index]
+            let spacing: CGFloat = 40.0  // Reuse from addControlsForNode
+            let angle = control.relativeAngle  // NEW: Use stored value (stable across drags)
+            let deltaX = cos(angle * .pi / 180) * spacing
+            let deltaY = sin(angle * .pi / 180) * spacing
+            control.position = clampPosition(CGPoint(x: newPosition.x + deltaX, y: newPosition.y + deltaY))
+            control.velocity = .zero  // Reset velocity during manual drag to prevent drift
+            ephemeralControlNodes[index] = control
+            Self.controlLogger.debug("Repositioning control \(String(describing: control.kind)) for owner \(ownerID.uuidString.prefix(8)) at stored angle \(angle), new offset (\(deltaX), \(deltaY)), new pos (\(newPosition.x + deltaX), \(newPosition.y + deltaY))")
         }
         objectWillChange.send()  // Trigger redraw
     }
@@ -134,10 +132,10 @@ extension GraphModel {
             if ephemeralControlNodes.contains(where: { $0.kind == kind && $0.ownerID == ownerID }) { continue }
             
             let angle = freeSlots[index % freeSlots.count]
-            let dx = cos(angle * .pi / 180) * spacing
-            let dy = sin(angle * .pi / 180) * spacing
-            
-            let position = CGPoint(x: owner.position.x + dx, y: owner.position.y + dy)
+            let deltaX = cos(angle * .pi / 180) * spacing
+            let deltaY = sin(angle * .pi / 180) * spacing
+
+            let position = CGPoint(x: owner.position.x + deltaX, y: owner.position.y + deltaY)
             let clampedPos = clampPosition(position)
             
             let control = ControlNode(
@@ -185,8 +183,8 @@ extension GraphModel {
     @MainActor
     public func handleControlTap(control: ControlNode) async {
         Self.controlLogger.debug("Handling tap on control \(String(describing: control.kind)) for owner \(control.ownerID?.uuidString.prefix(8) ?? "nil")")
-        
-        guard let ownerID = control.ownerID else {
+
+        guard control.ownerID != nil else {
             Self.controlLogger.warning("Control tap with nil ownerID – ignoring")
             return
         }

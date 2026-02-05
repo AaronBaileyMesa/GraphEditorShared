@@ -7,7 +7,7 @@
 
 import Foundation  // For UUID, JSONEncoder, JSONDecoder
 import CoreGraphics  // For CGPoint
-//import GraphEditorShared  // Standard import (no @testable needed here)
+// import GraphEditorShared  // Standard import (no @testable needed here)
 
 @available(iOS 16.0, watchOS 6.0, *)
 public class MockGraphStorage: GraphStorage {
@@ -101,6 +101,4 @@ public class MockGraphStorage: GraphStorage {
         }
         return (state.nodes, state.edges)
     }
-    
-    
 }

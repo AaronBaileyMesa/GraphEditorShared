@@ -7,17 +7,19 @@
 
 import SwiftUI
 
+// swiftlint:disable nesting
+// Rationale: TimelineSchedule protocol requires Entries type to be nested within schedule type
 public struct CustomPeriodicTimelineSchedule: TimelineSchedule {  // Add public
     public let from: Date  // Add public (or make immutable if possible)
-    public let by: TimeInterval  // Add public
+    public let interval: TimeInterval  // Add public
 
-    public init(from: Date = .now, by: TimeInterval) {  // Add public
+    public init(from: Date = .now, by interval: TimeInterval) {  // Add public
         self.from = from
-        self.by = by
+        self.interval = interval
     }
 
     public func entries(from startDate: Date, mode: TimelineSchedule.Mode) -> Entries {  // Add public
-        Entries(current: max(startDate, self.from), normalInterval: by, mode: mode)
+        Entries(current: max(startDate, self.from), normalInterval: interval, mode: mode)
     }
 
     public struct Entries: Sequence, IteratorProtocol {  // Add public
@@ -39,3 +41,4 @@ public struct CustomPeriodicTimelineSchedule: TimelineSchedule {  // Add public
         }
     }
 }
+// swiftlint:enable nesting

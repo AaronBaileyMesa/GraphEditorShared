@@ -222,7 +222,6 @@ public struct AnyNode: NodeProtocol {
     }
     public var fillColor: Color { base.fillColor }
     public var unwrapped: any NodeProtocol { base }
-    
 
     public init(_ base: any NodeProtocol) {
         self.base = base
