@@ -127,7 +127,9 @@ extension GraphModel {
     }
     
     public var centroid: CGPoint? {
-        GraphEditorShared.centroid(of: visibleNodes)
+        // Exclude control nodes from centroid calculation to keep camera centered on actual graph nodes
+        let regularNodes = visibleNodes.filter { !($0 is ControlNode) }
+        return GraphEditorShared.centroid(of: regularNodes)
     }
     
     public func sortChildren<ComparableValue: Comparable>(of nodeID: NodeID, by keyPath: KeyPath<any NodeProtocol, ComparableValue>) async {
