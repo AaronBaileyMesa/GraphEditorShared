@@ -74,17 +74,31 @@ extension GraphModel {
     // MARK: - Live Repositioning for Drags
     @MainActor
     public func repositionEphemerals(for ownerID: NodeID, to newPosition: CGPoint) {
+        #if DEBUG
+        Self.controlLogger.debug("repositionEphemerals: owner=\(ownerID.uuidString.prefix(8)) newPos=(\(newPosition.x, format: .fixed(precision: 1)), \(newPosition.y, format: .fixed(precision: 1)))")
+        #endif
+        
         for index in ephemeralControlNodes.indices where ephemeralControlNodes[index].ownerID == ownerID {
             var control = ephemeralControlNodes[index]
             let spacing: CGFloat = 40.0  // Reuse from addControlsForNode
             let angle = control.relativeAngle  // NEW: Use stored value (stable across drags)
             let deltaX = cos(angle * .pi / 180) * spacing
             let deltaY = sin(angle * .pi / 180) * spacing
-            control.position = clampPosition(CGPoint(x: newPosition.x + deltaX, y: newPosition.y + deltaY))
+            let oldPos = control.position
+            // Don't clamp - maintain exact 40pt offset from owner
+            control.position = CGPoint(x: newPosition.x + deltaX, y: newPosition.y + deltaY)
             control.velocity = .zero  // Reset velocity during manual drag to prevent drift
             ephemeralControlNodes[index] = control
-            Self.controlLogger.debug("Repositioning control \(String(describing: control.kind)) for owner \(ownerID.uuidString.prefix(8)) at stored angle \(angle), new offset (\(deltaX), \(deltaY)), new pos (\(newPosition.x + deltaX), \(newPosition.y + deltaY))")
+            
+            #if DEBUG
+            let distance = hypot(control.position.x - newPosition.x, control.position.y - newPosition.y)
+            Self.controlLogger.debug("  Control \(control.kind.rawValue): angle=\(angle, format: .fixed(precision: 1))° oldPos=(\(oldPos.x, format: .fixed(precision: 1)), \(oldPos.y, format: .fixed(precision: 1))) newPos=(\(control.position.x, format: .fixed(precision: 1)), \(control.position.y, format: .fixed(precision: 1))) distance=\(distance, format: .fixed(precision: 1))")
+            #endif
         }
+        
+        #if DEBUG
+        Self.controlLogger.debug("repositionEphemerals complete: \(self.ephemeralControlNodes.count) controls updated")
+        #endif
         objectWillChange.send()  // Trigger redraw
     }
     
@@ -98,13 +112,14 @@ extension GraphModel {
             return
         }
         
-        Self.controlLogger.debug("Adding controls for owner \(ownerID.uuidString.prefix(8))")
         
-        // NEW: Stabilize existing nodes before adding ephemerals
+        // Stabilize existing nodes before adding ephemerals by zeroing all velocities
         for index in nodes.indices {
             let currentNode = nodes[index].unwrapped
             nodes[index] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
         }
+        // Write the stabilized nodes back to persist the zeroed velocities
+        self.nodes = nodes
         physicsEngine.temporaryDampingBoost(steps: 30)
         
         let owner = nodes[ownerIndex].unwrapped
@@ -133,19 +148,23 @@ extension GraphModel {
             let deltaY = sin(angle * .pi / 180) * spacing
 
             let position = CGPoint(x: owner.position.x + deltaX, y: owner.position.y + deltaY)
-            let clampedPos = clampPosition(position)
             
             let control = ControlNode(
-                position: clampedPos,
+                position: position,
                 ownerID: ownerID,
                 kind: kind,
                 relativeAngle: angle  // Store for stable repositioning
             )
             
+            #if DEBUG
+            let distance = hypot(position.x - owner.position.x, position.y - owner.position.y)
+            Self.controlLogger.debug("  Created control \(kind.rawValue): angle=\(angle, format: .fixed(precision: 1))° pos=(\(position.x, format: .fixed(precision: 1)), \(position.y, format: .fixed(precision: 1))) distance=\(distance, format: .fixed(precision: 1))")
+            #endif
+            
             ephemeralControlNodes.append(control)
             
-            // NEW: Use .spring for strong attraction to owner
-            let edge = GraphEdge(from: ownerID, target: control.id, type: .spring)
+            // Create visual edge (association type - no physics forces)
+            let edge = GraphEdge(from: ownerID, target: control.id, type: .association)
             ephemeralControlEdges.append(edge)
         }
         
@@ -155,8 +174,8 @@ extension GraphModel {
         objectWillChange.send()
         invalidateHiddenNodesCache()
         
-        // NEW: Run short simulation to let physics integrate ephemerals smoothly
-        await simulator.runShortSimulation(steps: 20)
+        // Controls are already positioned correctly at exact 40pt spacing
+        // No physics simulation needed - prevents drift from intended positions
     }
     
     private func removeEphemerals(for ownerID: NodeID) async {
@@ -173,8 +192,8 @@ extension GraphModel {
         objectWillChange.send()
         invalidateHiddenNodesCache()
         
-        // NEW: Run short simulation to let graph settle after removal
-        await simulator.runShortSimulation(steps: 10)
+        // Don't run simulation after removal - it can move the owner node from its dragged position
+        // The graph will stabilize naturally when simulation resumes
     }
     
     @MainActor

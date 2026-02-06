@@ -26,6 +26,7 @@ import WatchKit
     @Published public var edges: [GraphEdge] = []
     @Published public var isSimulating: Bool = false
     @Published public var editingNodeID: NodeID?  // NEW: Signals node to edit; nil hides sheet
+    @Published public var draggedNodeID: NodeID?  // NEW: Tracks currently dragged node to prevent physics on it
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
     @Published public var mode: GraphMode = .network
@@ -203,15 +204,23 @@ import WatchKit
             getVisibleEdges: { [weak self] in
                 await MainActor.run { self?.visibleEdges ?? [] }
             },
+            getDraggedNodeID: { [weak self] in
+                await MainActor.run { self?.draggedNodeID }
+            },
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
                 Task { @MainActor in
                     guard let self else { return }
-                    let centered = self.physicsEngine.centerNodes(
-                        nodes: self.nodes.map { $0.unwrapped }
-                    )
-                    self.nodes = centered.map {
-                        AnyNode($0.with(position: $0.position, velocity: .zero))
+                    // CRITICAL: Don't center nodes when ephemeral control nodes are present
+                    // Centering would shift ALL nodes (including controls) by the centroid delta,
+                    // breaking the 40pt distance constraint between owner and controls
+                    if self.ephemeralControlNodes.isEmpty {
+                        let centered = self.physicsEngine.centerNodes(
+                            nodes: self.nodes.map { $0.unwrapped }
+                        )
+                        self.nodes = centered.map {
+                            AnyNode($0.with(position: $0.position, velocity: .zero))
+                        }
                     }
                     self.isStable = true
                     try? await Task.sleep(for: .seconds(0.5))

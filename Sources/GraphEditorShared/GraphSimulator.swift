@@ -36,6 +36,7 @@ public actor GraphSimulator {
     private let getNodes: () async -> [any NodeProtocol]  // Changed from internal to private
     private let setNodes: ([any NodeProtocol]) async -> Void  // Updated: Polymorphic
     private let getEdges: () async -> [GraphEdge]
+    private let getDraggedNodeID: () async -> NodeID?  // NEW: Get currently dragged node to exclude from physics
     private let onStable: (() -> Void)?  // New: Optional callback
     
     private let onPostStable: (() -> Void)?
@@ -51,6 +52,7 @@ public actor GraphSimulator {
          getEdges: @escaping () async -> [GraphEdge],
          getVisibleNodes: @escaping () async -> [any NodeProtocol],
          getVisibleEdges: @escaping () async -> [GraphEdge],
+         getDraggedNodeID: @escaping () async -> NodeID? = { nil },  // NEW: Default returns nil
          physicsEngine: PhysicsEngine,
          onStable: (() -> Void)? = nil,
          onPostStable: (() -> Void)? = nil,
@@ -65,6 +67,7 @@ public actor GraphSimulator {
         self.getEdges = getEdges
         self.getEphemerals = getEphemerals  // NEW
         self.setEphemerals = setEphemerals  // NEW
+        self.getDraggedNodeID = getDraggedNodeID  // NEW
         self.physicsEngine = physicsEngine
         self.onStable = onStable
         
@@ -155,9 +158,11 @@ public actor GraphSimulator {
                 try? await Task.sleep(for: .seconds(baseInterval))
             }
             if physicsEngine.isPaused {
+                logger.debug(">>> Simulation loop: isPaused = true, sleeping...")
                 try? await Task.sleep(for: .milliseconds(100))
                 continue
             }
+            logger.debug(">>> Simulation loop: about to call performSimulationStep")
             let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
             physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)
             iterations += 1
@@ -199,6 +204,8 @@ public actor GraphSimulator {
 #if DEBUG
         let stepState = signposter.beginInterval("SimulationStep")
 #endif
+        
+        logger.debug(">>> performSimulationStep called with nodeCount: \(nodeCount)")
 
         // NEW: Adaptive interval based on node count (e.g., slower for large graphs)
         _ = baseInterval * (1.0 + CGFloat(log(max(Double(nodeCount), 1.0))))
@@ -206,7 +213,34 @@ public actor GraphSimulator {
         let visibleNodes = await getVisibleNodes()
         let visibleEdges = await getVisibleEdges()
         
-        let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges)
+        // Build fixedIDs: control nodes + their owner + dragged node (to prevent physics from moving them during drag)
+        var fixedIDs = Set<NodeID>()
+        var ownerIDs = Set<NodeID>()
+        
+        let controlNodeCount = visibleNodes.filter { $0 is ControlNode }.count
+        logger.debug("Building fixedIDs: found \(controlNodeCount) control nodes in \(visibleNodes.count) visible nodes")
+        
+        for node in visibleNodes where node is ControlNode {
+            fixedIDs.insert(node.id)
+            if let control = node as? ControlNode, let ownerID = control.ownerID {
+                ownerIDs.insert(ownerID)
+                logger.debug("Control node \(node.id.uuidString.prefix(8)) has owner \(ownerID.uuidString.prefix(8))")
+            }
+        }
+        // Fix owner nodes too - they should not move while their control nodes are visible
+        for ownerID in ownerIDs {
+            fixedIDs.insert(ownerID)
+        }
+        if let draggedID = await getDraggedNodeID() {
+            fixedIDs.insert(draggedID)
+        }
+        
+        if !ownerIDs.isEmpty {
+            logger.debug("Fixed owner nodes: \(ownerIDs.map { $0.uuidString.prefix(8) }.joined(separator: ", "))")
+            logger.debug("Total fixed nodes: \(fixedIDs.count) (includes \(ownerIDs.count) owners and their control nodes)")
+        }
+        
+        let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges, fixedIDs: fixedIDs)
         // let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
         
         // Removed stray debug line that referenced self.stepCount, self.engine, and finalStable before declaration
@@ -233,8 +267,29 @@ public actor GraphSimulator {
             }
         }
         
+        // CRITICAL: For control nodes, preserve their ORIGINAL positions from before physics
+        // They should never be moved by simulation
+        let controlNodesBefore = await getEphemerals()
+        var controlPositions: [NodeID: CGPoint] = [:]
+        for control in controlNodesBefore {
+            controlPositions[control.id] = control.position
+        }
+        
         for updatedNode in updatedVisibleNodes {
-            nodeMap[updatedNode.id] = updatedNode
+            // If this is a control node, restore its original position
+            if let originalPos = controlPositions[updatedNode.id] {
+                var fixedControl = updatedNode
+                fixedControl.position = originalPos
+                fixedControl.velocity = .zero
+                nodeMap[updatedNode.id] = fixedControl
+                #if DEBUG
+                if updatedNode.position != originalPos {
+                    logger.debug("FIXED control node \(updatedNode.id.uuidString.prefix(8)): physics moved it from \(originalPos.x, format: .fixed(precision: 1)),\(originalPos.y, format: .fixed(precision: 1)) to \(updatedNode.position.x, format: .fixed(precision: 1)),\(updatedNode.position.y, format: .fixed(precision: 1)) - restoring original")
+                }
+                #endif
+            } else {
+                nodeMap[updatedNode.id] = updatedNode
+            }
         }
         
         var newPersistent: [any NodeProtocol] = []

@@ -65,6 +65,15 @@ public class PhysicsEngine {
         let stepState = Self.signposter.beginInterval("SimulationStep", "Step \(self.stepCount), Nodes: \(nodes.count), Edges: \(edges.count)")
         #endif
         
+        // CRITICAL: Store original positions for fixed nodes BEFORE physics runs
+        // This prevents fixed nodes from moving due to residual velocity or forces
+        var originalPositions: [NodeID: CGPoint] = [:]
+        if let fixed = fixedIDs {
+            for node in nodes where fixed.contains(node.id) {
+                originalPositions[node.id] = node.position
+            }
+        }
+        
         let (forces, quadtree) = computeRepulsions(nodes: nodes)
         var updatedForces = applyAttractions(forces: forces, edges: edges, nodes: nodes)
         updatedForces = applyCentering(forces: updatedForces, nodes: nodes)
@@ -80,7 +89,7 @@ public class PhysicsEngine {
         let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree, damping: self.damping)
         
         // NEW: For fixed nodes, enforce position/velocity in post-processing
-        let updatedNodes = postProcessNodes(tempNodes: tempNodes, isActive: isActive, fixedIDs: fixedIDs)
+        let updatedNodes = postProcessNodes(tempNodes: tempNodes, isActive: isActive, fixedIDs: fixedIDs, originalPositions: originalPositions)
         
         logVelocityIfNeeded(nodes: updatedNodes)
 
@@ -157,15 +166,21 @@ public class PhysicsEngine {
         return result
     }
     
-    private func postProcessNodes(tempNodes: [any NodeProtocol], isActive: Bool, fixedIDs: Set<NodeID>? = nil) -> [any NodeProtocol] {
+    private func postProcessNodes(tempNodes: [any NodeProtocol], isActive: Bool, fixedIDs: Set<NodeID>? = nil, originalPositions: [NodeID: CGPoint] = [:]) -> [any NodeProtocol] {
         #if DEBUG
         let postState = Self.signposter.beginInterval("PostProcessing")
         #endif
         
         let result = tempNodes.map { node in
             if let fixed = fixedIDs, fixed.contains(node.id) {
-                // NEW: Enforce fixed: keep original position, zero velocity (no .with(isFixed); use .with(position:velocity:)
-                return node.with(position: node.position, velocity: .zero)  // Position unchanged, velocity reset
+                // CRITICAL: Restore ORIGINAL position from before physics step, zero velocity
+                // This prevents fixed nodes from moving due to residual velocity
+                if let originalPos = originalPositions[node.id] {
+                    return node.with(position: originalPos, velocity: .zero)
+                } else {
+                    // Fallback: keep current position if original not found
+                    return node.with(position: node.position, velocity: .zero)
+                }
             }
             return node
         }
