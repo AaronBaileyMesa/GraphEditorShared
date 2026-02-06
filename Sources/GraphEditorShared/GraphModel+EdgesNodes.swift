@@ -249,6 +249,60 @@ extension GraphModel {
         await moveNode(withID: node.id, to: newPosition)
     }
 
+    // MARK: - Node Duplication
+    @MainActor
+    public func duplicateNode(withID nodeID: NodeID) async -> NodeID? {
+        Self.logger.debugLog("Duplicating node with ID: \(nodeID.uuidString.prefix(8))")
+
+        guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
+            Self.logger.warning("duplicateNode: Node not found – \(nodeID.uuidString.prefix(8))")
+            return nil
+        }
+
+        pushUndo()
+
+        let originalNode = nodes[index].unwrapped
+        let newLabel = nextNodeLabel
+        nextNodeLabel += 1
+
+        // Create duplicate with offset position
+        let offsetX = CGFloat.random(in: 30...60)
+        let offsetY = CGFloat.random(in: 30...60)
+        let newPosition = CGPoint(
+            x: originalNode.position.x + offsetX,
+            y: originalNode.position.y + offsetY
+        )
+
+        // Create new node based on type, preserving contents
+        let duplicateNode: AnyNode
+        if let toggleNode = originalNode as? ToggleNode {
+            var newToggle = ToggleNode(
+                label: newLabel,
+                position: newPosition,
+                isExpanded: toggleNode.isExpanded,
+                contents: toggleNode.contents
+            )
+            // Note: We don't duplicate children or hierarchy - just the node itself
+            duplicateNode = AnyNode(newToggle)
+        } else {
+            var newNode = Node(
+                label: newLabel,
+                position: newPosition
+            )
+            newNode.contents = originalNode.contents
+            duplicateNode = AnyNode(newNode)
+        }
+
+        nodes.append(duplicateNode)
+
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+        await resumeSimulation()
+
+        Self.logger.debugLog("Created duplicate node with ID: \(duplicateNode.id.uuidString.prefix(8))")
+        return duplicateNode.id
+    }
+
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func updateNodeContents(withID id: NodeID, newContents: [NodeContent]) async {

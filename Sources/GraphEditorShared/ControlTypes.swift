@@ -13,14 +13,20 @@ public enum ControlKind: String, Codable, CaseIterable {
     case addChild  // Adds a child node of the same type as parent
     case edit
     case addEdge
-    
+    case delete  // Deletes the node
+    case duplicate  // Duplicates the node
+    case addToggleChild  // Adds a toggle node child
+
     // Future: Value editor kinds (e.g., .toggleBool, .sliderDouble) for node content editing
-    
+
     public var systemImage: String {
         switch self {
         case .addChild: return "plus.circle"
         case .edit: return "pencil"
         case .addEdge: return "arrow.right.circle"
+        case .delete: return "trash"
+        case .duplicate: return "doc.on.doc"
+        case .addToggleChild: return "checklist"
         }
     }
 }

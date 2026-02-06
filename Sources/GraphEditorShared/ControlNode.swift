@@ -85,18 +85,21 @@ public struct ControlNode: NodeProtocol {
     @available(iOS 15.0, watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         let iconName: String = switch kind {
-        
+
         case .addChild:         "plus.circle.fill"
         case .addEdge:          "arrow.right.circle.fill"
         case .edit:             "pencil"
+        case .delete:           "trash.fill"
+        case .duplicate:        "doc.on.doc.fill"
+        case .addToggleChild:   "checklist"
         }
-        
+
         return AnyView(
             ZStack {
                 Circle()
                     .fill(fillColor.opacity(0.9))
                     .frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale)
-                
+
                 Image(systemName: iconName)
                     .font(.system(size: 16 * zoomScale, weight: .medium))
                     .foregroundColor(.white)
