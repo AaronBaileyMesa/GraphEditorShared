@@ -291,7 +291,8 @@ extension GraphModel {
 
         objectWillChange.send()
         invalidateHiddenNodesCache()
-        await resumeSimulation()
+        // Don't auto-resume simulation - let caller handle it after selection
+        // This prevents centroid shift before controls are regenerated
 
         Self.logger.debugLog("Created duplicate node with ID: \(duplicateNode.id.uuidString.prefix(8))")
         return duplicateNode.id
