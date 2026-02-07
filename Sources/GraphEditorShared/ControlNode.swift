@@ -20,7 +20,7 @@ public struct ControlNode: NodeProtocol {
     public private(set) var id: NodeID = NodeID()
     public var position: CGPoint
     public var velocity: CGPoint = .zero
-    public var radius: CGFloat = Constants.App.nodeModelRadius * 0.75
+    public var radius: CGFloat = Constants.App.nodeModelRadius * 0.85  // Increased from 0.75 for better touch targets
     public var contents: [NodeContent] = []
     
     // MARK: Display label (required by NodeProtocol)
