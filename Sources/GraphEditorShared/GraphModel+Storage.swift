@@ -46,7 +46,8 @@ extension GraphModel {
                 self.associationEdgeColor = loadedState.associationEdgeColor.color
                 self.uiConfig = loadedState.uiConfig
                 self.globalUiConfig = loadedState.globalUiConfig
-                self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
+                // Use saved nextNodeLabel if available, otherwise compute from nodes
+                self.nextNodeLabel = loadedState.nextNodeLabel
                 
                 self.isSimulating = loadedState.isSimulating
                 if self.isSimulating {
@@ -68,7 +69,8 @@ extension GraphModel {
                             self.associationEdgeColor = loadedState.associationEdgeColor.color
                             self.uiConfig = loadedState.uiConfig
                             self.globalUiConfig = loadedState.globalUiConfig
-                            self.nextNodeLabel = (nodes.map { $0.unwrapped.label }.max() ?? 0) + 1
+                            // Use saved nextNodeLabel if available, otherwise compute from nodes
+                            self.nextNodeLabel = loadedState.nextNodeLabel
                             
                             self.isSimulating = loadedState.isSimulating
                             if self.isSimulating {
@@ -153,7 +155,8 @@ extension GraphModel {
                 associationEdgeColor: CodableColor(associationEdgeColor),
                 uiConfig: uiConfig,
                 globalUiConfig: globalUiConfig,
-                isSimulating: isSimulating  // NEW: Save simulation state
+                isSimulating: isSimulating,  // NEW: Save simulation state
+                nextNodeLabel: nextNodeLabel  // FIXED: Save nextNodeLabel to prevent label collisions
             )
             try await storage.saveGraphState(state, for: currentGraphName)
             Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for '\(currentGraphName)'")
@@ -264,20 +267,5 @@ extension GraphModel {
             edges = []
             currentGraphName = name
         try await loadGraph()
-    }
-    
-    @MainActor
-    public func initializeDefaultGraph() {
-        nodes = []
-        edges = []
-        nextNodeLabel = 1
-        hierarchyEdgeColor = .blue
-        associationEdgeColor = .white
-        uiConfig = [:]
-        globalUiConfig = []
-        isSimulating = false
-        objectWillChange.send()
-        invalidateHiddenNodesCache()  // If this exists; otherwise remove
-        Self.storageLogger.infoLog("Initialized default empty graph")
     }
 }
