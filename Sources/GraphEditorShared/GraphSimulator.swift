@@ -158,15 +158,18 @@ public actor GraphSimulator {
                 try? await Task.sleep(for: .seconds(baseInterval))
             }
             if physicsEngine.isPaused {
-                logger.debug(">>> Simulation loop: isPaused = true, sleeping...")
                 try? await Task.sleep(for: .milliseconds(100))
                 continue
             }
-            logger.debug(">>> Simulation loop: about to call performSimulationStep")
+            
             let shouldContinue = await performSimulationStep(baseInterval: baseInterval, nodeCount: nodeCount)
             physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)
             iterations += 1
-            logger.info("Iteration \(iterations): shouldContinue = \(shouldContinue) | recentVelocities = \(self.recentVelocities.map { String(format: "%.3f", $0) }.joined(separator: ", "))")
+            
+            // Reduced logging: only log every 10th iteration
+            if iterations % 10 == 0 {
+                logger.info("Iteration \(iterations): shouldContinue = \(shouldContinue) | recent max velocity: \(String(format: "%.3f", self.recentVelocities.max() ?? 0))")
+            }
             if !shouldContinue {
                 logger.info("Simulation stabilized after \(iterations) iterations")
 #if DEBUG
@@ -205,8 +208,6 @@ public actor GraphSimulator {
         let stepState = signposter.beginInterval("SimulationStep")
 #endif
         
-        logger.debug(">>> performSimulationStep called with nodeCount: \(nodeCount)")
-
         // NEW: Adaptive interval based on node count (e.g., slower for large graphs)
         _ = baseInterval * (1.0 + CGFloat(log(max(Double(nodeCount), 1.0))))
 
@@ -217,14 +218,10 @@ public actor GraphSimulator {
         var fixedIDs = Set<NodeID>()
         var ownerIDs = Set<NodeID>()
         
-        let controlNodeCount = visibleNodes.filter { $0 is ControlNode }.count
-        logger.debug("Building fixedIDs: found \(controlNodeCount) control nodes in \(visibleNodes.count) visible nodes")
-        
         for node in visibleNodes where node is ControlNode {
             fixedIDs.insert(node.id)
             if let control = node as? ControlNode, let ownerID = control.ownerID {
                 ownerIDs.insert(ownerID)
-                logger.debug("Control node \(node.id.uuidString.prefix(8)) has owner \(ownerID.uuidString.prefix(8))")
             }
         }
         // Fix owner nodes too - they should not move while their control nodes are visible
@@ -233,11 +230,6 @@ public actor GraphSimulator {
         }
         if let draggedID = await getDraggedNodeID() {
             fixedIDs.insert(draggedID)
-        }
-        
-        if !ownerIDs.isEmpty {
-            logger.debug("Fixed owner nodes: \(ownerIDs.map { $0.uuidString.prefix(8) }.joined(separator: ", "))")
-            logger.debug("Total fixed nodes: \(fixedIDs.count) (includes \(ownerIDs.count) owners and their control nodes)")
         }
         
         let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges, fixedIDs: fixedIDs)
@@ -282,11 +274,6 @@ public actor GraphSimulator {
                 fixedControl.position = originalPos
                 fixedControl.velocity = .zero
                 nodeMap[updatedNode.id] = fixedControl
-                #if DEBUG
-                if updatedNode.position != originalPos {
-                    logger.debug("FIXED control node \(updatedNode.id.uuidString.prefix(8)): physics moved it from \(originalPos.x, format: .fixed(precision: 1)),\(originalPos.y, format: .fixed(precision: 1)) to \(updatedNode.position.x, format: .fixed(precision: 1)),\(updatedNode.position.y, format: .fixed(precision: 1)) - restoring original")
-                }
-                #endif
             } else {
                 nodeMap[updatedNode.id] = updatedNode
             }
@@ -307,17 +294,19 @@ public actor GraphSimulator {
         await setEphemerals(newEphemerals)
         
         let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + $1.velocity.magnitude }
-
-            // Existing log (kept for reference)
-            logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count))")
+        
+        // Use average velocity per node for stability detection (scales with graph size)
+        let nodeCount = max(1, updatedVisibleNodes.count)
+        let avgVelocity = totalVelocity / CGFloat(nodeCount)
             
-            recentVelocities.append(totalVelocity)
+            recentVelocities.append(avgVelocity)
             if recentVelocities.count > velocityHistoryCount {
                 recentVelocities.removeFirst()
             }
         
-        let absoluteVelocityThreshold: CGFloat = 0.065   // TUNABLE: 0.04 = rock solid, 0.08 = slightly forgiving
-            let requiredStableSamples: Int = 20              // Must stay below threshold for N consecutive steps
+        // Improved stability criteria - less strict to allow convergence
+        let absoluteVelocityThreshold: CGFloat = 0.25   // Per-node average threshold for stability
+            let requiredStableSamples: Int = 15              // Reduced from 20 to converge faster
             
             let recentCount = recentVelocities.count
             let allBelowThreshold = recentVelocities.allSatisfy { $0 < absoluteVelocityThreshold }
@@ -325,17 +314,16 @@ public actor GraphSimulator {
             
             let isStable = enoughSamples && allBelowThreshold
             
-            // Optional: Add a tiny velocity change check as secondary confirmation (prevents oscillation)
-            let velocityChange = recentVelocities.max()! - recentVelocities.min()!
-            let isNearlyFlat = velocityChange < 0.04
+            // Secondary check: velocity change should be small (prevents oscillation)
+            let velocityChange = recentCount > 0 ? (recentVelocities.max()! - recentVelocities.min()!) : 0
+            let isNearlyFlat = velocityChange < 0.05  // Check that velocity is stabilizing (not oscillating)
             
             let finalStable = isStable && isNearlyFlat
             
-            // NEW: Added logging here to confirm root cause (includes all computed values)
-            logger.debug("Step \(self.physicsEngine.stepCount): Total Velocity = \(totalVelocity) | Alpha = \(self.physicsEngine.alpha) | Recent Min/Max = \(self.recentVelocities.min() ?? 0)/\(self.recentVelocities.max() ?? 0) | Stable? \(finalStable)")
-            
-            // Existing log (kept for reference)
-            logger.debug("Step: Total velocity = \(totalVelocity) (visible: \(visibleNodes.count)) | Stable: \(finalStable) (samples: \(recentCount)/\(requiredStableSamples), maxV: \(self.recentVelocities.max() ?? 0))")
+            // Reduced logging: only log every 10 steps
+            if physicsEngine.stepCount % 10 == 0 {
+                logger.debug("Step \(self.physicsEngine.stepCount): avg velocity=\(String(format: "%.3f", avgVelocity)) (total=\(String(format: "%.2f", totalVelocity))), alpha=\(String(format: "%.3f", self.physicsEngine.alpha)), stable=\(finalStable)")
+            }
             
 #if DEBUG
         signposter.endInterval("SimulationStep", stepState,
@@ -378,9 +366,5 @@ public actor GraphSimulator {
             step += 1
         }
         // Optional: Call onStable or onPostStable if needed (already in performSimulationStep)
-    }
-    
-    public func resetVelocityHistory() {
-        recentVelocities = []
     }
 }
