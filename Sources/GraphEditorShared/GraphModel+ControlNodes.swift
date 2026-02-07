@@ -126,7 +126,42 @@ extension GraphModel {
 
         let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .delete, .duplicate, .addToggleChild]
         
-        let filtered = kinds.filter { kind in
+        // NEW: Contextual filtering - show only relevant controls based on node state
+        let isCollapsible = (owner as? Node)?.isCollapsible ?? false
+        let hierarchyChildren = edges.filter { $0.from == ownerID && $0.type == .hierarchy }
+        let hasChildren = !hierarchyChildren.isEmpty
+        let childCount = hierarchyChildren.count
+        
+        let contextuallyFiltered = kinds.filter { kind in
+            switch kind {
+            case .addChild:
+                // Only show for collapsible nodes (plain children can only be added to collapsible parents)
+                // Hide if node already has children (to avoid mixing plain and toggle children)
+                return isCollapsible && !hasChildren
+                
+            case .addToggleChild:
+                // Only show for collapsible nodes (toggle children can only be added to collapsible parents)
+                return isCollapsible
+                
+            case .addEdge:
+                // Hide if node already has 6+ hierarchy children (likely cluttered)
+                return childCount < 6
+                
+            case .duplicate:
+                // Always allow duplication
+                return true
+                
+            case .edit:
+                // Hide if node has no contents to edit
+                return !owner.contents.isEmpty || true  // Keep visible for now to allow adding content
+                
+            case .delete:
+                // Always allow deletion
+                return true
+            }
+        }
+        
+        let filtered = contextuallyFiltered.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
         }
         

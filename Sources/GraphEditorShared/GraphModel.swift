@@ -88,7 +88,7 @@ import WatchKit
         return newHidden
     }
     
-    /// Call this whenever ToggleNode.isExpanded or hierarchy edges change
+    /// Call this whenever a collapsible node's isExpanded state or hierarchy edges change
     public func invalidateHiddenNodesCache() {
         hiddenNodesVersion &+= 1
     }
@@ -103,10 +103,12 @@ import WatchKit
 #endif
         
         for wrapper in nodes {
-            guard let toggleNode = wrapper.unwrapped as? ToggleNode, !toggleNode.isExpanded else {
+            let node = wrapper.unwrapped
+            // Check if node is collapsible and collapsed (should hide children)
+            guard let concreteNode = node as? Node, concreteNode.isCollapsible, !concreteNode.isExpanded else {
 #if DEBUG
-                if let toggle = wrapper.unwrapped as? ToggleNode {
-                    print("ToggleNode.shouldHideChildren for label \(toggle.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
+                if let debugNode = node as? Node, debugNode.isCollapsible {
+                    print("Collapsible node label \(debugNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
                 }
 #endif
                 continue
@@ -117,7 +119,7 @@ import WatchKit
                 .map { $0.target }
             
 #if DEBUG
-            print("ToggleNode.shouldHideChildren for label \(toggleNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
+            print("Collapsible node label \(concreteNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
             print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
 #endif
             
@@ -133,7 +135,7 @@ import WatchKit
         }
 #endif
         
-        // Fixed transitive closure – always explore children of collapsed ToggleNodes
+        // Fixed transitive closure – always explore children of collapsed collapsible nodes
         while !toHide.isEmpty {
             let current = toHide.removeLast()
             guard hidden.insert(current).inserted else { continue }  // skip if already hidden
@@ -344,8 +346,6 @@ import WatchKit
         guard let selectedID = selectedNodeID,
               let ownerNode = nodes.first(where: { $0.id == selectedID })?.unwrapped
         else { return }
-
-        _ = ownerNode is ToggleNode
 
         let kinds: [ControlKind] = [.addChild, .addEdge, .edit]
         

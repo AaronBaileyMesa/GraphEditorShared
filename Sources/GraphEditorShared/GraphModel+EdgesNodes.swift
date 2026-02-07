@@ -96,39 +96,43 @@ extension GraphModel {
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     public func addToggleNode(at position: CGPoint) async {
-        Self.logger.debugLog("Adding toggle node at position: x=\(position.x), y=\(position.y)")  // Added debug log
+        Self.logger.debugLog("Adding collapsible node at position: x=\(position.x), y=\(position.y)")
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
-        let newNode = AnyNode(ToggleNode(label: newLabel, position: position))
+        let newNode = AnyNode(Node(label: newLabel, position: position, isCollapsible: true))
         nodes.append(newNode)
         objectWillChange.send()
         await resumeSimulation()
     }
 
     @MainActor
-    public func addPlainChild(to parentID: NodeID) async {
-        guard nodes.first(where: { $0.id == parentID })?.unwrapped is ToggleNode else {
-            Self.logger.warning("Cannot add plain child to non-ToggleNode parent \(parentID.uuidString.prefix(8))")
-            return
+    public func addPlainChild(to parentID: NodeID) async -> Bool {
+        guard let parent = nodes.first(where: { $0.id == parentID })?.unwrapped as? Node,
+              parent.isCollapsible else {
+            Self.logger.warning("Cannot add plain child to non-collapsible parent \(parentID.uuidString.prefix(8))")
+            return false
         }
         
-        Self.logger.debugLog("Adding plain child to ToggleNode parent ID: \(parentID.uuidString.prefix(8))")
+        Self.logger.debugLog("Adding plain child to collapsible parent ID: \(parentID.uuidString.prefix(8))")
         await addChildInternal(to: parentID, createChild: { label, position in
-            Node(label: label, position: position)
+            Node(label: label, position: position, isCollapsible: false)
         })
+        return true
     }
 
     @MainActor
-    public func addToggleChild(to parentID: NodeID) async {
-        guard nodes.first(where: { $0.id == parentID })?.unwrapped is ToggleNode else {
-            Self.logger.warning("Cannot add toggle child to non-ToggleNode parent \(parentID.uuidString.prefix(8))")
-            return
+    public func addToggleChild(to parentID: NodeID) async -> Bool {
+        guard let parent = nodes.first(where: { $0.id == parentID })?.unwrapped as? Node,
+              parent.isCollapsible else {
+            Self.logger.warning("Cannot add collapsible child to non-collapsible parent \(parentID.uuidString.prefix(8))")
+            return false
         }
         
         await addChildInternal(to: parentID, createChild: { label, position in
-            ToggleNode(label: label, position: position)
+            Node(label: label, position: position, isCollapsible: true)
         })
+        return true
     }
     
     // ADDED: @MainActor to isolate this method to the main thread
@@ -157,29 +161,16 @@ extension GraphModel {
         nodes.append(newNode)
         edges.append(GraphEdge(from: parentID, target: newNode.id, type: .hierarchy))
         
-        // Update parent: Handle both ToggleNode (update) and plain Node (convert and replace)
+        // Update parent: Add child to children list and childOrder
         let unwrappedParent = nodes[parentIndex].unwrapped
-        if var parentToggle = unwrappedParent as? ToggleNode {
-            if !parentToggle.children.contains(newNode.id) {  // Avoid duplicates
-                parentToggle.children.append(newNode.id)
-                parentToggle.childOrder.append(newNode.id)  // Append to maintain initial order
-                nodes[parentIndex] = AnyNode(parentToggle)  // Replace updated parent
+        if var parentNode = unwrappedParent as? Node {
+            if !parentNode.children.contains(newNode.id) {  // Avoid duplicates
+                parentNode.children.append(newNode.id)
+                parentNode.childOrder.append(newNode.id)  // Append to maintain initial order
+                nodes[parentIndex] = AnyNode(parentNode)  // Replace updated parent
             }
         } else {
-            // Conversion for plain Node: Create new ToggleNode reusing the same ID
-            Self.logger.debugLog("Converting plain parent \(parentID.uuidString.prefix(8)) to ToggleNode")
-            var newToggle = ToggleNode(
-                id: unwrappedParent.id,  // Reuse ID to avoid breaking references/edges
-                label: unwrappedParent.label,
-                position: unwrappedParent.position,
-                velocity: unwrappedParent.velocity,
-                radius: unwrappedParent.radius,
-                isExpanded: true,  // Default for new hierarchy
-                contents: unwrappedParent.contents
-            )
-            newToggle.children.append(newNode.id)
-            newToggle.childOrder.append(newNode.id)
-            nodes[parentIndex] = AnyNode(newToggle)  // FIX: Replace at index, do NOT append!
+            Self.logger.warning("Parent is not a Node type - cannot update children list")
         }
         
         objectWillChange.send()
@@ -273,18 +264,21 @@ extension GraphModel {
             y: originalNode.position.y + offsetY
         )
 
-        // Create new node based on type, preserving contents
+        // Create new node based on type, preserving contents and collapsibility
         let duplicateNode: AnyNode
-        if let toggleNode = originalNode as? ToggleNode {
-            var newToggle = ToggleNode(
+        if let node = originalNode as? Node {
+            let newNode = Node(
                 label: newLabel,
                 position: newPosition,
-                isExpanded: toggleNode.isExpanded,
-                contents: toggleNode.contents
+                isExpanded: node.isExpanded,
+                isCollapsible: node.isCollapsible,
+                contents: node.contents,
+                children: [],  // Don't duplicate children - just the node itself
+                childOrder: []
             )
-            // Note: We don't duplicate children or hierarchy - just the node itself
-            duplicateNode = AnyNode(newToggle)
+            duplicateNode = AnyNode(newNode)
         } else {
+            // Fallback for other node types
             var newNode = Node(
                 label: newLabel,
                 position: newPosition
@@ -349,14 +343,19 @@ extension GraphModel {
             return
         }
         
-        // Must unwrap to a concrete ToggleNode to call handlingTap()
-        guard var toggleNode = nodes[index].unwrapped as? ToggleNode else {
-            Self.logger.warning("toggleExpansion: Node is not a ToggleNode – \(nodeID.uuidString.prefix(8))")
+        // Must unwrap to a concrete Node to call handlingTap()
+        guard var node = nodes[index].unwrapped as? Node else {
+            Self.logger.warning("toggleExpansion: Node is not a Node type – \(nodeID.uuidString.prefix(8))")
             return
         }
         
-        toggleNode = toggleNode.handlingTap()           // toggles isExpanded + zeros velocity
-        nodes[index] = AnyNode(toggleNode)              // write back
+        guard node.isCollapsible else {
+            Self.logger.warning("toggleExpansion: Node is not collapsible – \(nodeID.uuidString.prefix(8))")
+            return
+        }
+        
+        node = node.handlingTap()           // toggles isExpanded + zeros velocity
+        nodes[index] = AnyNode(node)        // write back
         
         objectWillChange.send()
         

@@ -79,8 +79,8 @@ extension GraphModel {
         pushUndo()  // Snapshot for undo
         
         guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }),
-              let parent = nodes[parentIndex].unwrapped as? ToggleNode else {  // Restrict to ToggleNode
-            Self.logger.warning("addChild: Parent not found or not ToggleNode – \(parentID.uuidString.prefix(8))")
+              let parent = nodes[parentIndex].unwrapped as? Node else {
+            Self.logger.warning("addChild: Parent not found or not Node type – \(parentID.uuidString.prefix(8))")
             return
         }
         

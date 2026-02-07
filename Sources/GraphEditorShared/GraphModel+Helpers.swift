@@ -48,20 +48,23 @@ extension GraphModel {
             return
         }
         let oldNode = nodes[index]
-        print("handleTap: Pre-handlingTap - old isExpanded: \((oldNode.unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Check initial
+        let oldIsExpanded = (oldNode.unwrapped as? Node)?.isExpanded
+        print("handleTap: Pre-handlingTap - old isExpanded: \(oldIsExpanded?.description ?? "not Node")")
 
         let updatedNode = oldNode.handlingTap()
-        print("handleTap: Post-handlingTap - updated isExpanded: \((updatedNode.unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Key: Should be toggled, but won't be
+        let newIsExpanded = (updatedNode.unwrapped as? Node)?.isExpanded
+        print("handleTap: Post-handlingTap - updated isExpanded: \(newIsExpanded?.description ?? "not Node")")
 
         nodes[index] = updatedNode
-        print("handleTap: Post-assignment - model.nodes[\(index)] isExpanded: \((nodes[index].unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Verify stuck in model
+        let assignedIsExpanded = (nodes[index].unwrapped as? Node)?.isExpanded
+        print("handleTap: Post-assignment - model.nodes[\(index)] isExpanded: \(assignedIsExpanded?.description ?? "not Node")")
 
         let children = edges.filter { $0.from == nodeID && $0.type == EdgeType.hierarchy }.map { $0.target }
 
-        if let toggleNode = updatedNode.unwrapped as? ToggleNode {
-            print("handleTap: Entered if-let - toggleNode isExpanded: \(toggleNode.isExpanded)")
+        if let node = updatedNode.unwrapped as? Node, node.isCollapsible {
+            print("handleTap: Entered if-let - collapsible node isExpanded: \(node.isExpanded)")
 
-            if toggleNode.isExpanded {
+            if node.isExpanded {
                 // Expand → gently push children outward in a circle (prevents overlap)
                 for childID in children {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
@@ -71,7 +74,7 @@ extension GraphModel {
                     let distance = Constants.App.nodeModelRadius * 4
                     let offset = CGPoint(x: cos(angle) * distance, y: sin(angle) * distance)
                     
-                    child.position = toggleNode.position + offset
+                    child.position = node.position + offset
                     nodes[childIndex] = AnyNode(child)
                 }
             } else {
@@ -80,14 +83,15 @@ extension GraphModel {
             }
         
         } else {
-            print("handleTap: Cast to ToggleNode failed on updatedNode")
+            print("handleTap: Node is not collapsible or cast failed")
         }
 
         objectWillChange.send()
         let unwrappedNodes = nodes.map { $0.unwrapped }
         let updatedUnwrapped = physicsEngine.runSimulation(steps: 20, nodes: unwrappedNodes, edges: edges)
         nodes = updatedUnwrapped.map { AnyNode($0) }
-        print("handleTap: Post-simulation - model.nodes[\(index)] isExpanded: \((nodes[index].unwrapped as? ToggleNode)?.isExpanded.description ?? "not ToggleNode")")  // Check if sim overwrote
+        let finalIsExpanded = (nodes[index].unwrapped as? Node)?.isExpanded
+        print("handleTap: Post-simulation - model.nodes[\(index)] isExpanded: \(finalIsExpanded?.description ?? "not Node")")
     }
     
     public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
@@ -134,13 +138,13 @@ extension GraphModel {
     
     public func sortChildren<ComparableValue: Comparable>(of nodeID: NodeID, by keyPath: KeyPath<any NodeProtocol, ComparableValue>) async {
         guard let index = nodes.firstIndex(where: { $0.id == nodeID }),
-              let toggleNode = nodes[index].unwrapped as? ToggleNode else {
-            // Skip if not ToggleNode
+              let node = nodes[index].unwrapped as? Node else {
+            // Skip if not Node type
             return
         }
         
         pushUndo()  // Allow undo of sorting
-        let sortedOrder = toggleNode.children.sorted { childID1, childID2 in
+        let sortedOrder = node.children.sorted { childID1, childID2 in
             guard let node1 = nodes.first(where: { $0.id == childID1 })?.unwrapped,
                   let node2 = nodes.first(where: { $0.id == childID2 })?.unwrapped else {
                 return false  // Stable sort if nodes missing
@@ -148,7 +152,7 @@ extension GraphModel {
             return node1[keyPath: keyPath] < node2[keyPath: keyPath]
         }
         
-        let updated = toggleNode.with(childOrder: sortedOrder)
+        let updated = node.with(childOrder: sortedOrder)
         nodes[index] = AnyNode(updated)
         objectWillChange.send()
         await resumeSimulation()  // Re-simulate for layout adjustments
@@ -200,18 +204,20 @@ extension GraphModel {
         objectWillChange.send()
     }
     
-    public func toggleNode(with id: NodeID?) -> ToggleNode? {
+    public func collapsibleNode(with id: NodeID?) -> Node? {
         guard let id else { return nil }
-        return nodes.first(where: { $0.id == id })?.unwrapped as? ToggleNode
+        let node = nodes.first(where: { $0.id == id })?.unwrapped as? Node
+        return node?.isCollapsible == true ? node : nil
     }
     
-    /// Recursively updates positions of hidden children in the subtree of a collapsed ToggleNode.
-        /// Call this after manually moving a parent during drag (when simulation is paused).
+    /// Recursively updates positions of hidden children in the subtree of a collapsed node.
+    /// Call this after manually moving a parent during drag (when simulation is paused).
     public func updateSubtreePositions(for parentID: NodeID, to newParentPos: CGPoint) {
             guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }),
-                  let toggle = nodes[parentIndex].unwrapped as? ToggleNode,
-                  !toggle.isExpanded else {
-                return  // Not a collapsed ToggleNode; no-op
+                  let node = nodes[parentIndex].unwrapped as? Node,
+                  node.isCollapsible,
+                  !node.isExpanded else {
+                return  // Not a collapsed collapsible node; no-op
             }
             
             let children = edges

@@ -149,10 +149,10 @@ extension NodeProtocol {
     public var mass: CGFloat { 1.0 }  // Default mass
     
     public func shouldHideChildren() -> Bool {
-        if let toggle = self as? ToggleNode {
-            return !toggle.isExpanded
+        if let node = self as? Node {
+            return node.isCollapsible && !node.isExpanded
         } else {
-            return false  // Critical: Non-ToggleNodes (e.g., Node) should NOT hide children
+            return false  // Default: Non-Node types don't hide children
         }
     }
     
@@ -226,17 +226,14 @@ public struct AnyNode: NodeProtocol {
     public init(_ base: any NodeProtocol) {
         self.base = base
         
-        if let toggle = base as? ToggleNode {
-            self.isExpanded = toggle.isExpanded
-            self.children = toggle.children
-            self.childOrder = toggle.childOrder
-        } else if let hierarchical = base as? any HierarchicalNode {
-            self.isExpanded = hierarchical.isExpanded
-            self.children = hierarchical.children
-            self.childOrder = []
+        // Extract hierarchical state from the base node
+        self.isExpanded = base.isExpanded
+        self.children = base.children
+        
+        // Extract childOrder if available
+        if let node = base as? Node {
+            self.childOrder = node.childOrder
         } else {
-            self.isExpanded = true
-            self.children = []
             self.childOrder = []
         }
     }
@@ -275,8 +272,21 @@ public struct AnyNode: NodeProtocol {
             let node = try container.decode(Node.self, forKey: .data)
             self.init(node)
         case "toggleNode":
+            // Backward compatibility: Convert ToggleNode to Node with isCollapsible=true
             let toggleNode = try container.decode(ToggleNode.self, forKey: .data)
-            self.init(toggleNode)
+            let convertedNode = Node(
+                id: toggleNode.id,
+                label: toggleNode.label,
+                position: toggleNode.position,
+                velocity: toggleNode.velocity,
+                radius: toggleNode.radius,
+                isExpanded: toggleNode.isExpanded,
+                isCollapsible: true,  // ToggleNode → collapsible Node
+                contents: toggleNode.contents,
+                children: toggleNode.children,
+                childOrder: toggleNode.childOrder
+            )
+            self.init(convertedNode)
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: container,
                 debugDescription: "Unknown node type: \(type)")
@@ -290,11 +300,9 @@ public struct AnyNode: NodeProtocol {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
         if let node = base as? Node {
+            // Always encode as "node" type (even collapsible nodes)
             try container.encode("node", forKey: .type)
             try container.encode(node, forKey: .data)
-        } else if let toggleNode = base as? ToggleNode {
-            try container.encode("toggleNode", forKey: .type)
-            try container.encode(toggleNode, forKey: .data)
         } else {
             throw EncodingError.invalidValue(base, .init(codingPath: [], debugDescription: "Unknown node type"))
         }
@@ -322,10 +330,51 @@ extension NodeProtocol {
 
 extension NodeProtocol {
     public func fullyUnwrapped() -> any NodeProtocol {
-        // Default: For concrete types (e.g., ControlNode, ToggleNode), return self (no unwrapping needed)
+        // Default: For concrete types (e.g., ControlNode), return self (no unwrapping needed)
         if let anyNode = self as? AnyNode {
             return anyNode.base.fullyUnwrapped()  // Recurse for wrapped
         }
         return self
+    }
+}
+
+// MARK: - Backward Compatibility for ToggleNode Decoding
+/// Minimal ToggleNode struct for decoding legacy saved data.
+/// This type is ONLY used during JSON deserialization to convert old ToggleNode data to Node with isCollapsible=true.
+@available(iOS 16.0, *)
+@available(watchOS 9.0, *)
+private struct ToggleNode: Codable {
+    let id: NodeID
+    let label: Int
+    let position: CGPoint
+    let velocity: CGPoint
+    let radius: CGFloat
+    let isExpanded: Bool
+    let contents: [NodeContent]
+    let children: [NodeID]
+    let childOrder: [NodeID]
+    
+    enum CodingKeys: String, CodingKey {
+        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, contents, children, childOrder
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(NodeID.self, forKey: .id)
+        label = try container.decode(Int.self, forKey: .label)
+        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? Constants.App.nodeModelRadius
+        isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
+        contents = try container.decodeIfPresent([NodeContent].self, forKey: .contents) ?? []
+        children = try container.decodeIfPresent([NodeID].self, forKey: .children) ?? []
+        childOrder = try container.decodeIfPresent([NodeID].self, forKey: .childOrder) ?? []
+        let posX = try container.decode(CGFloat.self, forKey: .positionX)
+        let posY = try container.decode(CGFloat.self, forKey: .positionY)
+        position = CGPoint(x: posX, y: posY)
+        velocity = .zero
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        // This should never be called since ToggleNode is only for decoding
+        fatalError("ToggleNode encoding is not supported - all nodes should be encoded as Node type")
     }
 }

@@ -14,7 +14,7 @@ extension GraphModel {
     
     func syncCollapsedPositions() {
         for parentIndex in 0..<nodes.count {
-            if let toggle = nodes[parentIndex].unwrapped as? ToggleNode, !toggle.isExpanded {
+            if let node = nodes[parentIndex].unwrapped as? Node, node.isCollapsible, !node.isExpanded {
                 let children = edges.filter { $0.from == nodes[parentIndex].id && $0.type == .hierarchy }.map { $0.target }
                 for (index, childID) in children.enumerated() {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }

@@ -62,7 +62,7 @@ struct AttractionCalculator {
             }
             
             // NEW: Apply preferred angle torque if enabled and hierarchy
-            if isHierarchy && usePreferredAngles, let parent = fromNode as? ToggleNode {
+            if isHierarchy && usePreferredAngles, let parent = fromNode as? Node {
                 let siblingIndex = parent.childOrder.firstIndex(of: toNode.id) ?? 0
                 let siblingCount = max(parent.childOrder.count, 1)
                 let baseAngle: CGFloat = .pi * 1.5  // 270° downward

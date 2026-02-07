@@ -15,67 +15,102 @@ extension NodeID: @retroactive Identifiable {
 
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
-public struct Node: NodeProtocol, Codable {  // Updated: Conform to NodeProtocol (which now includes HierarchicalNode)
+public struct Node: NodeProtocol, Codable {
     public let id: NodeID
     public let label: Int
     public var position: CGPoint
     public var velocity: CGPoint = .zero
-    public var radius: CGFloat = 10.0
+    public var radius: CGFloat = Constants.App.nodeModelRadius
     public var children: [UUID] = []
+    public var childOrder: [UUID] = []  // Explicit order for children layout
     public var isExpanded: Bool = true
+    public var isCollapsible: Bool = false  // NEW: Controls expand/collapse behavior
     public var contents: [NodeContent] = []
-    public var fillColor: Color { .red }
+    
+    // Dynamic fill color based on collapsibility and expansion state
+    public var fillColor: Color {
+        isCollapsible ? (isExpanded ? .green : .red) : .red
+    }
 
     // Init with all params
-    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = 10.0, isExpanded: Bool = true, contents: [NodeContent] = []) {
+    public init(id: NodeID = NodeID(), label: Int, position: CGPoint, velocity: CGPoint = .zero, radius: CGFloat = Constants.App.nodeModelRadius, isExpanded: Bool = true, isCollapsible: Bool = false, contents: [NodeContent] = [], children: [UUID] = [], childOrder: [UUID]? = nil) {
         self.id = id
         self.label = label
         self.position = position
         self.velocity = velocity
         self.radius = radius
         self.isExpanded = isExpanded
+        self.isCollapsible = isCollapsible
         self.contents = contents
+        self.children = children
+        // Validate childOrder to be a permutation of children
+        let validatedOrder = (childOrder ?? children).filter { children.contains($0) }
+        self.childOrder = validatedOrder.isEmpty ? children : validatedOrder
     }
     
     public func with(position: CGPoint, velocity: CGPoint) -> Self {
-        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, isCollapsible: isCollapsible, contents: contents, children: children, childOrder: childOrder)
     }
     
     public func with(position: CGPoint, velocity: CGPoint, contents: [NodeContent]) -> Self {
-        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, contents: contents)
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, isCollapsible: isCollapsible, contents: contents, children: children, childOrder: childOrder)
+    }
+    
+    public func with(children: [NodeID]) -> Self {
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, isCollapsible: isCollapsible, contents: contents, children: children, childOrder: childOrder)
+    }
+    
+    public func with(childOrder: [NodeID]) -> Self {
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, isCollapsible: isCollapsible, contents: contents, children: children, childOrder: childOrder)
+    }
+    
+    public func with(isExpanded: Bool) -> Self {
+        Node(id: id, label: label, position: position, velocity: velocity, radius: radius, isExpanded: isExpanded, isCollapsible: isCollapsible, contents: contents, children: children, childOrder: childOrder)
     }
     
     public func shouldHideChildren() -> Bool {
-            return false  // Explicit for non-hierarchical nodes
-        }
-    
-    // Codable conformance (mirrors ToggleNode for consistency)
-    enum CodingKeys: String, CodingKey {
-        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, contents, children
+        isCollapsible && !isExpanded
     }
-     public init(from decoder: Decoder) throws {
+    
+    public func handlingTap() -> Self {
+        guard isCollapsible else { return self }
+        var updated = self
+        updated.isExpanded.toggle()
+        updated.velocity = .zero
+        return updated
+    }
+    
+    // Codable conformance
+    enum CodingKeys: String, CodingKey {
+        case id, label, positionX, positionY, velocityX, velocityY, radius, isExpanded, isCollapsible, contents, children, childOrder
+    }
+    
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(NodeID.self, forKey: .id)
         label = try container.decode(Int.self, forKey: .label)
-        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? 10.0  // Default if missing
-        isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true  // Default if missing
-        contents = try container.decodeIfPresent([NodeContent].self, forKey: .contents) ?? []  // Default if missing
-        children = try container.decodeIfPresent([NodeID].self, forKey: .children) ?? []  // Default if missing
-        let posX = try container.decode(CGFloat.self, forKey: .positionX)  // Required
-        let posY = try container.decode(CGFloat.self, forKey: .positionY)  // Required
+        radius = try container.decodeIfPresent(CGFloat.self, forKey: .radius) ?? Constants.App.nodeModelRadius
+        isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
+        isCollapsible = try container.decodeIfPresent(Bool.self, forKey: .isCollapsible) ?? false
+        contents = try container.decodeIfPresent([NodeContent].self, forKey: .contents) ?? []
+        children = try container.decodeIfPresent([NodeID].self, forKey: .children) ?? []
+        childOrder = try container.decodeIfPresent([NodeID].self, forKey: .childOrder) ?? []
+        let posX = try container.decode(CGFloat.self, forKey: .positionX)
+        let posY = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: posX, y: posY)
-        let velX = try container.decodeIfPresent(CGFloat.self, forKey: .velocityX) ?? 0.0  // Default to 0 if missing
-        let velY = try container.decodeIfPresent(CGFloat.self, forKey: .velocityY) ?? 0.0  // Default to 0 if missing
-        velocity = CGPoint(x: velX, y: velY)
+        self.velocity = .zero  // Always reset velocity on load (physics state is transient)
     }
-     public func encode(to encoder: Encoder) throws {
+    
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(label, forKey: .label)
         try container.encode(radius, forKey: .radius)
         try container.encode(isExpanded, forKey: .isExpanded)
+        try container.encode(isCollapsible, forKey: .isCollapsible)
         try container.encode(contents, forKey: .contents)
         try container.encode(children, forKey: .children)
+        try container.encode(childOrder, forKey: .childOrder)
         try container.encode(position.x, forKey: .positionX)
         try container.encode(position.y, forKey: .positionY)
         try container.encode(velocity.x, forKey: .velocityX)
