@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 @available(iOS 16.0, watchOS 6.0, *)
 public enum ControlKind: String, Codable, CaseIterable {
@@ -27,6 +28,22 @@ public enum ControlKind: String, Codable, CaseIterable {
         case .delete: return "trash"
         case .duplicate: return "doc.on.doc"
         case .addToggleChild: return "checklist"
+        }
+    }
+    
+    /// Color coding by action type for better visual differentiation
+    public var color: Color {
+        switch self {
+        case .addChild, .addToggleChild:
+            return .green  // Creation actions - green
+        case .addEdge:
+            return .blue  // Connection action - blue
+        case .duplicate:
+            return .cyan  // Duplication - cyan (between creation and connection)
+        case .edit:
+            return .orange  // Edit action - orange/yellow
+        case .delete:
+            return .red  // Destructive action - red
         }
     }
 }

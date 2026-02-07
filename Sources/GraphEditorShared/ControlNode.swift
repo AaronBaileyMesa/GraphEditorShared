@@ -82,6 +82,11 @@ public struct ControlNode: NodeProtocol {
     
     public var mass: CGFloat { 1.0 }
     
+    /// Color based on control action type
+    public var fillColor: Color {
+        kind.color
+    }
+    
     @available(iOS 15.0, watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         let iconName: String = switch kind {
