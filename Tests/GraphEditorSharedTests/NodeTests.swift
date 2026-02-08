@@ -108,4 +108,141 @@ struct NodeTests {
         #expect(reordered.children == [child1, child2, child3])  // Unchanged
         // If sorting implemented: model.sortChildren(of: node.id, by: \.label); expect order
     }
+    
+    // MARK: - NodeContent Tests
+    
+    @Test func testNodeContentStringTruncation() {
+        let short = NodeContent.string("Hello")
+        #expect(short.displayText == "Hello", "Short string should not truncate")
+        
+        let long = NodeContent.string("This is a very long string")
+        #expect(long.displayText.hasSuffix("…"), "Long string should have ellipsis")
+        #expect(long.displayText.count == 11, "Truncated string should be 10 chars + ellipsis")
+    }
+    
+    @Test func testNodeContentDateDisplay() {
+        let date = Date(timeIntervalSince1970: 1700000000)  // Fixed date for testing
+        let content = NodeContent.date(date)
+        let display = content.displayText
+        
+        // Should contain some date components (exact format depends on locale)
+        #expect(!display.isEmpty, "Date display should not be empty")
+        #expect(display.count > 5, "Date display should have reasonable length")
+    }
+    
+    @Test func testNodeContentNumberFormatting() {
+        let whole = NodeContent.number(42.0)
+        #expect(whole.displayText == "42.00", "Whole number should show 2 decimals")
+        
+        let decimal = NodeContent.number(3.14159)
+        #expect(decimal.displayText == "3.14", "Should round to 2 decimal places")
+        
+        let negative = NodeContent.number(-5.5)
+        #expect(negative.displayText == "-5.50", "Negative numbers should format correctly")
+    }
+    
+    @Test func testNodeContentBooleanDisplay() {
+        let trueContent = NodeContent.boolean(true)
+        #expect(trueContent.displayText == "True")
+        
+        let falseContent = NodeContent.boolean(false)
+        #expect(falseContent.displayText == "False")
+    }
+    
+    @Test func testNodeContentEquality() {
+        #expect(NodeContent.string("test") == NodeContent.string("test"))
+        #expect(NodeContent.string("test") != NodeContent.string("other"))
+        
+        #expect(NodeContent.number(42.0) == NodeContent.number(42.0))
+        #expect(NodeContent.number(42.0) != NodeContent.number(43.0))
+        
+        #expect(NodeContent.boolean(true) == NodeContent.boolean(true))
+        #expect(NodeContent.boolean(true) != NodeContent.boolean(false))
+        
+        // Different types should not be equal
+        #expect(NodeContent.string("42") != NodeContent.number(42.0))
+    }
+    
+    @Test func testNodeContentCodableRoundTrip() throws {
+        let contents: [NodeContent] = [
+            .string("Test String"),
+            .date(Date(timeIntervalSince1970: 1234567890)),
+            .number(123.456),
+            .boolean(true)
+        ]
+        
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        
+        for content in contents {
+            let encoded = try encoder.encode(content)
+            let decoded = try decoder.decode(NodeContent.self, from: encoded)
+            #expect(content == decoded, "Content should survive encode/decode: \(content)")
+        }
+    }
+    
+    @Test func testNodeContentDecodingInvalidType() throws {
+        let invalidJSON = """
+        {"type": "invalid", "value": "test"}
+        """.data(using: .utf8)!
+        
+        let decoder = JSONDecoder()
+        #expect(throws: DecodingError.self) {
+            _ = try decoder.decode(NodeContent.self, from: invalidJSON)
+        }
+    }
+    
+    @Test func testNodeWithContents() {
+        let contents: [NodeContent] = [
+            .string("Title"),
+            .number(42.0),
+            .date(Date())
+        ]
+        
+        let node = Node(
+            label: 1,
+            position: .zero,
+            contents: contents
+        )
+        
+        #expect(node.contents.count == 3)
+        #expect(node.contents[0] == .string("Title"))
+        #expect(node.contents[1] == .number(42.0))
+    }
+    
+    @Test func testNodeWithMethodPreservesContents() {
+        let originalContents: [NodeContent] = [.string("Test"), .number(100.0)]
+        let node = Node(label: 1, position: .zero, contents: originalContents)
+        
+        let moved = node.with(position: CGPoint(x: 10, y: 20), velocity: .zero)
+        #expect(moved.contents == originalContents, "with() should preserve contents")
+        
+        let newContents: [NodeContent] = [.boolean(true)]
+        let updated = node.with(position: .zero, velocity: .zero, contents: newContents)
+        #expect(updated.contents == newContents, "with(contents:) should update contents")
+    }
+    
+    @Test func testNodeContentsCodableRoundTrip() throws {
+        let node = Node(
+            label: 42,
+            position: CGPoint(x: 100, y: 200),
+            contents: [
+                .string("Hello"),
+                .number(3.14),
+                .boolean(true),
+                .date(Date(timeIntervalSince1970: 1700000000))
+            ]
+        )
+        
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(node)
+        
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Node.self, from: data)
+        
+        #expect(decoded.contents.count == 4)
+        #expect(decoded.contents[0] == .string("Hello"))
+        #expect(decoded.contents[1] == .number(3.14))
+        #expect(decoded.contents[2] == .boolean(true))
+    }
 }
