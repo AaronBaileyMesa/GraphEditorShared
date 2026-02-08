@@ -112,83 +112,89 @@ extension GraphModel {
             return
         }
         
+        stabilizeNodesForControlGeneration()
         
+        let owner = nodes[ownerIndex].unwrapped
+        let controlKinds = filterControlKindsForNode(owner: owner, ownerID: ownerID)
+        createControlNodesForKinds(controlKinds, owner: owner, ownerID: ownerID, ownerIndex: ownerIndex)
+        
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+    }
+    
+    private func stabilizeNodesForControlGeneration() {
         // Stabilize existing nodes before adding ephemerals by zeroing all velocities
         for index in nodes.indices {
             let currentNode = nodes[index].unwrapped
             nodes[index] = AnyNode(currentNode.with(position: currentNode.position, velocity: .zero))
         }
-        // Write the stabilized nodes back to persist the zeroed velocities
         self.nodes = nodes
         physicsEngine.temporaryDampingBoost(steps: 30)
-        
-        let owner = nodes[ownerIndex].unwrapped
-
+    }
+    
+    private func filterControlKindsForNode(owner: any NodeProtocol, ownerID: NodeID) -> [ControlKind] {
         let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .delete, .duplicate, .addToggleChild]
         
-        // NEW: Contextual filtering - show only relevant controls based on node state
+        // Contextual filtering - show only relevant controls based on node state
         let isCollapsible = (owner as? Node)?.isCollapsible ?? false
         let hierarchyChildren = edges.filter { $0.from == ownerID && $0.type == .hierarchy }
         let hasChildren = !hierarchyChildren.isEmpty
         let childCount = hierarchyChildren.count
         
+        #if DEBUG
+        Self.controlLogger.debug("filterControlKindsForNode: ownerID=\(ownerID.uuidString.prefix(8)), childCount=\(childCount), isCollapsible=\(isCollapsible)")
+        #endif
+        
         let contextuallyFiltered = kinds.filter { kind in
             switch kind {
             case .addChild:
-                // Only show for collapsible nodes (plain children can only be added to collapsible parents)
-                // Hide if node already has children (to avoid mixing plain and toggle children)
                 return isCollapsible && !hasChildren
-                
             case .addToggleChild:
-                // Only show for collapsible nodes (toggle children can only be added to collapsible parents)
                 return isCollapsible
-                
             case .addEdge:
-                // Hide if node already has 6+ hierarchy children (likely cluttered)
-                return childCount < 6
-                
-            case .duplicate:
-                // Always allow duplication
+                let shouldShow = childCount < 6
+                #if DEBUG
+                Self.controlLogger.debug("  addEdge: childCount=\(childCount) < 6? \(shouldShow)")
+                #endif
+                return shouldShow
+            case .duplicate, .delete:
                 return true
-                
             case .edit:
-                // Hide if node has no contents to edit
-                return !owner.contents.isEmpty || true  // Keep visible for now to allow adding content
-                
-            case .delete:
-                // Always allow deletion
-                return true
+                return !owner.contents.isEmpty || true
             }
         }
         
+        // Apply UI config filtering
         let filtered = contextuallyFiltered.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
         }
         
-        let sortedFiltered = filtered.sorted { kind1, kind2 in
+        // Sort by priority
+        return filtered.sorted { kind1, kind2 in
             let priority1 = uiConfig[ownerID]?.first(where: { $0.kind == kind1 })?.priority ?? 0
             let priority2 = uiConfig[ownerID]?.first(where: { $0.kind == kind2 })?.priority ?? 0
             return priority1 < priority2
         }
-        
+    }
+    
+    private func createControlNodesForKinds(_ kinds: [ControlKind], owner: any NodeProtocol, ownerID: NodeID, ownerIndex: Int) {
         let freeSlots = getFreeSlots(for: ownerID)
         let spacing: CGFloat = 40.0
         
-        for (index, kind) in sortedFiltered.enumerated() {
+        for (index, kind) in kinds.enumerated() {
             // Skip if kind already exists (duplicate check)
             if ephemeralControlNodes.contains(where: { $0.kind == kind && $0.ownerID == ownerID }) { continue }
             
             let angle = freeSlots[index % freeSlots.count]
             let deltaX = cos(angle * .pi / 180) * spacing
             let deltaY = sin(angle * .pi / 180) * spacing
-
             let position = CGPoint(x: owner.position.x + deltaX, y: owner.position.y + deltaY)
             
             let control = ControlNode(
                 position: position,
                 ownerID: ownerID,
                 kind: kind,
-                relativeAngle: angle  // Store for stable repositioning
+                relativeAngle: angle
             )
             
             #if DEBUG
@@ -198,19 +204,11 @@ extension GraphModel {
             
             ephemeralControlNodes.append(control)
             
-            // Create visual edge (association type - no physics forces)
             let edge = GraphEdge(from: ownerID, target: control.id, type: .association)
             ephemeralControlEdges.append(edge)
         }
         
-        // NEW: Update owner in nodes after changes
         nodes[ownerIndex] = AnyNode(owner)
-        
-        objectWillChange.send()
-        invalidateHiddenNodesCache()
-        
-        // Controls are already positioned correctly at exact 40pt spacing
-        // No physics simulation needed - prevents drift from intended positions
     }
     
     private func removeEphemerals(for ownerID: NodeID) async {

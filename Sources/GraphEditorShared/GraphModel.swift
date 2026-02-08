@@ -15,10 +15,6 @@ import Foundation
 import WatchKit
 #endif
 
-// swiftlint:disable type_body_length
-// Rationale: GraphModel is the core domain model managing graph state, simulation lifecycle,
-// ephemeral nodes, and persistence. Already split into extensions; further splitting would harm cohesion.
-
 @available(iOS 16.0, watchOS 6.0, *)
 @MainActor public class GraphModel: ObservableObject {
     @Published public var currentGraphName: String = "default"
@@ -59,7 +55,11 @@ import WatchKit
     var simulationTimer: Timer?
     var undoStack: [UndoGraphState] = []
     var redoStack: [UndoGraphState] = []
-    public var maxUndo: Int = 10
+    public var maxUndo: Int = 30  // Increased from 10 for better UX
+    
+    // Bulk operation mode - when true, defer simulation until endBulkOperation()
+    private var isBulkOperationMode: Bool = false
+    private var bulkOperationNeedsSimulation: Bool = false
     
     public var nextNodeLabel = 1
     
@@ -404,5 +404,43 @@ extension GraphModel {
     public var visibleEdges: [GraphEdge] {
         visibleNodesAndEdges().edges + ephemeralControlEdges
     }
+    
+    // MARK: - Bulk Operations
+    
+    /// Begin bulk operation mode - defers simulation until endBulkOperation()
+    /// Use this when performing many operations in sequence to improve performance
+    @MainActor
+    public func beginBulkOperation() async {
+        isBulkOperationMode = true
+        bulkOperationNeedsSimulation = false
+        await stopSimulation()
+        Self.logger.debug("Bulk operation mode: started")
+    }
+    
+    /// End bulk operation mode and resume simulation if needed
+    @MainActor
+    public func endBulkOperation() async {
+        isBulkOperationMode = false
+        if bulkOperationNeedsSimulation {
+            await startSimulation()
+            Self.logger.debug("Bulk operation mode: ended, simulation resumed")
+        } else {
+            Self.logger.debug("Bulk operation mode: ended, no simulation needed")
+        }
+        bulkOperationNeedsSimulation = false
+    }
+    
+    /// Check if we should defer simulation (internal helper)
+    @MainActor
+    internal func shouldDeferSimulation() -> Bool {
+        return isBulkOperationMode
+    }
+    
+    /// Mark that simulation should be resumed after bulk operation
+    @MainActor
+    internal func markSimulationNeeded() {
+        if isBulkOperationMode {
+            bulkOperationNeedsSimulation = true
+        }
+    }
 }
-// swiftlint:enable type_body_length

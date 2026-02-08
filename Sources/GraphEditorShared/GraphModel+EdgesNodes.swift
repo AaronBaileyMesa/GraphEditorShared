@@ -53,15 +53,20 @@ extension GraphModel {
     @MainActor
     public func addEdge(from: NodeID, target: NodeID, type: EdgeType) async {
         if wouldCreateCycle(withNewEdgeFrom: from, target: target, type: type) {
-            // CHANGED: Qualified static logger
-            Self.logger.warning("Cannot add edge: Would create cycle in hierarchy")  // Replaced print with warning log
+            Self.logger.warning("Cannot add edge: Would create cycle in hierarchy")
             return
         }
         pushUndo()
         edges.append(GraphEdge(from: from, target: target, type: type))
         objectWillChange.send()
-        await resumeSimulation()
         invalidateHiddenNodesCache()
+        
+        // Only resume simulation if not in bulk operation mode
+        if shouldDeferSimulation() {
+            markSimulationNeeded()
+        } else {
+            await resumeSimulation()
+        }
         await simulator.resetVelocityHistory()  
     }
 
@@ -89,7 +94,13 @@ extension GraphModel {
         nodes.append(anyNode)
         objectWillChange.send()
         invalidateHiddenNodesCache()
-        await resumeSimulation()
+        
+        // Only resume simulation if not in bulk operation mode
+        if shouldDeferSimulation() {
+            markSimulationNeeded()
+        } else {
+            await resumeSimulation()
+        }
         return anyNode
     }
 
@@ -180,24 +191,28 @@ extension GraphModel {
     
     @MainActor
     public func deleteNode(withID id: NodeID) async {
-        Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")  // Existing
+        Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")
         
-        pushUndo()  // Existing
+        pushUndo()
         
-        // NEW: Cleanup ephemerals and configs BEFORE removal (prevents dangling refs)
-        ephemeralControlNodes.removeAll { $0.ownerID == id }  // Assuming ControlNode has ownerID; add if needed
+        // Cleanup ephemerals and configs BEFORE removal (prevents dangling refs)
+        ephemeralControlNodes.removeAll { $0.ownerID == id }
         ephemeralControlEdges.removeAll { $0.from == id || $0.target == id }
-        uiConfig.removeValue(forKey: id)  // Remove all configs for this node
-        // If globalUiConfig can reference id, filter it too: globalUiConfig.removeAll { $0.ownerID == id }
+        uiConfig.removeValue(forKey: id)
         
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.target == id }
         
         objectWillChange.send()
         invalidateHiddenNodesCache()
-        await resumeSimulation()
         
-        // NEW: Optional post-cleanup log for debugging
+        // Only resume simulation if not in bulk operation mode
+        if shouldDeferSimulation() {
+            markSimulationNeeded()
+        } else {
+            await resumeSimulation()
+        }
+        
         Self.logger.debugLog("Post-delete cleanup: Ephemerals left: \(ephemeralControlNodes.count), Configs left: \(uiConfig.count)")
     }
     

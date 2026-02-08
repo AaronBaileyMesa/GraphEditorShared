@@ -28,38 +28,67 @@ extension GraphModel {
     }
     
     public func undo(resume: Bool = true) async {
+        // Stop simulation first to capture stable state
+        let wasSimulating = isSimulating
+        if wasSimulating {
+            await stopSimulation()
+        }
+        
         if let state = undoStack.popLast() {
+            // Capture current state for redo AFTER stopping simulation
             redoStack.append(currentState())
+            
+            // Restore previous state
             nodes = state.nodes
             edges = state.edges
-            nextNodeLabel = state.nextLabel
+            // FIXED: Don't restore nextNodeLabel - it should never decrease to prevent duplicate labels
+            // nextNodeLabel = state.nextLabel
             objectWillChange.send()
             
-            zeroAllVelocities()            // ← ADD THIS LINE
-            invalidateHiddenNodesCache()   // ← (you already have this, keep it)
-            
-            if resume {
-                await resumeSimulation()
-            }
+            zeroAllVelocities()
+            invalidateHiddenNodesCache()
             await simulator.resetVelocityHistory()
+            
+            Self.undoLogger.debug("Undo: restored \(state.nodes.count) nodes, \(state.edges.count) edges")
+        }
+        
+        // Resume simulation if it was running and requested
+        if resume && wasSimulating {
+            await startSimulation()
         }
     }
 
     public func redo(resume: Bool = true) async {
+        // Stop simulation first to capture stable state
+        let wasSimulating = isSimulating
+        if wasSimulating {
+            await stopSimulation()
+        }
+        
         if let state = redoStack.popLast() {
+            // Capture current state for undo AFTER stopping simulation
             undoStack.append(currentState())
+            if undoStack.count > maxUndo {
+                undoStack.removeFirst()
+            }
+            
+            // Restore redo state
             nodes = state.nodes
             edges = state.edges
-            nextNodeLabel = state.nextLabel
+            // FIXED: Don't restore nextNodeLabel - it should never decrease to prevent duplicate labels
+            // nextNodeLabel = state.nextLabel
             objectWillChange.send()
             
-            zeroAllVelocities()            // ← ADD THIS LINE
+            zeroAllVelocities()
             invalidateHiddenNodesCache()
-            
-            if resume {
-                await resumeSimulation()
-            }
             await simulator.resetVelocityHistory()
+            
+            Self.undoLogger.debug("Redo: restored \(state.nodes.count) nodes, \(state.edges.count) edges")
+        }
+        
+        // Resume simulation if it was running and requested
+        if resume && wasSimulating {
+            await startSimulation()
         }
     }
     

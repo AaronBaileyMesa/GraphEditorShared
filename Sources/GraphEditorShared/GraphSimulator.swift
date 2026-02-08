@@ -202,7 +202,7 @@ public actor GraphSimulator {
     // (It includes the safe write-back logic, integrates ephemerals, and fits the current init params)
 
     // Rationale: Single cohesive simulation step including physics, stability checking, and node updates
-    // swiftlint:disable:next function_body_length
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func performSimulationStep(baseInterval: TimeInterval, nodeCount: Int) async -> Bool {
 #if DEBUG
         let stepState = signposter.beginInterval("SimulationStep")
