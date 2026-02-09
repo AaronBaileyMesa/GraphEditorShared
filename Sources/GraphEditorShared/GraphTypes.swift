@@ -27,9 +27,9 @@ public struct Node: NodeProtocol, Codable {
     public var isCollapsible: Bool = false  // NEW: Controls expand/collapse behavior
     public var contents: [NodeContent] = []
     
-    // Dynamic fill color based on collapsibility and expansion state
+    // All nodes use consistent blue color
     public var fillColor: Color {
-        isCollapsible ? (isExpanded ? .green : .red) : .red
+        .blue
     }
 
     // Init with all params
