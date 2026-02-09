@@ -32,6 +32,8 @@ public class PhysicsEngine {
     public var layoutMode: LayoutMode = .network
     public var alpha: CGFloat = 1.0  // New: Cooling parameter
     public var damping: CGFloat = 0.95  // NEW: Scale velocities each step for smooth settling
+    private var cachedDepths: [NodeID: Int] = [:]  // Cache depth calculations
+    private var lastDepthUpdateStep: Int = 0
         
         public init(simulationBounds: CGSize, layoutMode: LayoutMode = .network) {
             self.simulationBounds = simulationBounds
@@ -56,6 +58,9 @@ public class PhysicsEngine {
         let useAsymmetric = (mode == .hierarchy)
         let usePreferredAngles = (mode == .hierarchy)
         attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor, useAsymmetric: useAsymmetric, usePreferredAngles: usePreferredAngles)
+        // Clear depth cache when mode changes
+        cachedDepths.removeAll()
+        lastDepthUpdateStep = 0
     }
      
     private var simulationSteps = 0
@@ -89,6 +94,22 @@ public class PhysicsEngine {
         let (forces, quadtree) = computeRepulsions(nodes: nodes)
         var updatedForces = applyAttractions(forces: forces, edges: edges, nodes: nodes)
         updatedForces = applyCentering(forces: updatedForces, nodes: nodes, layoutMode: layoutMode)
+
+        // Apply layer forces in hierarchy mode
+        if layoutMode == .hierarchy {
+            // Update depth cache every 10 steps or when starting
+            if stepCount - lastDepthUpdateStep > 10 || cachedDepths.isEmpty {
+                cachedDepths = HierarchyLayoutHelper.calculateDepths(nodes: nodes, edges: edges)
+                lastDepthUpdateStep = stepCount
+            }
+            updatedForces = HierarchyLayoutHelper.applyLayerForces(
+                forces: updatedForces,
+                nodes: nodes,
+                depths: cachedDepths,
+                simulationBounds: simulationBounds
+            )
+        }
+
         updatedForces = scaleForcesByAlpha(forces: updatedForces)
         
         // NEW: Skip forces for fixed nodes (set to .zero)
@@ -126,7 +147,7 @@ public class PhysicsEngine {
         #if DEBUG
         let repulsionState = Self.signposter.beginInterval("RepulsionCalculation")
         #endif
-        let result = repulsionCalculator.computeRepulsions(nodes: nodes)
+        let result = repulsionCalculator.computeRepulsions(nodes: nodes, layoutMode: layoutMode)
         #if DEBUG
         Self.signposter.endInterval("RepulsionCalculation", repulsionState)
         #endif

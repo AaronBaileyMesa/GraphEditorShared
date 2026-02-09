@@ -10,11 +10,21 @@ import CoreGraphics
 
 public enum Constants {
     public enum Physics {
+        // Network mode constants (general graphs)
         public static let stiffness: CGFloat = 0.4  // Reduced from 0.8 for softer springs
         public static let repulsion: CGFloat = 1200  // Reduced from 2200 for less aggressive push
         public static let damping: CGFloat = 0.94  // Updated from 0.9 for better convergence with alpha
         public static let idealLength: CGFloat = 80  // Slightly increased for more space
         public static let centeringForce: CGFloat = 0.1  // Increased from 0.03 for better centering
+
+        // Hierarchy mode constants (tree layouts)
+        public static let hierarchyStiffness: CGFloat = 0.6  // Stronger pull for parent-child relationships
+        public static let hierarchyRepulsion: CGFloat = 800  // Reduced for tighter packing
+        public static let hierarchyIdealLength: CGFloat = 50  // Shorter edges for compact trees
+        public static let layerSpacing: CGFloat = 60  // Vertical space between hierarchy levels
+        public static let layerStiffness: CGFloat = 0.8  // Strong pull toward target layer Y position
+
+        // Common constants
         public static let distanceEpsilon: CGFloat = 1e-3
         public static let timeStep: CGFloat = 0.05  // Updated to match PositionUpdater; tune if needed
         public static let velocityThreshold: CGFloat = 0.3  // Increased from 0.2 for earlier stop

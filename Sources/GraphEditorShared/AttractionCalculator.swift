@@ -28,7 +28,13 @@ struct AttractionCalculator {
             let deltaX = toNode.position.x - fromNode.position.x
             let deltaY = toNode.position.y - fromNode.position.y
             let dist = max(hypot(deltaX, deltaY), Constants.Physics.distanceEpsilon)
-            let forceMagnitude = Constants.Physics.stiffness * (dist - Constants.Physics.idealLength)
+
+            // Use hierarchy-specific constants for hierarchy edges
+            let isHierarchy = edge.type == .hierarchy
+            let stiffness = (isHierarchy && self.useAsymmetric) ? Constants.Physics.hierarchyStiffness : Constants.Physics.stiffness
+            let idealLength = (isHierarchy && self.useAsymmetric) ? Constants.Physics.hierarchyIdealLength : Constants.Physics.idealLength
+
+            let forceMagnitude = stiffness * (dist - idealLength)
             let forceDirectionX = deltaX / dist
             let forceDirectionY = deltaY / dist
             let forceX = forceDirectionX * forceMagnitude
@@ -39,8 +45,7 @@ struct AttractionCalculator {
             
             let currentForceFrom = updatedForces[fromNode.id] ?? CGPoint.zero
             let currentForceTo = updatedForces[toNode.id] ?? CGPoint.zero
-            
-            let isHierarchy = edge.type == .hierarchy
+
             if isHierarchy && self.useAsymmetric {
                 // Full asymmetric: Strong pull 'to' toward 'from'; minimal back-pull on 'from' (test-friendly)
                 let asymmetricFactor: CGFloat = 2.0  // Stronger pull for 'to'; tune if needed

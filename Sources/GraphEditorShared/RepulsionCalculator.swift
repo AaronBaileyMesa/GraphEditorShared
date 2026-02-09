@@ -17,7 +17,7 @@ struct RepulsionCalculator {
         self.simulationBounds = simulationBounds
     }
 
-    func computeRepulsions(nodes: [any NodeProtocol]) -> ([NodeID: CGPoint], Quadtree?) {
+    func computeRepulsions(nodes: [any NodeProtocol], layoutMode: LayoutMode = .network) -> ([NodeID: CGPoint], Quadtree?) {
         var forces: [NodeID: CGPoint] = [:]
         let useQuadtree = nodes.count > maxNodesForQuadtree && simulationBounds.width >= Constants.Physics.minQuadSize && simulationBounds.height >= Constants.Physics.minQuadSize
         let quadtree: Quadtree? = useQuadtree ? buildQuadtree(nodes: nodes) : nil
@@ -26,10 +26,10 @@ struct RepulsionCalculator {
             var repulsion: CGPoint = .zero
             if let quadtree = quadtree {
                 let dynamicTheta: CGFloat = nodes.count > 100 ? 1.5 : (nodes.count > 50 ? 1.2 : 0.8)
-                repulsion = quadtreeRepulsion(for: node, quadtree: quadtree, theta: dynamicTheta)  // Updated call
+                repulsion = quadtreeRepulsion(for: node, quadtree: quadtree, theta: dynamicTheta, layoutMode: layoutMode)
             } else {
                 for otherNode in nodes where otherNode.id != node.id {
-                    repulsion += repulsionForce(repellerPosition: otherNode.position, queryPosition: node.position)
+                    repulsion += repulsionForce(repellerPosition: otherNode.position, queryPosition: node.position, layoutMode: layoutMode)
                 }
             }
             forces[node.id] = (forces[node.id] ?? .zero) + repulsion
@@ -46,21 +46,22 @@ struct RepulsionCalculator {
         return quadtree
     }
 
-    private func repulsionForce(repellerPosition: CGPoint, queryPosition: CGPoint, mass: CGFloat = 1.0) -> CGPoint {
+    private func repulsionForce(repellerPosition: CGPoint, queryPosition: CGPoint, mass: CGFloat = 1.0, layoutMode: LayoutMode = .network) -> CGPoint {
         let deltaX = queryPosition.x - repellerPosition.x
         let deltaY = queryPosition.y - repellerPosition.y
         let distanceSquared = max(deltaX * deltaX + deltaY * deltaY, Constants.Physics.distanceEpsilon)
         let distance = sqrt(distanceSquared)
-        let forceMagnitude = Constants.Physics.repulsion * mass / distanceSquared
+        let repulsionStrength = layoutMode == .hierarchy ? Constants.Physics.hierarchyRepulsion : Constants.Physics.repulsion
+        let forceMagnitude = repulsionStrength * mass / distanceSquared
         return CGPoint(x: (deltaX / distance) * forceMagnitude, y: (deltaY / distance) * forceMagnitude)
     }
     
-    private func quadtreeRepulsion(for node: any NodeProtocol, quadtree: Quadtree, theta: CGFloat) -> CGPoint {  // Added theta
+    private func quadtreeRepulsion(for node: any NodeProtocol, quadtree: Quadtree, theta: CGFloat, layoutMode: LayoutMode = .network) -> CGPoint {
         var force = CGPoint.zero
         func calculateRepulsion(quadTree: Quadtree) {
             if quadTree.children == nil {
                 for other in quadTree.nodes where other.id != node.id {
-                    force += repulsionForce(repellerPosition: other.position, queryPosition: node.position, mass: 1.0)
+                    force += repulsionForce(repellerPosition: other.position, queryPosition: node.position, mass: 1.0, layoutMode: layoutMode)
                 }
                 return
             }
@@ -71,7 +72,7 @@ struct RepulsionCalculator {
             let width = quadTree.bounds.width
 
             if width / distance < theta && distance > 0 {  // Use theta
-                let approxForce = repulsionForce(repellerPosition: quadTree.centerOfMass, queryPosition: node.position, mass: quadTree.totalMass)
+                let approxForce = repulsionForce(repellerPosition: quadTree.centerOfMass, queryPosition: node.position, mass: quadTree.totalMass, layoutMode: layoutMode)
                 force += approxForce
             } else {
                 if let children = quadTree.children {
