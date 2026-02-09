@@ -155,9 +155,59 @@ extension GraphModel {
         nextNodeLabel += 1
         guard let parentIndex = nodes.firstIndex(where: { $0.id == parentID }) else { return }
         let parentPosition = nodes[parentIndex].position
-        let offsetX = CGFloat.random(in: -50...50)  // Random for natural spread
-        let offsetY = CGFloat.random(in: -50...50)
-        let newPosition = CGPoint(x: parentPosition.x + offsetX, y: parentPosition.y + offsetY)
+        
+        // Calculate initial position based on layout mode
+        let newPosition: CGPoint
+        if layoutMode == .hierarchy {
+            // In hierarchical mode, position child at the correct depth layer
+            // Calculate current depths to determine parent's depth
+            let depths = HierarchyLayoutHelper.calculateDepths(nodes: nodes, edges: edges)
+            let parentDepth = depths[parentID] ?? 0
+            let childDepth = parentDepth + 1
+            
+            // Use the same formula as HierarchyLayoutHelper to calculate target Y
+            let maxDepth = max(childDepth, depths.values.max() ?? 0)
+            let simulationBounds = physicsEngine.simulationBounds
+            
+            // Calculate dynamic spacing and base Y (same logic as HierarchyLayoutHelper)
+            let targetSpacing: CGFloat = maxDepth >= 10 ? 40 : 50
+            let minSpacing: CGFloat = 25
+            let maxSpacing: CGFloat = Constants.Physics.layerSpacing
+            let marginPercent: CGFloat = maxDepth >= 10 ? 0.15 : 0.2
+            let availableHeight = simulationBounds.height * (1.0 - 2 * marginPercent)
+            let requiredSpacing = availableHeight / CGFloat(maxDepth > 0 ? maxDepth : 1)
+            let dynamicSpacing: CGFloat
+            if requiredSpacing < targetSpacing {
+                dynamicSpacing = max(minSpacing, requiredSpacing)
+            } else {
+                dynamicSpacing = min(maxSpacing, requiredSpacing)
+            }
+            
+            // Calculate base Y
+            let totalHierarchyHeight = CGFloat(maxDepth) * dynamicSpacing
+            let topAlignedBaseY = simulationBounds.height * 0.2
+            let topAlignedBottomY = topAlignedBaseY + totalHierarchyHeight
+            let baseY: CGFloat
+            if topAlignedBottomY <= simulationBounds.height * 0.8 {
+                baseY = topAlignedBaseY
+            } else {
+                baseY = (simulationBounds.height - totalHierarchyHeight) / 2
+            }
+            
+            // Calculate target Y for the child's depth
+            let targetY = baseY + CGFloat(childDepth) * dynamicSpacing
+            
+            // Use parent's X with small random offset, but use calculated target Y
+            let offsetX = CGFloat.random(in: -30...30)
+            newPosition = CGPoint(x: parentPosition.x + offsetX, y: targetY)
+            
+            Self.simulationLogger.debug("Hierarchy mode: Spawning child at depth \(childDepth) with targetY=\(String(format: "%.1f", targetY)) (parent depth=\(parentDepth), parentY=\(String(format: "%.1f", parentPosition.y)))")
+        } else {
+            // Network mode: use random offset from parent (original behavior)
+            let offsetX = CGFloat.random(in: -50...50)
+            let offsetY = CGFloat.random(in: -50...50)
+            newPosition = CGPoint(x: parentPosition.x + offsetX, y: parentPosition.y + offsetY)
+        }
         
         // Create the child using the provided factory (leverages existing types)
         let child = createChild(newLabel, newPosition)

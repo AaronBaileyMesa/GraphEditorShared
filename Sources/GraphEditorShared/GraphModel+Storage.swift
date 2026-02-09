@@ -49,7 +49,9 @@ extension GraphModel {
                 // Use saved nextNodeLabel if available, otherwise compute from nodes
                 self.nextNodeLabel = loadedState.nextNodeLabel
                 self.layoutMode = loadedState.layoutMode
-                
+                // Sync layout mode to physics engine
+                physicsEngine.updateLayoutMode(loadedState.layoutMode)
+
                 self.isSimulating = loadedState.isSimulating
                 if self.isSimulating {
                     await startSimulation()
@@ -73,7 +75,9 @@ extension GraphModel {
                             // Use saved nextNodeLabel if available, otherwise compute from nodes
                             self.nextNodeLabel = loadedState.nextNodeLabel
                             self.layoutMode = loadedState.layoutMode
-                            
+                            // Sync layout mode to physics engine
+                            physicsEngine.updateLayoutMode(loadedState.layoutMode)
+
                             self.isSimulating = loadedState.isSimulating
                             if self.isSimulating {
                                 await startSimulation()

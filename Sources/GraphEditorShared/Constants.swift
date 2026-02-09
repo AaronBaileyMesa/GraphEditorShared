@@ -22,7 +22,7 @@ public enum Constants {
         public static let hierarchyRepulsion: CGFloat = 800  // Reduced for tighter packing
         public static let hierarchyIdealLength: CGFloat = 50  // Shorter edges for compact trees
         public static let layerSpacing: CGFloat = 60  // Vertical space between hierarchy levels
-        public static let layerStiffness: CGFloat = 0.8  // Strong pull toward target layer Y position
+        public static let layerStiffness: CGFloat = 0.65  // Strong pull toward target layer Y position in hierarchical layout
 
         // Common constants
         public static let distanceEpsilon: CGFloat = 1e-3

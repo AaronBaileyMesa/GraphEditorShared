@@ -135,6 +135,12 @@ public enum EdgeType: String, Codable {
     case hierarchy  // DAG-enforced, directed
     case association  // Allows cycles, symmetric/undirected feel
     case spring
+
+    // NEW: Home economics edge types
+    case ownership      // User → Account (who owns which account)
+    case allocation     // Budget → Category (budget applies to category)
+    case payment        // Transaction → Account (paid from account)
+    case attribution    // User → Transaction (who made the transaction)
 }
 
 // Represents an edge connecting two nodes.

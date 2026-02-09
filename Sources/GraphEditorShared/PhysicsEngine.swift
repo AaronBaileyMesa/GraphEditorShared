@@ -24,11 +24,11 @@ public class PhysicsEngine {
     var stepCount: Int = 0
     private let maxNodesForQuadtree = 200
     private let symmetricFactor: CGFloat = 0.5
-    internal let repulsionCalculator: RepulsionCalculator
+    internal var repulsionCalculator: RepulsionCalculator
     private var dampingBoostSteps: Int = 0
     internal var attractionCalculator: AttractionCalculator
-    internal let centeringCalculator: CenteringCalculator
-    internal let positionUpdater: PositionUpdater
+    internal var centeringCalculator: CenteringCalculator
+    internal var positionUpdater: PositionUpdater
     public var layoutMode: LayoutMode = .network
     public var alpha: CGFloat = 1.0  // New: Cooling parameter
     public var damping: CGFloat = 0.95  // NEW: Scale velocities each step for smooth settling
@@ -53,6 +53,7 @@ public class PhysicsEngine {
     
     public func updateLayoutMode(_ mode: LayoutMode) {
         guard mode != layoutMode else { return }
+        Self.logger.info("Layout mode changed: \(String(describing: self.layoutMode)) -> \(String(describing: mode))")
         layoutMode = mode
         // Update attraction calculator for new mode
         let useAsymmetric = (mode == .hierarchy)
@@ -61,6 +62,18 @@ public class PhysicsEngine {
         // Clear depth cache when mode changes
         cachedDepths.removeAll()
         lastDepthUpdateStep = 0
+    }
+
+    /// Updates simulation bounds to accommodate hierarchy depth
+    /// Only affects vertical dimension; horizontal stays at screen width
+    public func updateSimulationBounds(_ newBounds: CGSize) {
+        guard newBounds != simulationBounds else { return }
+        Self.logger.debug("Simulation bounds updated: \(String(format: "%.0fx%.0f", self.simulationBounds.width, self.simulationBounds.height)) -> \(String(format: "%.0fx%.0f", newBounds.width, newBounds.height))")
+        simulationBounds = newBounds
+        // Recreate calculators with new bounds since they store bounds internally
+        centeringCalculator = CenteringCalculator(simulationBounds: newBounds)
+        positionUpdater = PositionUpdater(simulationBounds: newBounds)
+        repulsionCalculator = RepulsionCalculator(maxNodesForQuadtree: maxNodesForQuadtree, simulationBounds: newBounds)
     }
      
     private var simulationSteps = 0
@@ -77,6 +90,10 @@ public class PhysicsEngine {
     public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge], fixedIDs: Set<NodeID>? = nil) -> ([any NodeProtocol], Bool) {
         if isPaused || stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
         stepCount += 1
+        
+        if stepCount == 1 {
+            Self.logger.debug("First simulation step with layoutMode=\(String(describing: self.layoutMode)), nodes=\(nodes.count), edges=\(edges.count)")
+        }
         
         #if DEBUG
         let stepState = Self.signposter.beginInterval("SimulationStep", "Step \(self.stepCount), Nodes: \(nodes.count), Edges: \(edges.count)")
@@ -101,6 +118,22 @@ public class PhysicsEngine {
             if stepCount - lastDepthUpdateStep > 10 || cachedDepths.isEmpty {
                 cachedDepths = HierarchyLayoutHelper.calculateDepths(nodes: nodes, edges: edges)
                 lastDepthUpdateStep = stepCount
+                let maxDepth = cachedDepths.values.max() ?? 0
+                Self.logger.debug("Hierarchical layout: calculated depths for \(self.cachedDepths.count) nodes, maxDepth=\(maxDepth)")
+
+                // Check if we need to expand bounds vertically to accommodate hierarchy
+                // For deep hierarchies (10+), use aggressive expansion to maintain 40pt spacing
+                let targetSpacing: CGFloat = maxDepth >= 10 ? 40 : 35
+                if let requiredHeight = HierarchyLayoutHelper.calculateRequiredVerticalBounds(
+                    maxDepth: maxDepth,
+                    currentBounds: simulationBounds,
+                    minSpacing: targetSpacing
+                ) {
+                    let screenWidth = simulationBounds.width
+                    let newBounds = CGSize(width: screenWidth, height: requiredHeight)
+                    updateSimulationBounds(newBounds)
+                    Self.logger.info("Expanded simulation bounds vertically to accommodate depth \(maxDepth): height \(String(format: "%.0f", requiredHeight)) with \(String(format: "%.0f", targetSpacing))pt spacing")
+                }
             }
             updatedForces = HierarchyLayoutHelper.applyLayerForces(
                 forces: updatedForces,
@@ -227,7 +260,17 @@ public class PhysicsEngine {
     private func logVelocityIfNeeded(nodes: [any NodeProtocol]) {
         if stepCount % 10 == 0 {  // Reduced logging frequency
             let totalVel = nodes.reduce(0.0) { $0 + $1.velocity.magnitude }
-            Self.logger.debugLog("Step \(stepCount): Total velocity = \(String(format: "%.2f", totalVel))")
+            Self.logger.debugLog("Step \(stepCount): Total velocity = \(String(format: "%.2f", totalVel)), alpha = \(String(format: "%.3f", alpha))")
+            
+            // Extra logging for hierarchical mode to debug positioning
+            if layoutMode == .hierarchy && stepCount % 50 == 0 {
+                Self.logger.debug("Node positions at step \(self.stepCount):")
+                for node in nodes.prefix(5) {  // Only log first 5 nodes
+                    let depth = self.cachedDepths[node.id] ?? -1
+                    Self.logger.debug("  Node \(node.id): pos=(\(String(format: "%.1f", node.position.x)), \(String(format: "%.1f", node.position.y))), vel=\(String(format: "%.2f", node.velocity.magnitude)), depth=\(depth)")
+                }
+            }
+            
             #if DEBUG
             Self.signposter.emitEvent("VelocityCheck", "Step \(self.stepCount): Total velocity = \(totalVel)")
             #endif

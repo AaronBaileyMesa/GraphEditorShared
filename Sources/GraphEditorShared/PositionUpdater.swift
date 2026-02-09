@@ -96,6 +96,10 @@ struct PositionUpdater {
             
             newPosition = adjustPositionForCollisions(newPosition, excluding: node.id, using: quadtree, allNodes: nodes)
             
+            // Re-clamp after collision adjustment to ensure nodes stay within bounds
+            let (finalClampedPosition, _) = clampedPositionAndBouncedVelocity(for: newPosition, with: newVelocity)
+            newPosition = finalClampedPosition
+            
             if hypot(newVelocity.x, newVelocity.y) > 0.001 {
                 isActive = true
             }
