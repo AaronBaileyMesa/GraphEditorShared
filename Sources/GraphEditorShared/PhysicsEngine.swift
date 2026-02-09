@@ -26,24 +26,36 @@ public class PhysicsEngine {
     private let symmetricFactor: CGFloat = 0.5
     internal let repulsionCalculator: RepulsionCalculator
     private var dampingBoostSteps: Int = 0
-    internal let attractionCalculator: AttractionCalculator
+    internal var attractionCalculator: AttractionCalculator
     internal let centeringCalculator: CenteringCalculator
     internal let positionUpdater: PositionUpdater
-    public var useAsymmetricAttraction: Bool = false
+    public var layoutMode: LayoutMode = .network
     public var alpha: CGFloat = 1.0  // New: Cooling parameter
-    public var usePreferredAngles: Bool = false
     public var damping: CGFloat = 0.95  // NEW: Scale velocities each step for smooth settling
         
-        public init(simulationBounds: CGSize) {
+        public init(simulationBounds: CGSize, layoutMode: LayoutMode = .network) {
             self.simulationBounds = simulationBounds
+            self.layoutMode = layoutMode
             self.repulsionCalculator = RepulsionCalculator(maxNodesForQuadtree: 200, simulationBounds: simulationBounds)
-            self.attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor, useAsymmetric: useAsymmetricAttraction, usePreferredAngles: usePreferredAngles)  // UPDATED: Pass flag
+            // Use asymmetric attraction and preferred angles for hierarchy mode
+            let useAsymmetric = (layoutMode == .hierarchy)
+            let usePreferredAngles = (layoutMode == .hierarchy)
+            self.attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor, useAsymmetric: useAsymmetric, usePreferredAngles: usePreferredAngles)
             self.centeringCalculator = CenteringCalculator(simulationBounds: simulationBounds)
             self.positionUpdater = PositionUpdater(simulationBounds: simulationBounds)
         }
     
     public func temporaryDampingBoost(steps: Int = 20) {
         dampingBoostSteps = steps
+    }
+    
+    public func updateLayoutMode(_ mode: LayoutMode) {
+        guard mode != layoutMode else { return }
+        layoutMode = mode
+        // Update attraction calculator for new mode
+        let useAsymmetric = (mode == .hierarchy)
+        let usePreferredAngles = (mode == .hierarchy)
+        attractionCalculator = AttractionCalculator(symmetricFactor: self.symmetricFactor, useAsymmetric: useAsymmetric, usePreferredAngles: usePreferredAngles)
     }
      
     private var simulationSteps = 0
@@ -76,7 +88,7 @@ public class PhysicsEngine {
         
         let (forces, quadtree) = computeRepulsions(nodes: nodes)
         var updatedForces = applyAttractions(forces: forces, edges: edges, nodes: nodes)
-        updatedForces = applyCentering(forces: updatedForces, nodes: nodes)
+        updatedForces = applyCentering(forces: updatedForces, nodes: nodes, layoutMode: layoutMode)
         updatedForces = scaleForcesByAlpha(forces: updatedForces)
         
         // NEW: Skip forces for fixed nodes (set to .zero)
@@ -132,11 +144,11 @@ public class PhysicsEngine {
         return result
     }
     
-    private func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol]) -> [NodeID: CGPoint] {
+    private func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode) -> [NodeID: CGPoint] {
         #if DEBUG
         let centeringState = Self.signposter.beginInterval("CenteringCalculation")
         #endif
-        let result = centeringCalculator.applyCentering(forces: forces, nodes: nodes)
+        let result = centeringCalculator.applyCentering(forces: forces, nodes: nodes, layoutMode: layoutMode)
         #if DEBUG
         Self.signposter.endInterval("CenteringCalculation", centeringState)
         #endif

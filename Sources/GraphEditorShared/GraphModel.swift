@@ -26,6 +26,7 @@ import WatchKit
     @Published public var isStable: Bool = false
     @Published public var simulationError: Error?
     @Published public var mode: GraphMode = .network
+    @Published public var layoutMode: LayoutMode = .network
     @Published public var hierarchyEdgeColor: Color = .blue
     @Published public var associationEdgeColor: Color = .white
     // In GraphModel.swift
@@ -249,6 +250,12 @@ import WatchKit
         self.storage = storage
         self.physicsEngine = physicsEngine
         Self.logger.infoLog("GraphModel initialized with storage: \(type(of: storage))")
+    }
+    
+    public func setLayoutMode(_ mode: LayoutMode) {
+        layoutMode = mode
+        physicsEngine.updateLayoutMode(mode)
+        Self.logger.infoLog("Layout mode updated to: \(mode)")
     }
     
     func buildAdjacencyList(for type: EdgeType) -> [NodeID: [NodeID]] {

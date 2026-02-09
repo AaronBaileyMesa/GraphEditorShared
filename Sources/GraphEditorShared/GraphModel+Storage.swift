@@ -48,6 +48,7 @@ extension GraphModel {
                 self.globalUiConfig = loadedState.globalUiConfig
                 // Use saved nextNodeLabel if available, otherwise compute from nodes
                 self.nextNodeLabel = loadedState.nextNodeLabel
+                self.layoutMode = loadedState.layoutMode
                 
                 self.isSimulating = loadedState.isSimulating
                 if self.isSimulating {
@@ -71,6 +72,7 @@ extension GraphModel {
                             self.globalUiConfig = loadedState.globalUiConfig
                             // Use saved nextNodeLabel if available, otherwise compute from nodes
                             self.nextNodeLabel = loadedState.nextNodeLabel
+                            self.layoutMode = loadedState.layoutMode
                             
                             self.isSimulating = loadedState.isSimulating
                             if self.isSimulating {
@@ -156,7 +158,8 @@ extension GraphModel {
                 uiConfig: uiConfig,
                 globalUiConfig: globalUiConfig,
                 isSimulating: isSimulating,  // NEW: Save simulation state
-                nextNodeLabel: nextNodeLabel  // FIXED: Save nextNodeLabel to prevent label collisions
+                nextNodeLabel: nextNodeLabel,  // FIXED: Save nextNodeLabel to prevent label collisions
+                layoutMode: layoutMode
             )
             try await storage.saveGraphState(state, for: currentGraphName)
             Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for '\(currentGraphName)'")

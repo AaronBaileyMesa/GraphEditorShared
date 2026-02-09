@@ -181,7 +181,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 @available(watchOS 9.0, *)
 public struct GraphState: Codable {
     enum CodingKeys: CodingKey {
-        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating, nextNodeLabel  // Added nextNodeLabel
+        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating, nextNodeLabel, layoutMode
     }
 
     public let nodes: [AnyNode]
@@ -191,9 +191,10 @@ public struct GraphState: Codable {
     public let uiConfig: [NodeID: [ControlConfig]]
     public let globalUiConfig: [ControlConfig]
     public let isSimulating: Bool
-    public let nextNodeLabel: Int  // Added
+    public let nextNodeLabel: Int
+    public let layoutMode: LayoutMode
 
-    public init(nodes: [AnyNode] = [], edges: [GraphEdge] = [], hierarchyEdgeColor: CodableColor = CodableColor(.blue), associationEdgeColor: CodableColor = CodableColor(.white), uiConfig: [NodeID: [ControlConfig]] = [:], globalUiConfig: [ControlConfig] = [], isSimulating: Bool = false, nextNodeLabel: Int = 1) {  // Added default
+    public init(nodes: [AnyNode] = [], edges: [GraphEdge] = [], hierarchyEdgeColor: CodableColor = CodableColor(.blue), associationEdgeColor: CodableColor = CodableColor(.white), uiConfig: [NodeID: [ControlConfig]] = [:], globalUiConfig: [ControlConfig] = [], isSimulating: Bool = false, nextNodeLabel: Int = 1, layoutMode: LayoutMode = .network) {
         self.nodes = nodes
         self.edges = edges
         self.hierarchyEdgeColor = hierarchyEdgeColor
@@ -201,7 +202,8 @@ public struct GraphState: Codable {
         self.uiConfig = uiConfig
         self.globalUiConfig = globalUiConfig
         self.isSimulating = isSimulating
-        self.nextNodeLabel = nextNodeLabel  // Added
+        self.nextNodeLabel = nextNodeLabel
+        self.layoutMode = layoutMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -213,7 +215,8 @@ public struct GraphState: Codable {
         uiConfig = try container.decode([NodeID: [ControlConfig]].self, forKey: .uiConfig)
         globalUiConfig = try container.decode([ControlConfig].self, forKey: .globalUiConfig)
         isSimulating = try container.decodeIfPresent(Bool.self, forKey: .isSimulating) ?? false
-        nextNodeLabel = try container.decodeIfPresent(Int.self, forKey: .nextNodeLabel) ?? 1  // Added with default for backward compatibility
+        nextNodeLabel = try container.decodeIfPresent(Int.self, forKey: .nextNodeLabel) ?? 1
+        layoutMode = try container.decodeIfPresent(LayoutMode.self, forKey: .layoutMode) ?? .network
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -225,7 +228,8 @@ public struct GraphState: Codable {
         try container.encode(uiConfig, forKey: .uiConfig)
         try container.encode(globalUiConfig, forKey: .globalUiConfig)
         try container.encode(isSimulating, forKey: .isSimulating)
-        try container.encode(nextNodeLabel, forKey: .nextNodeLabel)  // Added
+        try container.encode(nextNodeLabel, forKey: .nextNodeLabel)
+        try container.encode(layoutMode, forKey: .layoutMode)
     }
 }
 
@@ -235,6 +239,14 @@ public struct GraphState: Codable {
 public enum GraphMode: Codable {  // Codable for saving
     case network  // General graphs, allows cycles/associations
     case tree     // Enforces acyclicity, hierarchy only
+}
+
+@available(iOS 16.0, *)
+@available(watchOS 9.0, *)
+
+public enum LayoutMode: Codable {  // Controls physics layout strategy
+    case network     // Centered, symmetric forces - good for general graphs
+    case hierarchy   // Top-left anchored, asymmetric forces - good for trees
 }
 
 public protocol HierarchicalNode {
