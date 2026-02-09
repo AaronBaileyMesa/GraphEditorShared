@@ -89,7 +89,7 @@ extension GraphModel {
         pushUndo()
         let newLabel = nextNodeLabel
         nextNodeLabel += 1
-        let node = Node(label: newLabel, position: position)
+        let node = Node(label: newLabel, position: position, isCollapsible: true)
         let anyNode = AnyNode(node)
         nodes.append(anyNode)
         objectWillChange.send()
@@ -379,5 +379,46 @@ extension GraphModel {
         
         await simulator.resetVelocityHistory()
         await resumeSimulation()
+    }
+    
+    @MainActor
+    public func toggleNodeCollapsibility(nodeID: NodeID) async {
+        Self.logger.debugLog("Toggling collapsibility for node ID: \(nodeID.uuidString.prefix(8))")
+        
+        guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
+            Self.logger.warning("toggleNodeCollapsibility: Node not found – \(nodeID.uuidString.prefix(8))")
+            return
+        }
+        
+        guard var node = nodes[index].unwrapped as? Node else {
+            Self.logger.warning("toggleNodeCollapsibility: Node is not a Node type – \(nodeID.uuidString.prefix(8))")
+            return
+        }
+        
+        // Prevent making node non-collapsible if it has children
+        if node.isCollapsible && !node.children.isEmpty {
+            Self.logger.warning("toggleNodeCollapsibility: Cannot make node non-collapsible while it has children – \(nodeID.uuidString.prefix(8))")
+            return
+        }
+        
+        pushUndo()
+        
+        // Toggle the collapsibility flag
+        let newCollapsibility = !node.isCollapsible
+        node.isCollapsible = newCollapsibility
+        
+        // If making non-collapsible, ensure it's expanded
+        if !newCollapsibility {
+            node.isExpanded = true
+        }
+        
+        nodes[index] = AnyNode(node)
+        
+        objectWillChange.send()
+        invalidateHiddenNodesCache()
+        await simulator.resetVelocityHistory()
+        await resumeSimulation()
+        
+        Self.logger.info("Node \(nodeID.uuidString.prefix(8)) collapsibility: \(node.isCollapsible)")
     }
 }
