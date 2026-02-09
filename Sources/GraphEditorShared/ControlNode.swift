@@ -97,6 +97,7 @@ public struct ControlNode: NodeProtocol {
         case .delete:           "trash.fill"
         case .duplicate:        "doc.on.doc.fill"
         case .addToggleChild:   "checklist"
+        case .toggleExpand:     "chevron.right"  // Default, will be overridden based on state
         }
 
         return AnyView(

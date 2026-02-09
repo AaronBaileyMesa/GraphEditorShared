@@ -17,6 +17,7 @@ public enum ControlKind: String, Codable, CaseIterable {
     case delete  // Deletes the node
     case duplicate  // Duplicates the node
     case addToggleChild  // Adds a toggle node child
+    case toggleExpand  // Toggles expand/collapse for collapsible nodes
 
     // Future: Value editor kinds (e.g., .toggleBool, .sliderDouble) for node content editing
 
@@ -28,6 +29,7 @@ public enum ControlKind: String, Codable, CaseIterable {
         case .delete: return "trash"
         case .duplicate: return "doc.on.doc"
         case .addToggleChild: return "checklist"
+        case .toggleExpand: return "chevron.right"  // Will rotate based on state
         }
     }
     
@@ -44,6 +46,8 @@ public enum ControlKind: String, Codable, CaseIterable {
             return .orange  // Edit action - orange/yellow
         case .delete:
             return .red  // Destructive action - red
+        case .toggleExpand:
+            return .purple  // Toggle action - purple
         }
     }
 }

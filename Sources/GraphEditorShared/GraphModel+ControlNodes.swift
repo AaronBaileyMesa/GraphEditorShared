@@ -133,7 +133,7 @@ extension GraphModel {
     }
     
     private func filterControlKindsForNode(owner: any NodeProtocol, ownerID: NodeID) -> [ControlKind] {
-        let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .delete, .duplicate, .addToggleChild]
+        let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .delete, .duplicate, .addToggleChild, .toggleExpand]
         
         // Contextual filtering - show only relevant controls based on node state
         let isCollapsible = (owner as? Node)?.isCollapsible ?? false
@@ -161,6 +161,8 @@ extension GraphModel {
                 return true
             case .edit:
                 return !owner.contents.isEmpty || true
+            case .toggleExpand:
+                return isCollapsible && hasChildren  // Only show for collapsible nodes with children
             }
         }
         
