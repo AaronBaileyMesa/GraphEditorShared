@@ -10,12 +10,21 @@ import Foundation
 /// Domain-specific node types for home economics tracking
 @available(iOS 16.0, watchOS 9.0, *)
 public enum HomeEconNodeType: String, Codable, CaseIterable {
+    // Financial tracking
     case transaction    // Income or expense record
     case category       // Spending category (groceries, utilities, etc.)
     case budget         // Monthly/weekly budget limit for a category
     case user           // Household member
     case account        // Bank account or credit card
     case goal           // Savings goal
+
+    // Meal planning
+    case meal           // Scheduled meal ("Monday Dinner: Pasta")
+    case recipe         // Recipe with instructions
+    case ingredient     // Recipe ingredient with quantity
+    case shoppingItem   // Item to purchase at store
+    case task           // Work task (shop, prep, cook, cleanup)
+    case mealPlan       // Weekly/monthly meal plan container
 }
 
 /// Transaction classification

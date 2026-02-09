@@ -141,6 +141,15 @@ public enum EdgeType: String, Codable {
     case allocation     // Budget → Category (budget applies to category)
     case payment        // Transaction → Account (paid from account)
     case attribution    // User → Transaction (who made the transaction)
+
+    // NEW: Meal planning edge types
+    case requires       // Meal → Recipe (meal requires this recipe)
+    case contains       // Recipe → Ingredient (recipe contains ingredient)
+    case purchases      // ShoppingItem → Ingredient (shopping item provides ingredient)
+    case assigned       // User → Task (user assigned to task)
+    case participates   // User → Meal (user participated in meal work)
+    case precedes       // Task → Task (temporal ordering)
+    case costs          // ShoppingItem → Transaction (shopping creates expense)
 }
 
 // Represents an edge connecting two nodes.
