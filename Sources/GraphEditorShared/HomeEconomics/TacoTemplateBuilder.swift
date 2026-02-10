@@ -63,6 +63,9 @@ public struct TacoTemplateBuilder {
         protein: ProteinType,
         at position: CGPoint
     ) async -> MealNode {
+        // Begin bulk operation to prevent simulation from running during construction
+        await model.beginBulkOperation()
+
         // Calculate task schedule
         let scheduledTasks = calculateSchedule(dinnerTime: dinnerTime, tasks: v1Tasks)
 
@@ -146,6 +149,9 @@ public struct TacoTemplateBuilder {
         )
 
         print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)) at anchor x=\(String(format: "%.1f", anchorX)), direction=horizontal, spacing=35pt, strength=0.9, nodes=6")
+
+        // End bulk operation - this will trigger simulation with all nodes in place
+        await model.endBulkOperation()
 
         return meal
     }
