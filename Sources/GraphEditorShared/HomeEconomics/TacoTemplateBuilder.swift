@@ -71,23 +71,38 @@ public struct TacoTemplateBuilder {
 
         // Calculate initial positions to match directional layout targets
         // This minimizes initial displacement and speeds up convergence
-        let configuredSpacing: CGFloat = 35.0  // Spacing between nodes along horizontal axis
-        let maxDepth = v1Tasks.count  // 5 tasks = max depth of 5
-        let totalExtent = CGFloat(maxDepth) * configuredSpacing  // 175pt total
+        let preferredSpacing: CGFloat = 35.0  // Desired spacing between nodes
+        let maxDepth = v1Tasks.count  // 5 tasks = max depth of 5 (meal is depth 0)
 
-        // Match DirectionalLayoutCalculator's anchor calculation for horizontal layout
         // Simulation bounds for Apple Watch: ~205pt wide
         let simulationWidth: CGFloat = 205.0
         let margin: CGFloat = 20.0
+
+        // Match DirectionalLayoutCalculator's dynamic spacing calculation
+        // It uses 80% of width for horizontal layouts
+        let availableSpace = simulationWidth * 0.8  // 164pt
+        let totalNeeded = CGFloat(maxDepth) * preferredSpacing  // 175pt
+
+        // Apply same compression logic as DirectionalLayoutCalculator
+        let actualSpacing: CGFloat
+        if totalNeeded > availableSpace {
+            // Compress spacing to fit
+            actualSpacing = availableSpace / CGFloat(maxDepth)  // 164 / 5 = 32.8pt
+        } else {
+            actualSpacing = preferredSpacing  // 35pt
+        }
+
+        // Calculate total extent with actual spacing
+        let totalExtent = CGFloat(maxDepth) * actualSpacing
         let availableWidth = simulationWidth - (2 * margin)  // 165pt
 
         // Calculate anchor (where depth 0 = meal node should be positioned)
         let anchorX: CGFloat
         if totalExtent < availableWidth {
-            // Segment fits - center it: margin + (available - extent) / 2
-            anchorX = margin + (availableWidth - totalExtent) / 2.0  // 20 + (165 - 175) / 2 = 15pt
+            // Segment fits - center it
+            anchorX = margin + (availableWidth - totalExtent) / 2.0
         } else {
-            // Segment doesn't fit - align to margin
+            // Segment is wide - start from margin
             anchorX = margin  // 20pt
         }
 
@@ -113,7 +128,7 @@ public struct TacoTemplateBuilder {
             // Meal is at depth 0, tasks at depth 1, 2, 3, 4, 5
             let depth = index + 1
             let taskPosition = CGPoint(
-                x: anchorX + (CGFloat(depth) * configuredSpacing),  // Use calculated anchor, not meal's initial position
+                x: anchorX + (CGFloat(depth) * actualSpacing),  // Use actual spacing (may be compressed)
                 y: position.y  // Same Y as meal - hierarchy forces will adjust
             )
 
@@ -148,7 +163,7 @@ public struct TacoTemplateBuilder {
             nodeSpacing: 35.0        // Tight spacing for watch screen (~205pt wide)
         )
 
-        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)) at anchor x=\(String(format: "%.1f", anchorX)), direction=horizontal, spacing=35pt, strength=0.9, nodes=6")
+        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)) at anchor x=\(String(format: "%.1f", anchorX)), direction=horizontal, spacing=\(String(format: "%.1f", actualSpacing))pt (preferred=35pt), strength=0.9, nodes=6")
 
         // End bulk operation - this will trigger simulation with all nodes in place
         await model.endBulkOperation()
