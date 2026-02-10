@@ -14,12 +14,13 @@ public struct TacoTemplateBuilder {
 
     // MARK: - Task Definitions (v1)
 
-    /// Phase 2C v1 tasks: ends at "Ready to Cook"
+    /// Phase 2C v1 tasks: complete workflow ending with "Serve"
     public static let v1Tasks: [(type: TaskType, minutes: Int, label: String)] = [
         (.plan, 5, "Check Pantry"),
         (.shop, 45, "Shop"),
         (.prep, 20, "Prep"),
-        (.cook, 25, "Cook")
+        (.cook, 25, "Cook"),
+        (.serve, 5, "Serve")
     ]
 
     // MARK: - Schedule Calculation
@@ -78,14 +79,22 @@ public struct TacoTemplateBuilder {
             at: position
         )
 
-        // Create task nodes with hierarchy and precedes edges
+        // Create task nodes with linear dependency chain
         var previousTaskID: NodeID?
-        let taskSpacing: CGFloat = 120
+        
+        // Use the same spacing that will be configured for directional layout
+        // This ensures nodes start near their target positions, minimizing initial forces
+        // Optimized for watchOS screen width (~205pt): 5 tasks * 35pt = 175pt total width
+        let configuredSpacing: CGFloat = 35.0  // Match the nodeSpacing set in segment config below
 
         for (index, scheduledTask) in scheduledTasks.enumerated() {
+            // Position nodes according to their depth in the hierarchy
+            // Meal is at depth 0, first task at depth 1, etc.
+            // Y position will be set by hierarchy layout forces, so use same Y as meal
+            let depth = index + 1
             let taskPosition = CGPoint(
-                x: position.x + (CGFloat(index) * taskSpacing),
-                y: position.y + 80
+                x: position.x + (CGFloat(depth) * configuredSpacing),
+                y: position.y  // Same Y as meal - hierarchy forces will adjust
             )
 
             let task = await model.addTask(
@@ -96,16 +105,30 @@ public struct TacoTemplateBuilder {
                 at: taskPosition
             )
 
-            // Add hierarchy edge from meal to task
-            await model.addEdge(from: meal.id, target: task.id, type: .hierarchy)
-
-            // Add precedes edge from previous task to current task
+            // First task connects to meal via hierarchy edge
+            if index == 0 {
+                await model.addEdge(from: meal.id, target: task.id, type: .hierarchy)
+            }
+            
+            // All subsequent tasks connect to previous task via hierarchy edge
+            // This creates a linear dependency chain: Meal -> Task1 -> Task2 -> Task3 -> Task4 -> Task5
             if let prevID = previousTaskID {
-                await model.addEdge(from: prevID, target: task.id, type: .precedes)
+                await model.addEdge(from: prevID, target: task.id, type: .hierarchy)
             }
 
             previousTaskID = task.id
         }
+        
+        // Configure directional layout for this segment (default: horizontal)
+        // Optimized for watchOS: tighter spacing, stronger forces for quick convergence
+        model.setSegmentConfig(
+            rootNodeID: meal.id,
+            direction: .horizontal,
+            strength: 0.9,           // Stronger forces for quicker layout convergence
+            nodeSpacing: 35.0        // Tight spacing for watch screen (~205pt wide)
+        )
+
+        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)), direction=horizontal, spacing=35pt, strength=0.9, nodes=6")
 
         return meal
     }
