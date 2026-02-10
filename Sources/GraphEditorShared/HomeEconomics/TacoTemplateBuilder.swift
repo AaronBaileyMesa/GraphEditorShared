@@ -81,19 +81,39 @@ public struct TacoTemplateBuilder {
 
         // Create task nodes with linear dependency chain
         var previousTaskID: NodeID?
-        
-        // Use the same spacing that will be configured for directional layout
-        // This ensures nodes start near their target positions, minimizing initial forces
-        // Optimized for watchOS screen width (~205pt): 5 tasks * 35pt = 175pt total width
-        let configuredSpacing: CGFloat = 35.0  // Match the nodeSpacing set in segment config below
+
+        // Calculate initial positions to match directional layout targets
+        // This minimizes initial displacement and speeds up convergence
+        let configuredSpacing: CGFloat = 35.0  // Spacing between nodes along horizontal axis
+        let maxDepth = v1Tasks.count  // 5 tasks = max depth of 5
+        let totalExtent = CGFloat(maxDepth) * configuredSpacing  // 175pt total
+
+        // Match DirectionalLayoutCalculator's anchor calculation for horizontal layout
+        // Simulation bounds for Apple Watch: ~205pt wide
+        let simulationWidth: CGFloat = 205.0
+        let margin: CGFloat = 20.0
+        let availableWidth = simulationWidth - (2 * margin)  // 165pt
+
+        // Calculate anchor (where depth 0 = meal node should be positioned)
+        let anchorX: CGFloat
+        if totalExtent < availableWidth {
+            // Segment fits - center it: margin + (available - extent) / 2
+            anchorX = margin + (availableWidth - totalExtent) / 2.0  // 20 + (165 - 175) / 2 = 15pt
+        } else {
+            // Segment doesn't fit - align to margin
+            anchorX = margin  // 20pt
+        }
+
+        // Position meal at the calculated anchor
+        // Note: We can't move the meal here since it's already created,
+        // but we'll position tasks correctly relative to where the meal will end up
 
         for (index, scheduledTask) in scheduledTasks.enumerated() {
             // Position nodes according to their depth in the hierarchy
-            // Meal is at depth 0, first task at depth 1, etc.
-            // Y position will be set by hierarchy layout forces, so use same Y as meal
+            // Meal is at depth 0, tasks at depth 1, 2, 3, 4, 5
             let depth = index + 1
             let taskPosition = CGPoint(
-                x: position.x + (CGFloat(depth) * configuredSpacing),
+                x: anchorX + (CGFloat(depth) * configuredSpacing),  // Use calculated anchor, not meal's initial position
                 y: position.y  // Same Y as meal - hierarchy forces will adjust
             )
 
