@@ -66,22 +66,6 @@ public struct TacoTemplateBuilder {
         // Calculate task schedule
         let scheduledTasks = calculateSchedule(dinnerTime: dinnerTime, tasks: v1Tasks)
 
-        // Create meal node
-        let mealName = "\(protein.rawValue.capitalized) Tacos"
-        let meal = await model.addMeal(
-            name: mealName,
-            date: dinnerTime,
-            mealType: .dinner,
-            servings: guests,
-            guests: guests,
-            dinnerTime: dinnerTime,
-            protein: protein,
-            at: position
-        )
-
-        // Create task nodes with linear dependency chain
-        var previousTaskID: NodeID?
-
         // Calculate initial positions to match directional layout targets
         // This minimizes initial displacement and speeds up convergence
         let configuredSpacing: CGFloat = 35.0  // Spacing between nodes along horizontal axis
@@ -104,9 +88,22 @@ public struct TacoTemplateBuilder {
             anchorX = margin  // 20pt
         }
 
-        // Position meal at the calculated anchor
-        // Note: We can't move the meal here since it's already created,
-        // but we'll position tasks correctly relative to where the meal will end up
+        // Create meal node at the calculated anchor position
+        let mealName = "\(protein.rawValue.capitalized) Tacos"
+        let anchorPosition = CGPoint(x: anchorX, y: position.y)
+        let meal = await model.addMeal(
+            name: mealName,
+            date: dinnerTime,
+            mealType: .dinner,
+            servings: guests,
+            guests: guests,
+            dinnerTime: dinnerTime,
+            protein: protein,
+            at: anchorPosition
+        )
+
+        // Create task nodes with linear dependency chain
+        var previousTaskID: NodeID?
 
         for (index, scheduledTask) in scheduledTasks.enumerated() {
             // Position nodes according to their depth in the hierarchy
@@ -148,7 +145,7 @@ public struct TacoTemplateBuilder {
             nodeSpacing: 35.0        // Tight spacing for watch screen (~205pt wide)
         )
 
-        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)), direction=horizontal, spacing=35pt, strength=0.9, nodes=6")
+        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)) at anchor x=\(String(format: "%.1f", anchorX)), direction=horizontal, spacing=35pt, strength=0.9, nodes=6")
 
         return meal
     }
