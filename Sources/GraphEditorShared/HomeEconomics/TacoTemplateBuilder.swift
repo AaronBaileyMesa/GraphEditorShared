@@ -155,15 +155,15 @@ public struct TacoTemplateBuilder {
         }
         
         // Configure directional layout for this segment (default: horizontal)
-        // Optimized for watchOS: tighter spacing, stronger forces for quick convergence
+        // Optimized for watchOS: very strong forces to overcome node repulsion
         model.setSegmentConfig(
             rootNodeID: meal.id,
             direction: .horizontal,
-            strength: 0.9,           // Stronger forces for quicker layout convergence
+            strength: 1.5,           // Very strong forces to overcome repulsion (1.5 → 1.2 effective)
             nodeSpacing: 35.0        // Tight spacing for watch screen (~205pt wide)
         )
 
-        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)) at anchor x=\(String(format: "%.1f", anchorX)), direction=horizontal, spacing=\(String(format: "%.1f", actualSpacing))pt (preferred=35pt), strength=0.9, nodes=6")
+        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)) at anchor x=\(String(format: "%.1f", anchorX)), direction=horizontal, spacing=\(String(format: "%.1f", actualSpacing))pt (preferred=35pt), strength=1.5, nodes=6")
 
         // End bulk operation - this will trigger simulation with all nodes in place
         await model.endBulkOperation()
