@@ -67,6 +67,10 @@ public struct DirectionalLayoutCalculator {
     ) -> [NodeID: CGPoint] {
         guard !segmentConfigs.isEmpty else { return forces }
         
+        if LogManager.verboseSimulationLogging {
+            logger.debug("Applying directional forces for \(segmentConfigs.count) segments")
+        }
+        
         var updatedForces = forces
         
         // Build segment membership map
@@ -86,6 +90,11 @@ public struct DirectionalLayoutCalculator {
         
         // Apply forces for each segment
         for (rootID, config) in segmentConfigs {
+            if LogManager.verboseSimulationLogging {
+                let segmentNodeCount = nodes.filter { membership[$0.id] == rootID }.count
+                logger.debug("Segment \(rootID.uuidString.prefix(8)): direction=\(config.direction.rawValue), nodes=\(segmentNodeCount)")
+            }
+            
             applySegmentForces(
                 forces: &updatedForces,
                 nodes: nodes,
@@ -176,7 +185,8 @@ public struct DirectionalLayoutCalculator {
             direction: config.direction,
             spacing: spacing,
             maxDepth: maxDepth,
-            simulationBounds: simulationBounds
+            simulationBounds: simulationBounds,
+            depths: depths
         )
         
         // Apply forces along the constrained axis
@@ -192,6 +202,10 @@ public struct DirectionalLayoutCalculator {
                 // Constrain X, leave Y free
                 currentPosition = node.position.x
                 forceAxis = (targetPosition - currentPosition) * config.effectiveStiffness
+                
+                if LogManager.verboseSimulationLogging && abs(forceAxis) > 1.0 {
+                    logger.debug("  Node depth=\(depth): currentX=\(String(format: "%.1f", currentPosition)), targetX=\(String(format: "%.1f", targetPosition)), force=\(String(format: "%.1f", forceAxis))")
+                }
                 
                 let currentForce = forces[node.id] ?? .zero
                 forces[node.id] = CGPoint(
@@ -243,36 +257,43 @@ public struct DirectionalLayoutCalculator {
     }
     
     /// Calculate anchor position (where depth 0 nodes should be positioned)
+    /// Centers the entire segment within simulation bounds for optimal layout
     private static func calculateAnchorPosition(
         segmentNodes: [any NodeProtocol],
         direction: LayoutDirection,
         spacing: CGFloat,
         maxDepth: Int,
-        simulationBounds: CGSize
+        simulationBounds: CGSize,
+        depths: [NodeID: Int]
     ) -> CGFloat {
         // Calculate total extent of the segment
         let totalExtent = CGFloat(maxDepth) * spacing
-        
+
         switch direction {
         case .horizontal:
-            // Anchor to left with some margin, or center if it fits
-            let margin: CGFloat = 50.0
-            if totalExtent < simulationBounds.width * 0.6 {
-                // Center horizontally if it fits comfortably
-                return (simulationBounds.width - totalExtent) / 2.0
+            // For horizontal layout, center the segment within available width
+            // Leave margin for node radius and comfort
+            let margin: CGFloat = 20.0
+            let availableWidth = simulationBounds.width - (2 * margin)
+
+            if totalExtent < availableWidth {
+                // Segment fits comfortably - center it
+                return margin + (availableWidth - totalExtent) / 2.0
             } else {
-                // Otherwise anchor to left margin
+                // Segment is wide - start from margin
                 return margin
             }
-            
+
         case .vertical:
-            // Anchor to top with some margin, or center if it fits
-            let margin: CGFloat = 50.0
-            if totalExtent < simulationBounds.height * 0.6 {
-                // Center vertically if it fits comfortably
-                return (simulationBounds.height - totalExtent) / 2.0
+            // For vertical layout, center the segment within available height
+            let margin: CGFloat = 20.0
+            let availableHeight = simulationBounds.height - (2 * margin)
+
+            if totalExtent < availableHeight {
+                // Segment fits comfortably - center it
+                return margin + (availableHeight - totalExtent) / 2.0
             } else {
-                // Otherwise anchor to top margin
+                // Segment is tall - start from margin
                 return margin
             }
         }
