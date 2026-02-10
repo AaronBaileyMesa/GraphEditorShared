@@ -45,6 +45,43 @@ extension GraphModel {
         return meal
     }
 
+    /// Adds a meal node with taco dinner properties
+    @MainActor
+    public func addMeal(
+        name: String,
+        date: Date,
+        mealType: MealType,
+        servings: Int,
+        recipeID: NodeID? = nil,
+        guests: Int,
+        dinnerTime: Date,
+        protein: ProteinType?,
+        at position: CGPoint
+    ) async -> MealNode {
+        let meal = MealNode(
+            label: nextNodeLabel,
+            position: position,
+            name: name,
+            date: date,
+            mealType: mealType,
+            servings: servings,
+            recipeID: recipeID,
+            guests: guests,
+            dinnerTime: dinnerTime,
+            protein: protein
+        )
+
+        nodes.append(AnyNode(meal))
+        nextNodeLabel += 1
+
+        // Auto-create edge if recipe specified
+        if let recID = recipeID {
+            await addEdge(from: meal.id, target: recID, type: .requires)
+        }
+
+        return meal
+    }
+
     /// Adds a recipe node
     @MainActor
     public func addRecipe(
@@ -125,6 +162,70 @@ extension GraphModel {
         }
 
         return task
+    }
+
+    /// Adds a task node with planned timestamps
+    @MainActor
+    public func addTask(
+        type: TaskType,
+        estimatedTime: Int,
+        assignedUserID: NodeID? = nil,
+        plannedStart: Date?,
+        plannedEnd: Date?,
+        at position: CGPoint
+    ) async -> TaskNode {
+        let task = TaskNode(
+            label: nextNodeLabel,
+            position: position,
+            taskType: type,
+            status: .pending,
+            estimatedTime: estimatedTime,
+            actualTime: nil,
+            assignedUserID: assignedUserID,
+            plannedStart: plannedStart,
+            plannedEnd: plannedEnd
+        )
+
+        nodes.append(AnyNode(task))
+        nextNodeLabel += 1
+
+        // Auto-create assignment edge if user specified
+        if let userID = assignedUserID {
+            await addEdge(from: userID, target: task.id, type: .assigned)
+        }
+
+        return task
+    }
+
+    /// Update task status and handle timestamp recording
+    @MainActor
+    public func updateTaskStatus(_ taskID: NodeID, to newStatus: TaskStatus) {
+        guard let index = nodes.firstIndex(where: { $0.id == taskID }),
+              let taskNode = nodes[index].unwrapped as? TaskNode else {
+            return
+        }
+
+        let updatedTask: TaskNode
+        switch newStatus {
+        case .inProgress:
+            updatedTask = taskNode.startingWork()
+        case .completed:
+            // Use existing actualTime or estimated time
+            let timeSpent = taskNode.actualTime ?? taskNode.estimatedTime
+            updatedTask = taskNode.completing(timeSpent: timeSpent)
+        case .blocked:
+            updatedTask = taskNode.blocking()
+        case .declined:
+            updatedTask = taskNode.declining()
+        case .skipped:
+            updatedTask = taskNode.skipping()
+        case .pending:
+            var updated = taskNode
+            updated.status = .pending
+            updatedTask = updated
+        }
+
+        nodes[index] = AnyNode(updatedTask)
     }
 
     // MARK: - Query Helpers

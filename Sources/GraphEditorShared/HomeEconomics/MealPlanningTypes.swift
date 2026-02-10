@@ -34,6 +34,15 @@ public enum TaskStatus: String, Codable, CaseIterable {
     case inProgress
     case completed
     case skipped
+    case blocked    // Task cannot proceed due to dependency
+    case declined   // User explicitly declined this task
+}
+
+/// Protein type for taco meals
+@available(iOS 16.0, watchOS 9.0, *)
+public enum ProteinType: String, Codable, CaseIterable {
+    case beef
+    case chicken
 }
 
 /// Measurement units for ingredients

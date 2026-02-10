@@ -28,6 +28,12 @@ public struct TaskNode: NodeProtocol {
     public var actualTime: Int?          // minutes (actual, nil until completed)
     public let assignedUserID: NodeID?
 
+    // Timestamp fields for workflow tracking
+    public var plannedStart: Date?
+    public var plannedEnd: Date?
+    public var startedAt: Date?
+    public var completedAt: Date?
+
     public var displayRadius: CGFloat {
         radius * 1.1
     }
@@ -38,6 +44,8 @@ public struct TaskNode: NodeProtocol {
         case .inProgress: return .yellow
         case .completed: return .green
         case .skipped: return .red
+        case .blocked: return .orange
+        case .declined: return .red.opacity(0.6)
         }
     }
 
@@ -69,7 +77,11 @@ public struct TaskNode: NodeProtocol {
         status: TaskStatus = .pending,
         estimatedTime: Int,
         actualTime: Int? = nil,
-        assignedUserID: NodeID? = nil
+        assignedUserID: NodeID? = nil,
+        plannedStart: Date? = nil,
+        plannedEnd: Date? = nil,
+        startedAt: Date? = nil,
+        completedAt: Date? = nil
     ) {
         self.id = id
         self.label = label
@@ -81,6 +93,10 @@ public struct TaskNode: NodeProtocol {
         self.estimatedTime = estimatedTime
         self.actualTime = actualTime
         self.assignedUserID = assignedUserID
+        self.plannedStart = plannedStart
+        self.plannedEnd = plannedEnd
+        self.startedAt = startedAt
+        self.completedAt = completedAt
         self.isExpanded = true
         self.isCollapsible = true  // Can collapse to hide subtasks
         self.children = []
@@ -94,6 +110,7 @@ public struct TaskNode: NodeProtocol {
         var updated = self
         updated.status = .completed
         updated.actualTime = timeSpent
+        updated.completedAt = Date()
         return updated
     }
 
@@ -101,6 +118,7 @@ public struct TaskNode: NodeProtocol {
     public func startingWork() -> Self {
         var updated = self
         updated.status = .inProgress
+        updated.startedAt = Date()
         return updated
     }
 
@@ -108,6 +126,20 @@ public struct TaskNode: NodeProtocol {
     public func skipping() -> Self {
         var updated = self
         updated.status = .skipped
+        return updated
+    }
+
+    /// Update task to blocked status
+    public func blocking() -> Self {
+        var updated = self
+        updated.status = .blocked
+        return updated
+    }
+
+    /// Update task to declined status
+    public func declining() -> Self {
+        var updated = self
+        updated.status = .declined
         return updated
     }
 
@@ -172,6 +204,7 @@ public struct TaskNode: NodeProtocol {
     enum CodingKeys: String, CodingKey {
         case id, label, positionX, positionY, radius
         case taskType, status, estimatedTime, actualTime, assignedUserID
+        case plannedStart, plannedEnd, startedAt, completedAt
         case isExpanded, isCollapsible, children, childOrder
     }
 
@@ -190,6 +223,11 @@ public struct TaskNode: NodeProtocol {
         estimatedTime = try container.decode(Int.self, forKey: .estimatedTime)
         actualTime = try container.decodeIfPresent(Int.self, forKey: .actualTime)
         assignedUserID = try container.decodeIfPresent(NodeID.self, forKey: .assignedUserID)
+
+        plannedStart = try container.decodeIfPresent(Date.self, forKey: .plannedStart)
+        plannedEnd = try container.decodeIfPresent(Date.self, forKey: .plannedEnd)
+        startedAt = try container.decodeIfPresent(Date.self, forKey: .startedAt)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
 
         isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
         isCollapsible = try container.decodeIfPresent(Bool.self, forKey: .isCollapsible) ?? true
@@ -211,6 +249,10 @@ public struct TaskNode: NodeProtocol {
         try container.encode(estimatedTime, forKey: .estimatedTime)
         try container.encodeIfPresent(actualTime, forKey: .actualTime)
         try container.encodeIfPresent(assignedUserID, forKey: .assignedUserID)
+        try container.encodeIfPresent(plannedStart, forKey: .plannedStart)
+        try container.encodeIfPresent(plannedEnd, forKey: .plannedEnd)
+        try container.encodeIfPresent(startedAt, forKey: .startedAt)
+        try container.encodeIfPresent(completedAt, forKey: .completedAt)
         try container.encode(isExpanded, forKey: .isExpanded)
         try container.encode(isCollapsible, forKey: .isCollapsible)
         try container.encode(children, forKey: .children)
