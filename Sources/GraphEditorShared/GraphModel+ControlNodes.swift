@@ -205,16 +205,14 @@ extension GraphModel {
         #endif
         
         if workflowActive {
-            // Execution mode - show workflow controls
+            // Execution mode - show workflow controls only
             kinds.append(.stopWorkflow)
-            
+
             if hasCurrentTask && !workflowComplete {
                 kinds.append(.completeTask)
             }
-            
-            // Always allow edit and delete
-            kinds.append(.edit)
-            kinds.append(.delete)
+
+            // CRUD controls disabled during workflow execution
         } else {
             // Construction mode - show task creation controls
             kinds.append(.startWorkflow)
@@ -222,8 +220,8 @@ extension GraphModel {
             kinds.append(.addPrepTask)
             kinds.append(.addCookTask)
             kinds.append(.addRecipe)
-            kinds.append(.edit)
-            kinds.append(.delete)
+
+            // CRUD controls disabled during construction
         }
         
         // Apply UI config filtering
@@ -240,21 +238,22 @@ extension GraphModel {
         #endif
         
         // Context-aware controls based on task status
+        // CRUD controls disabled for workflow tasks
         switch taskNode.status {
         case .pending:
-            kinds = [.startTask, .blockTask, .declineTask, .edit, .delete]
-            
+            kinds = [.startTask, .blockTask, .declineTask]
+
         case .inProgress:
-            kinds = [.completeTask, .blockTask, .edit]
-            
+            kinds = [.completeTask, .blockTask]
+
         case .blocked:
-            kinds = [.unblockTask, .declineTask, .edit, .delete]
-            
+            kinds = [.unblockTask, .declineTask]
+
         case .completed, .declined:
-            kinds = [.resetTask, .edit, .delete]
-            
+            kinds = [.resetTask]
+
         case .skipped:
-            kinds = [.resetTask, .edit, .delete]
+            kinds = [.resetTask]
         }
         
         // Apply UI config filtering
@@ -264,9 +263,9 @@ extension GraphModel {
     }
     
     private func filterControlKindsForRecipeNode(_ owner: any NodeProtocol, ownerID: NodeID) -> [ControlKind] {
-        // RecipeNode keeps generic controls but adds scale functionality
-        let kinds: [ControlKind] = [.scaleRecipe, .edit, .addChild, .delete]
-        
+        // RecipeNode - CRUD controls disabled for workflow
+        let kinds: [ControlKind] = [.scaleRecipe]
+
         // Apply UI config filtering
         return kinds.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
