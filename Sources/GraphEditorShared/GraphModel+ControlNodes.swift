@@ -26,10 +26,58 @@ extension GraphModel {
     // NEW: Flag to prevent recursive updates in the subscription sink
     
     public func getFreeSlots(for ownerID: NodeID) -> [CGFloat] {
-        // v1: Assume no occupations – return all slots
-        // Future: Check priorityEdges[ownerID] ?? [], calculate occupied angles from edge directions,
-        //         filter out slots within ±22.5° of occupied, return remaining sorted.
-        return Self.controlAngles  // Use static
+        // Find the owner node
+        guard let owner = nodes.first(where: { $0.id == ownerID })?.unwrapped else {
+            return Self.controlAngles
+        }
+        
+        // Get all other persistent nodes (not control nodes, not the owner itself)
+        let nearbyNodes = nodes
+            .map { $0.unwrapped }
+            .filter { node in
+                node.id != ownerID && !(node is ControlNode)
+            }
+        
+        // Calculate which angles would collide with nearby nodes
+        let collisionThreshold: CGFloat = 50.0  // Consider nodes within 50pt as potential collisions
+        let angleBuffer: CGFloat = 30.0  // Avoid angles within ±30° of collision
+        
+        var blockedAngles = Set<CGFloat>()
+        
+        for nearbyNode in nearbyNodes {
+            let dx = nearbyNode.position.x - owner.position.x
+            let dy = nearbyNode.position.y - owner.position.y
+            let distance = hypot(dx, dy)
+            
+            // Only consider nodes that are close enough to potentially collide
+            if distance < collisionThreshold {
+                // Calculate angle to this node (in degrees, 0° = right)
+                let angleToNode = atan2(dy, dx) * 180 / .pi
+                let normalizedAngle = angleToNode < 0 ? angleToNode + 360 : angleToNode
+                
+                // Mark this angle and nearby angles as blocked
+                for angle in Self.controlAngles {
+                    let angleDiff = abs(normalizedAngle - angle)
+                    let wrappedDiff = min(angleDiff, 360 - angleDiff)  // Handle wrap-around at 0°/360°
+                    
+                    if wrappedDiff < angleBuffer {
+                        blockedAngles.insert(angle)
+                    }
+                }
+            }
+        }
+        
+        // Filter out blocked angles
+        let availableAngles = Self.controlAngles.filter { !blockedAngles.contains($0) }
+        
+        #if DEBUG
+        if !blockedAngles.isEmpty {
+            Self.controlLogger.debug("getFreeSlots: blocked angles \(Array(blockedAngles).map { String(format: "%.0f", $0) }.joined(separator: ", "))°, available: \(availableAngles.map { String(format: "%.0f", $0) }.joined(separator: ", "))°")
+        }
+        #endif
+        
+        // If all angles are blocked, return all angles (better to have some overlap than no controls)
+        return availableAngles.isEmpty ? Self.controlAngles : availableAngles
     }
     
     // MARK: - Ephemeral Management

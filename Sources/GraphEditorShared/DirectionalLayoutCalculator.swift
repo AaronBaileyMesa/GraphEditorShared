@@ -189,39 +189,48 @@ public struct DirectionalLayoutCalculator {
             depths: depths
         )
         
-        // Apply forces along the constrained axis
+        // Calculate alignment target (average position on the unconstrained axis)
+        // This keeps all nodes aligned on a straight line
+        let alignmentTarget: CGFloat
+        switch config.direction {
+        case .horizontal:
+            // For horizontal layout, align all nodes to the same Y position
+            alignmentTarget = segmentNodes.map { $0.position.y }.reduce(0, +) / CGFloat(segmentNodes.count)
+        case .vertical:
+            // For vertical layout, align all nodes to the same X position
+            alignmentTarget = segmentNodes.map { $0.position.x }.reduce(0, +) / CGFloat(segmentNodes.count)
+        }
+        
+        // Apply forces along both axes
         for node in segmentNodes {
             guard let depth = depths[node.id] else { continue }
             
-            let targetPosition = anchor + CGFloat(depth) * spacing
-            let currentPosition: CGFloat
-            let forceAxis: CGFloat
+            let targetDepthPosition = anchor + CGFloat(depth) * spacing
+            let currentForce = forces[node.id] ?? .zero
             
             switch config.direction {
             case .horizontal:
-                // Constrain X, leave Y free
-                currentPosition = node.position.x
-                forceAxis = (targetPosition - currentPosition) * config.effectiveStiffness
+                // Constrain X based on depth, align Y to common line
+                let forceX = (targetDepthPosition - node.position.x) * config.effectiveStiffness
+                let forceY = (alignmentTarget - node.position.y) * config.effectiveStiffness
                 
-                if LogManager.verboseSimulationLogging && abs(forceAxis) > 1.0 {
-                    logger.debug("  Node depth=\(depth): currentX=\(String(format: "%.1f", currentPosition)), targetX=\(String(format: "%.1f", targetPosition)), force=\(String(format: "%.1f", forceAxis))")
+                if LogManager.verboseSimulationLogging && (abs(forceX) > 1.0 || abs(forceY) > 1.0) {
+                    logger.debug("  Node depth=\(depth): currentPos=(\(String(format: "%.1f", node.position.x)),\(String(format: "%.1f", node.position.y))), targetPos=(\(String(format: "%.1f", targetDepthPosition)),\(String(format: "%.1f", alignmentTarget))), force=(\(String(format: "%.1f", forceX)),\(String(format: "%.1f", forceY)))")
                 }
                 
-                let currentForce = forces[node.id] ?? .zero
                 forces[node.id] = CGPoint(
-                    x: currentForce.x + forceAxis,
-                    y: currentForce.y
+                    x: currentForce.x + forceX,
+                    y: currentForce.y + forceY
                 )
                 
             case .vertical:
-                // Constrain Y, leave X free (like hierarchy layer forces)
-                currentPosition = node.position.y
-                forceAxis = (targetPosition - currentPosition) * config.effectiveStiffness
+                // Constrain Y based on depth, align X to common line
+                let forceX = (alignmentTarget - node.position.x) * config.effectiveStiffness
+                let forceY = (targetDepthPosition - node.position.y) * config.effectiveStiffness
                 
-                let currentForce = forces[node.id] ?? .zero
                 forces[node.id] = CGPoint(
-                    x: currentForce.x,
-                    y: currentForce.y + forceAxis
+                    x: currentForce.x + forceX,
+                    y: currentForce.y + forceY
                 )
             }
         }
