@@ -133,6 +133,16 @@ extension GraphModel {
     }
     
     private func filterControlKindsForNode(owner: any NodeProtocol, ownerID: NodeID) -> [ControlKind] {
+        // Check for workflow-specific node types first
+        if let mealNode = owner as? MealNode {
+            return filterControlKindsForMealNode(mealNode, ownerID: ownerID)
+        } else if let taskNode = owner as? TaskNode {
+            return filterControlKindsForTaskNode(taskNode, ownerID: ownerID)
+        } else if owner is RecipeNode {
+            return filterControlKindsForRecipeNode(owner, ownerID: ownerID)
+        }
+        
+        // Generic node - use original logic
         let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .delete, .duplicate, .addToggleChild, .toggleExpand]
         
         // Contextual filtering - show only relevant controls based on node state
@@ -163,6 +173,8 @@ extension GraphModel {
                 return !owner.contents.isEmpty || true
             case .toggleExpand:
                 return isCollapsible && hasChildren  // Only show for collapsible nodes with children
+            default:
+                return false  // Workflow controls shouldn't appear for generic nodes
             }
         }
         
@@ -176,6 +188,88 @@ extension GraphModel {
             let priority1 = uiConfig[ownerID]?.first(where: { $0.kind == kind1 })?.priority ?? 0
             let priority2 = uiConfig[ownerID]?.first(where: { $0.kind == kind2 })?.priority ?? 0
             return priority1 < priority2
+        }
+    }
+    
+    // MARK: - Workflow-Specific Control Filtering
+    
+    private func filterControlKindsForMealNode(_ mealNode: MealNode, ownerID: NodeID) -> [ControlKind] {
+        var kinds: [ControlKind] = []
+        
+        let workflowActive = isWorkflowActive(for: ownerID)
+        let workflowComplete = isWorkflowComplete(for: ownerID)
+        let hasCurrentTask = currentTask(for: ownerID) != nil
+        
+        #if DEBUG
+        Self.controlLogger.debug("MealNode controls: workflowActive=\(workflowActive), workflowComplete=\(workflowComplete), hasCurrentTask=\(hasCurrentTask)")
+        #endif
+        
+        if workflowActive {
+            // Execution mode - show workflow controls
+            kinds.append(.stopWorkflow)
+            
+            if hasCurrentTask && !workflowComplete {
+                kinds.append(.completeTask)
+            }
+            
+            // Always allow edit and delete
+            kinds.append(.edit)
+            kinds.append(.delete)
+        } else {
+            // Construction mode - show task creation controls
+            kinds.append(.startWorkflow)
+            kinds.append(.addShopTask)
+            kinds.append(.addPrepTask)
+            kinds.append(.addCookTask)
+            kinds.append(.addRecipe)
+            kinds.append(.edit)
+            kinds.append(.delete)
+        }
+        
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
+        }
+    }
+    
+    private func filterControlKindsForTaskNode(_ taskNode: TaskNode, ownerID: NodeID) -> [ControlKind] {
+        var kinds: [ControlKind] = []
+        
+        #if DEBUG
+        Self.controlLogger.debug("TaskNode controls: status=\(taskNode.status.rawValue)")
+        #endif
+        
+        // Context-aware controls based on task status
+        switch taskNode.status {
+        case .pending:
+            kinds = [.startTask, .blockTask, .declineTask, .edit, .delete]
+            
+        case .inProgress:
+            kinds = [.completeTask, .blockTask, .edit]
+            
+        case .blocked:
+            kinds = [.unblockTask, .declineTask, .edit, .delete]
+            
+        case .completed, .declined:
+            kinds = [.resetTask, .edit, .delete]
+            
+        case .skipped:
+            kinds = [.resetTask, .edit, .delete]
+        }
+        
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
+        }
+    }
+    
+    private func filterControlKindsForRecipeNode(_ owner: any NodeProtocol, ownerID: NodeID) -> [ControlKind] {
+        // RecipeNode keeps generic controls but adds scale functionality
+        let kinds: [ControlKind] = [.scaleRecipe, .edit, .addChild, .delete]
+        
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
         }
     }
     

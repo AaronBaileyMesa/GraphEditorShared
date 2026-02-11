@@ -12,15 +12,47 @@ import CoreGraphics
 @available(iOS 16.0, watchOS 9.0, *)
 public struct TacoTemplateBuilder {
 
+    // MARK: - Supporting Types
+
+    /// Definition of a task without scheduling
+    public struct TaskDefinition {
+        public let type: TaskType
+        public let minutes: Int
+        public let label: String
+
+        public init(type: TaskType, minutes: Int, label: String) {
+            self.type = type
+            self.minutes = minutes
+            self.label = label
+        }
+    }
+
+    /// A task with scheduled start and end times
+    public struct ScheduledTask {
+        public let type: TaskType
+        public let minutes: Int
+        public let label: String
+        public let plannedStart: Date
+        public let plannedEnd: Date
+
+        public init(type: TaskType, minutes: Int, label: String, plannedStart: Date, plannedEnd: Date) {
+            self.type = type
+            self.minutes = minutes
+            self.label = label
+            self.plannedStart = plannedStart
+            self.plannedEnd = plannedEnd
+        }
+    }
+
     // MARK: - Task Definitions (v1)
 
     /// Phase 2C v1 tasks: complete workflow ending with "Serve"
-    public static let v1Tasks: [(type: TaskType, minutes: Int, label: String)] = [
-        (.plan, 5, "Check Pantry"),
-        (.shop, 45, "Shop"),
-        (.prep, 20, "Prep"),
-        (.cook, 25, "Cook"),
-        (.serve, 5, "Serve")
+    public static let v1Tasks: [TaskDefinition] = [
+        TaskDefinition(type: .plan, minutes: 5, label: "Check Pantry"),
+        TaskDefinition(type: .shop, minutes: 45, label: "Shop"),
+        TaskDefinition(type: .prep, minutes: 20, label: "Prep"),
+        TaskDefinition(type: .cook, minutes: 25, label: "Cook"),
+        TaskDefinition(type: .serve, minutes: 5, label: "Serve")
     ]
 
     // MARK: - Schedule Calculation
@@ -28,9 +60,9 @@ public struct TacoTemplateBuilder {
     /// Calculate planned start and end times for each task, working backward from dinner time
     public static func calculateSchedule(
         dinnerTime: Date,
-        tasks: [(type: TaskType, minutes: Int, label: String)]
-    ) -> [(type: TaskType, minutes: Int, label: String, plannedStart: Date, plannedEnd: Date)] {
-        var result: [(type: TaskType, minutes: Int, label: String, plannedStart: Date, plannedEnd: Date)] = []
+        tasks: [TaskDefinition]
+    ) -> [ScheduledTask] {
+        var result: [ScheduledTask] = []
         var currentEndTime = dinnerTime
 
         // Work backward from dinner time
@@ -38,13 +70,16 @@ public struct TacoTemplateBuilder {
             let plannedEnd = currentEndTime
             let plannedStart = Calendar.current.date(byAdding: .minute, value: -task.minutes, to: plannedEnd)!
 
-            result.insert((
-                type: task.type,
-                minutes: task.minutes,
-                label: task.label,
-                plannedStart: plannedStart,
-                plannedEnd: plannedEnd
-            ), at: 0)
+            result.insert(
+                ScheduledTask(
+                    type: task.type,
+                    minutes: task.minutes,
+                    label: task.label,
+                    plannedStart: plannedStart,
+                    plannedEnd: plannedEnd
+                ),
+                at: 0
+            )
 
             currentEndTime = plannedStart
         }

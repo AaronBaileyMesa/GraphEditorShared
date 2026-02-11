@@ -12,8 +12,18 @@ struct CenteringCalculator {
     let simulationBounds: CGSize
 
     @available(iOS 16.0, *)
-    func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode) -> [NodeID: CGPoint] {
+    func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode, edges: [GraphEdge] = [], segmentConfigs: [NodeID: SegmentConfig] = [:]) -> [NodeID: CGPoint] {
         var updatedForces = forces
+        
+        // Build segment membership if we have segment configs
+        var segmentMembership: Set<NodeID> = []
+        if !segmentConfigs.isEmpty {
+            segmentMembership = DirectionalLayoutCalculator.buildSegmentMembership(
+                nodes: nodes,
+                edges: edges,
+                segmentConfigs: segmentConfigs
+            ).keys.reduce(into: Set<NodeID>()) { $0.insert($1) }
+        }
         
         // For hierarchy mode, apply gentle upward-left gravity instead of strong centering
         if layoutMode == .hierarchy {
@@ -22,6 +32,9 @@ struct CenteringCalculator {
             let reducedForce = Constants.Physics.centeringForce * 0.3  // Much weaker than network mode
             
             for node in nodes {
+                // Skip nodes that belong to a directionally-laid-out segment
+                guard !segmentMembership.contains(node.id) else { continue }
+                
                 let deltaX = targetPoint.x - node.position.x
                 let deltaY = targetPoint.y - node.position.y
                 let distToTarget = hypot(deltaX, deltaY)
@@ -34,6 +47,9 @@ struct CenteringCalculator {
             // Network mode: standard centering to middle
             let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
             for node in nodes {
+                // Skip nodes that belong to a directionally-laid-out segment
+                guard !segmentMembership.contains(node.id) else { continue }
+                
                 let deltaX = center.x - node.position.x
                 let deltaY = center.y - node.position.y
                 let distToCenter = hypot(deltaX, deltaY)

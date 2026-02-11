@@ -196,7 +196,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 @available(watchOS 9.0, *)
 public struct GraphState: Codable {
     enum CodingKeys: CodingKey {
-        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating, nextNodeLabel, layoutMode
+        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating, nextNodeLabel, layoutMode, segmentConfigs
     }
 
     public let nodes: [AnyNode]
@@ -208,8 +208,9 @@ public struct GraphState: Codable {
     public let isSimulating: Bool
     public let nextNodeLabel: Int
     public let layoutMode: LayoutMode
+    public let segmentConfigs: [NodeID: SegmentConfig]
 
-    public init(nodes: [AnyNode] = [], edges: [GraphEdge] = [], hierarchyEdgeColor: CodableColor = CodableColor(.blue), associationEdgeColor: CodableColor = CodableColor(.white), uiConfig: [NodeID: [ControlConfig]] = [:], globalUiConfig: [ControlConfig] = [], isSimulating: Bool = false, nextNodeLabel: Int = 1, layoutMode: LayoutMode = .network) {
+    public init(nodes: [AnyNode] = [], edges: [GraphEdge] = [], hierarchyEdgeColor: CodableColor = CodableColor(.blue), associationEdgeColor: CodableColor = CodableColor(.white), uiConfig: [NodeID: [ControlConfig]] = [:], globalUiConfig: [ControlConfig] = [], isSimulating: Bool = false, nextNodeLabel: Int = 1, layoutMode: LayoutMode = .network, segmentConfigs: [NodeID: SegmentConfig] = [:]) {
         self.nodes = nodes
         self.edges = edges
         self.hierarchyEdgeColor = hierarchyEdgeColor
@@ -219,6 +220,7 @@ public struct GraphState: Codable {
         self.isSimulating = isSimulating
         self.nextNodeLabel = nextNodeLabel
         self.layoutMode = layoutMode
+        self.segmentConfigs = segmentConfigs
     }
 
     public init(from decoder: Decoder) throws {
@@ -232,6 +234,7 @@ public struct GraphState: Codable {
         isSimulating = try container.decodeIfPresent(Bool.self, forKey: .isSimulating) ?? false
         nextNodeLabel = try container.decodeIfPresent(Int.self, forKey: .nextNodeLabel) ?? 1
         layoutMode = try container.decodeIfPresent(LayoutMode.self, forKey: .layoutMode) ?? .network
+        segmentConfigs = try container.decodeIfPresent([NodeID: SegmentConfig].self, forKey: .segmentConfigs) ?? [:]
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -245,6 +248,7 @@ public struct GraphState: Codable {
         try container.encode(isSimulating, forKey: .isSimulating)
         try container.encode(nextNodeLabel, forKey: .nextNodeLabel)
         try container.encode(layoutMode, forKey: .layoutMode)
+        try container.encode(segmentConfigs, forKey: .segmentConfigs)
     }
 }
 
@@ -262,6 +266,50 @@ public enum GraphMode: Codable {  // Codable for saving
 public enum LayoutMode: Codable {  // Controls physics layout strategy
     case network     // Centered, symmetric forces - good for general graphs
     case hierarchy   // Top-left anchored, asymmetric forces - good for trees
+}
+
+// MARK: - Directional Layout for Graph Segments
+
+/// Direction for directional layout of graph segments
+@available(iOS 16.0, *)
+@available(watchOS 9.0, *)
+public enum LayoutDirection: String, Codable, CaseIterable {
+    case horizontal  // Left-to-right arrangement (constrains X-axis)
+    case vertical    // Top-to-bottom arrangement (constrains Y-axis)
+}
+
+/// Configuration for a directionally-laid-out graph segment
+@available(iOS 16.0, *)
+@available(watchOS 9.0, *)
+public struct SegmentConfig: Codable, Equatable {
+    /// Root node ID that anchors this segment (typically a MealNode or other hierarchy root)
+    public let rootNodeID: UUID
+    
+    /// Direction of layout (horizontal or vertical)
+    public var direction: LayoutDirection
+    
+    /// Force strength multiplier (0.0 = disabled, 1.0 = very strong)
+    public var strength: CGFloat
+    
+    /// Preferred spacing between nodes along the directional axis
+    public var nodeSpacing: CGFloat
+    
+    public init(
+        rootNodeID: UUID,
+        direction: LayoutDirection,
+        strength: CGFloat = 0.7,
+        nodeSpacing: CGFloat = 60.0
+    ) {
+        self.rootNodeID = rootNodeID
+        self.direction = direction
+        self.strength = strength
+        self.nodeSpacing = nodeSpacing
+    }
+    
+    /// Effective stiffness for directional forces (comparable to layerStiffness)
+    public var effectiveStiffness: CGFloat {
+        strength * 0.8
+    }
 }
 
 public protocol HierarchicalNode {

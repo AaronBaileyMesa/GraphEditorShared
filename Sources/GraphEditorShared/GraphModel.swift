@@ -39,6 +39,9 @@ import WatchKit
     public var globalUiConfig: [ControlConfig] = []
     @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
     public var isConfigMode: Bool = false
+    
+    // MARK: - Directional Layout Segments
+    @Published public var segmentConfigs: [NodeID: SegmentConfig] = [:]  // Root node ID -> segment config
     @Published public var cancellables: Set<AnyCancellable> = []
     
     public var allNodes: [any NodeProtocol] {
@@ -98,60 +101,70 @@ import WatchKit
     private func computeHiddenNodeIDs() -> Set<NodeID> {
         var hidden = Set<NodeID>()
         var toHide: [NodeID] = []
-        
+
 #if DEBUG
-        print("=== Computing hiddenNodeIDs ===")
+        if LogManager.verboseSimulationLogging {
+            print("=== Computing hiddenNodeIDs ===")
+        }
 #endif
-        
+
         for wrapper in nodes {
             let node = wrapper.unwrapped
             // Check if node is collapsible and collapsed (should hide children)
             guard let concreteNode = node as? Node, concreteNode.isCollapsible, !concreteNode.isExpanded else {
 #if DEBUG
-                if let debugNode = node as? Node, debugNode.isCollapsible {
+                if LogManager.verboseSimulationLogging, let debugNode = node as? Node, debugNode.isCollapsible {
                     print("Collapsible node label \(debugNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
                 }
 #endif
                 continue
             }
-            
+
             let children = edges
                 .filter { $0.from == wrapper.id && $0.type == .hierarchy }
                 .map { $0.target }
-            
+
 #if DEBUG
-            print("Collapsible node label \(concreteNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
-            print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
+            if LogManager.verboseSimulationLogging {
+                print("Collapsible node label \(concreteNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
+                print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
+            }
 #endif
-            
+
             toHide.append(contentsOf: children)
         }
-        
+
         let adj = buildAdjacencyList(for: .hierarchy)
-        
+
 #if DEBUG
-        print("Adjacency list:")
-        for (from, tos) in adj.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
-            print("  \(from.uuidString.prefix(8)): \(tos.map { $0.uuidString.prefix(8) }.joined(separator: ", "))")
+        if LogManager.verboseSimulationLogging {
+            print("Adjacency list:")
+            for (from, tos) in adj.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+                print("  \(from.uuidString.prefix(8)): \(tos.map { $0.uuidString.prefix(8) }.joined(separator: ", "))")
+            }
         }
 #endif
-        
+
         // Fixed transitive closure – always explore children of collapsed collapsible nodes
         while !toHide.isEmpty {
             let current = toHide.removeLast()
             guard hidden.insert(current).inserted else { continue }  // skip if already hidden
-            
+
             // Add ALL hierarchy children – even if they were already processed in a previous collapse
             let grandchildren = adj[current] ?? []
             toHide.append(contentsOf: grandchildren)
-            
+
 #if DEBUG
-            print("  Added grandchildren: \(grandchildren.map { $0.uuidString.prefix(8) })")
+            if LogManager.verboseSimulationLogging {
+                print("  Added grandchildren: \(grandchildren.map { $0.uuidString.prefix(8) })")
+            }
 #endif
         }
-        
+
 #if DEBUG
-        print("Final hiddenNodeIDs: \(hidden.sorted(by: { $0.uuidString < $1.uuidString }))")
+        if LogManager.verboseSimulationLogging {
+            print("Final hiddenNodeIDs: \(hidden.sorted(by: { $0.uuidString < $1.uuidString }))")
+        }
 #endif
         
         return hidden
@@ -209,6 +222,9 @@ import WatchKit
             },
             getDraggedNodeID: { [weak self] in
                 await MainActor.run { self?.draggedNodeID }
+            },
+            getSegmentConfigs: { [weak self] in
+                await MainActor.run { self?.segmentConfigs ?? [:] }
             },
             physicsEngine: self.physicsEngine,
             onStable: { [weak self] in
@@ -449,5 +465,128 @@ extension GraphModel {
         if isBulkOperationMode {
             bulkOperationNeedsSimulation = true
         }
+    }
+    
+    // MARK: - Directional Layout Segments
+    
+    /// Get segment configuration for a node (looks up by finding root node)
+    @MainActor
+    public func getSegmentConfig(for nodeID: NodeID) -> SegmentConfig? {
+        // First check if this node itself is a segment root
+        if let config = segmentConfigs[nodeID] {
+            return config
+        }
+        
+        // Otherwise, traverse up hierarchy to find segment root
+        guard let rootID = findSegmentRoot(for: nodeID) else {
+            return nil
+        }
+        
+        return segmentConfigs[rootID]
+    }
+    
+    /// Find the root node of the segment this node belongs to
+    @MainActor
+    public func findSegmentRoot(for nodeID: NodeID) -> NodeID? {
+        // Build parent map from hierarchy edges
+        var parentMap: [NodeID: NodeID] = [:]
+        for edge in edges where edge.type == .hierarchy {
+            parentMap[edge.target] = edge.from
+        }
+        
+        // Traverse up to find root (node with no parent or node that has a segment config)
+        var currentID = nodeID
+        var visited = Set<NodeID>()
+        
+        while let parentID = parentMap[currentID] {
+            // Avoid infinite loops
+            guard !visited.contains(currentID) else { break }
+            visited.insert(currentID)
+            
+            // If parent has a segment config, that's our root
+            if segmentConfigs[parentID] != nil {
+                return parentID
+            }
+            
+            currentID = parentID
+        }
+        
+        // If we reached a root and it has a config, return it
+        if segmentConfigs[currentID] != nil {
+            return currentID
+        }
+        
+        return nil
+    }
+    
+    /// Set or update segment configuration for a root node
+    @MainActor
+    public func setSegmentConfig(
+        rootNodeID: NodeID,
+        direction: LayoutDirection,
+        strength: CGFloat = 0.7,
+        nodeSpacing: CGFloat = 60.0
+    ) {
+        let config = SegmentConfig(
+            rootNodeID: rootNodeID,
+            direction: direction,
+            strength: strength,
+            nodeSpacing: nodeSpacing
+        )
+        segmentConfigs[rootNodeID] = config
+        changesPublisher.send()
+        
+        // Trigger layout update
+        Task { @MainActor in
+            await startSimulation()
+        }
+    }
+    
+    /// Remove segment configuration
+    @MainActor
+    public func removeSegmentConfig(rootNodeID: NodeID) {
+        segmentConfigs.removeValue(forKey: rootNodeID)
+        changesPublisher.send()
+    }
+    
+    /// Get all nodes belonging to a segment (root + descendants via hierarchy edges)
+    @MainActor
+    public func getSegmentNodes(rootNodeID: NodeID) -> [any NodeProtocol] {
+        var segmentNodes: [any NodeProtocol] = []
+        
+        // Find root node
+        guard let rootNode = nodes.first(where: { $0.id == rootNodeID }) else {
+            return []
+        }
+        
+        segmentNodes.append(rootNode.unwrapped)
+        
+        // Build adjacency map for hierarchy edges
+        var childrenMap: [NodeID: [NodeID]] = [:]
+        for edge in edges where edge.type == .hierarchy {
+            childrenMap[edge.from, default: []].append(edge.target)
+        }
+        
+        // BFS to collect all descendants
+        var queue = [rootNodeID]
+        var visited = Set<NodeID>([rootNodeID])
+        
+        while !queue.isEmpty {
+            let currentID = queue.removeFirst()
+            
+            if let children = childrenMap[currentID] {
+                for childID in children {
+                    guard !visited.contains(childID) else { continue }
+                    visited.insert(childID)
+                    
+                    if let childNode = nodes.first(where: { $0.id == childID }) {
+                        segmentNodes.append(childNode.unwrapped)
+                        queue.append(childID)
+                    }
+                }
+            }
+        }
+        
+        return segmentNodes
     }
 }

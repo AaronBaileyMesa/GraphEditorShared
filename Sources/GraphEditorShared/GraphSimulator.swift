@@ -37,6 +37,7 @@ public actor GraphSimulator {
     private let setNodes: ([any NodeProtocol]) async -> Void  // Updated: Polymorphic
     private let getEdges: () async -> [GraphEdge]
     private let getDraggedNodeID: () async -> NodeID?  // NEW: Get currently dragged node to exclude from physics
+    private let getSegmentConfigs: () async -> [NodeID: SegmentConfig]  // NEW: Get segment configurations
     private let onStable: (() -> Void)?  // New: Optional callback
     
     private let onPostStable: (() -> Void)?
@@ -53,6 +54,7 @@ public actor GraphSimulator {
          getVisibleNodes: @escaping () async -> [any NodeProtocol],
          getVisibleEdges: @escaping () async -> [GraphEdge],
          getDraggedNodeID: @escaping () async -> NodeID? = { nil },  // NEW: Default returns nil
+         getSegmentConfigs: @escaping () async -> [NodeID: SegmentConfig] = { [:] },  // NEW: Default returns empty
          physicsEngine: PhysicsEngine,
          onStable: (() -> Void)? = nil,
          onPostStable: (() -> Void)? = nil,
@@ -68,6 +70,7 @@ public actor GraphSimulator {
         self.getEphemerals = getEphemerals  // NEW
         self.setEphemerals = setEphemerals  // NEW
         self.getDraggedNodeID = getDraggedNodeID  // NEW
+        self.getSegmentConfigs = getSegmentConfigs  // NEW
         self.physicsEngine = physicsEngine
         self.onStable = onStable
         
@@ -138,7 +141,9 @@ public actor GraphSimulator {
     
     private func clearVelocityHistory() {
         recentVelocities.removeAll(keepingCapacity: true)
-        logger.debug("Velocity history cleared – graph visibility changed")
+        if LogManager.verboseSimulationLogging {
+            logger.debug("Velocity history cleared – graph visibility changed")
+        }
     }
     
     private func runSimulationLoop(baseInterval: TimeInterval, nodeCount: Int) async {
@@ -166,12 +171,14 @@ public actor GraphSimulator {
             physicsEngine.alpha *= (1 - Constants.Physics.alphaDecay)
             iterations += 1
             
-            // Reduced logging: only log every 10th iteration
-            if iterations % 10 == 0 {
+            // Reduced logging: only log every 10th iteration when verbose logging is enabled
+            if LogManager.verboseSimulationLogging && iterations % 10 == 0 {
                 logger.info("Iteration \(iterations): shouldContinue = \(shouldContinue) | recent max velocity: \(String(format: "%.3f", self.recentVelocities.max() ?? 0))")
             }
             if !shouldContinue {
-                logger.info("Simulation stabilized after \(iterations) iterations")
+                if LogManager.verboseSimulationLogging {
+                    logger.info("Simulation stabilized after \(iterations) iterations")
+                }
 #if DEBUG
                 signposter.endInterval("SimulationLoop", loopState, "Stabilized after \(iterations) iterations")
 #endif
@@ -180,7 +187,9 @@ public actor GraphSimulator {
         }
         
         if iterations < maxIterations && !Task.isCancelled {
-            logger.info("Simulation stabilized; waiting \(self.postStableDelay)s for inactivity pause")
+            if LogManager.verboseSimulationLogging {
+                logger.info("Simulation stabilized; waiting \(self.postStableDelay)s for inactivity pause")
+            }
             try? await Task.sleep(for: .seconds(postStableDelay))
             if !Task.isCancelled {
                 onPostStable?()
@@ -232,7 +241,8 @@ public actor GraphSimulator {
             fixedIDs.insert(draggedID)
         }
         
-        let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges, fixedIDs: fixedIDs)
+        let segmentConfigs = await getSegmentConfigs()
+        let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges, fixedIDs: fixedIDs, segmentConfigs: segmentConfigs)
         // let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
         
         // Removed stray debug line that referenced self.stepCount, self.engine, and finalStable before declaration
@@ -305,7 +315,7 @@ public actor GraphSimulator {
             }
         
         // Improved stability criteria - less strict to allow convergence
-        let absoluteVelocityThreshold: CGFloat = 0.25   // Per-node average threshold for stability
+        let absoluteVelocityThreshold: CGFloat = 0.6   // Per-node average threshold for stability (increased from 0.25 for faster settling)
             let requiredStableSamples: Int = 15              // Reduced from 20 to converge faster
             
             let recentCount = recentVelocities.count
@@ -320,8 +330,8 @@ public actor GraphSimulator {
             
             let finalStable = isStable && isNearlyFlat
             
-            // Reduced logging: only log every 10 steps
-            if physicsEngine.stepCount % 10 == 0 {
+            // Reduced logging: only log every 10 steps when verbose logging is enabled
+            if LogManager.verboseSimulationLogging && physicsEngine.stepCount % 10 == 0 {
                 logger.debug("Step \(self.physicsEngine.stepCount): avg velocity=\(String(format: "%.3f", avgVelocity)) (total=\(String(format: "%.2f", totalVelocity))), alpha=\(String(format: "%.3f", self.physicsEngine.alpha)), stable=\(finalStable)")
             }
             

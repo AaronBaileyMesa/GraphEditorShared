@@ -116,8 +116,8 @@ public struct HierarchyLayoutHelper {
             let layerForce = deltaY * Constants.Physics.layerStiffness
             totalLayerForce += abs(layerForce)
             
-            // Log first few nodes to see what's happening
-            if nodesLogged < 3 {
+            // Log first few nodes to see what's happening (only when verbose logging is enabled)
+            if LogManager.verboseSimulationLogging && nodesLogged < 3 {
                 logger.debug("Node \(node.id): currentY=\(String(format: "%.1f", node.position.y)), targetY=\(String(format: "%.1f", targetY)), deltaY=\(String(format: "%.1f", deltaY)), currentX=\(String(format: "%.1f", node.position.x)), depth=\(depth)")
                 nodesLogged += 1
             }
@@ -130,7 +130,9 @@ public struct HierarchyLayoutHelper {
             )
         }
         
-        logger.debug("Hierarchy: maxDepth=\(maxDepth), spacing=\(String(format: "%.1f", dynamicSpacing)), baseY=\(String(format: "%.1f", baseY)), totalLayerForce=\(String(format: "%.2f", totalLayerForce))")
+        if LogManager.verboseSimulationLogging {
+            logger.debug("Hierarchy: maxDepth=\(maxDepth), spacing=\(String(format: "%.1f", dynamicSpacing)), baseY=\(String(format: "%.1f", baseY)), totalLayerForce=\(String(format: "%.2f", totalLayerForce))")
+        }
 
         return updatedForces
     }

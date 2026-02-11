@@ -270,6 +270,40 @@ extension GraphModel {
                 nodes.first(where: { $0.id == edge.target })?.unwrapped as? TaskNode
             }
     }
+    
+    /// Adds a task to a meal with automatic positioning and hierarchy edge
+    @MainActor
+    public func addTaskToMeal(mealID: NodeID, taskType: TaskType, estimatedTime: Int = 30) async {
+        guard let mealIndex = nodes.firstIndex(where: { $0.id == mealID }) else { return }
+        let meal = nodes[mealIndex].unwrapped
+        
+        // Find last task in chain to append after it
+        let existingTasks = orderedTasks(for: mealID)
+        let parentID: NodeID
+        let parentPos: CGPoint
+        
+        if let lastTask = existingTasks.last {
+            parentID = lastTask.id
+            parentPos = lastTask.position
+        } else {
+            parentID = mealID
+            parentPos = meal.position
+        }
+        
+        // Position new task offset from parent
+        let angle = CGFloat.random(in: 0 ..< .pi * 2)
+        let dist: CGFloat = 80
+        let taskPos = parentPos + CGPoint(x: dist * cos(angle), y: dist * sin(angle))
+        
+        let task = await addTask(
+            type: taskType,
+            estimatedTime: estimatedTime,
+            at: taskPos
+        )
+        
+        // Create hierarchy edge from parent (meal or last task)
+        await addEdge(from: parentID, target: task.id, type: .hierarchy)
+    }
 
     /// Calculates total work time for a meal
     @MainActor

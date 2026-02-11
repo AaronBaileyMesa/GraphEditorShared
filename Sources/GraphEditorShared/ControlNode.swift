@@ -98,6 +98,21 @@ public struct ControlNode: NodeProtocol {
         case .duplicate:        "doc.on.doc.fill"
         case .addToggleChild:   "checklist"
         case .toggleExpand:     "chevron.right"  // Default, will be overridden based on state
+        
+        // Workflow controls
+        case .startWorkflow:    "play.fill"
+        case .stopWorkflow:     "stop.fill"
+        case .completeTask:     "checkmark.circle.fill"
+        case .startTask:        "play.circle.fill"
+        case .blockTask:        "exclamationmark.triangle.fill"
+        case .unblockTask:      "play.circle.fill"
+        case .declineTask:      "xmark.circle.fill"
+        case .resetTask:        "arrow.counterclockwise"
+        case .addShopTask:      "cart.fill"
+        case .addPrepTask:      "fork.knife"
+        case .addCookTask:      "flame.fill"
+        case .addRecipe:        "book.fill"
+        case .scaleRecipe:      "person.2.fill"
         }
 
         return AnyView(

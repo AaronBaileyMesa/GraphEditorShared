@@ -68,7 +68,9 @@ public class PhysicsEngine {
     /// Only affects vertical dimension; horizontal stays at screen width
     public func updateSimulationBounds(_ newBounds: CGSize) {
         guard newBounds != simulationBounds else { return }
-        Self.logger.debug("Simulation bounds updated: \(String(format: "%.0fx%.0f", self.simulationBounds.width, self.simulationBounds.height)) -> \(String(format: "%.0fx%.0f", newBounds.width, newBounds.height))")
+        if LogManager.verboseSimulationLogging {
+            Self.logger.debug("Simulation bounds updated: \(String(format: "%.0fx%.0f", self.simulationBounds.width, self.simulationBounds.height)) -> \(String(format: "%.0fx%.0f", newBounds.width, newBounds.height))")
+        }
         simulationBounds = newBounds
         // Recreate calculators with new bounds since they store bounds internally
         centeringCalculator = CenteringCalculator(simulationBounds: newBounds)
@@ -87,11 +89,11 @@ public class PhysicsEngine {
     public var isPaused: Bool = false
     
     @discardableResult
-    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge], fixedIDs: Set<NodeID>? = nil) -> ([any NodeProtocol], Bool) {
+    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge], fixedIDs: Set<NodeID>? = nil, segmentConfigs: [NodeID: SegmentConfig] = [:]) -> ([any NodeProtocol], Bool) {
         if isPaused || stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
         stepCount += 1
         
-        if stepCount == 1 {
+        if stepCount == 1 && LogManager.verboseSimulationLogging {
             Self.logger.debug("First simulation step with layoutMode=\(String(describing: self.layoutMode)), nodes=\(nodes.count), edges=\(edges.count)")
         }
         
@@ -110,7 +112,7 @@ public class PhysicsEngine {
         
         let (forces, quadtree) = computeRepulsions(nodes: nodes)
         var updatedForces = applyAttractions(forces: forces, edges: edges, nodes: nodes)
-        updatedForces = applyCentering(forces: updatedForces, nodes: nodes, layoutMode: layoutMode)
+        updatedForces = applyCentering(forces: updatedForces, nodes: nodes, layoutMode: layoutMode, edges: edges, segmentConfigs: segmentConfigs)
 
         // Apply layer forces in hierarchy mode
         if layoutMode == .hierarchy {
@@ -119,7 +121,9 @@ public class PhysicsEngine {
                 cachedDepths = HierarchyLayoutHelper.calculateDepths(nodes: nodes, edges: edges)
                 lastDepthUpdateStep = stepCount
                 let maxDepth = cachedDepths.values.max() ?? 0
-                Self.logger.debug("Hierarchical layout: calculated depths for \(self.cachedDepths.count) nodes, maxDepth=\(maxDepth)")
+                if LogManager.verboseSimulationLogging {
+                    Self.logger.debug("Hierarchical layout: calculated depths for \(self.cachedDepths.count) nodes, maxDepth=\(maxDepth)")
+                }
 
                 // Check if we need to expand bounds vertically to accommodate hierarchy
                 // For deep hierarchies (10+), use aggressive expansion to maintain 40pt spacing
@@ -132,13 +136,26 @@ public class PhysicsEngine {
                     let screenWidth = simulationBounds.width
                     let newBounds = CGSize(width: screenWidth, height: requiredHeight)
                     updateSimulationBounds(newBounds)
-                    Self.logger.info("Expanded simulation bounds vertically to accommodate depth \(maxDepth): height \(String(format: "%.0f", requiredHeight)) with \(String(format: "%.0f", targetSpacing))pt spacing")
+                    if LogManager.verboseSimulationLogging {
+                        Self.logger.info("Expanded simulation bounds vertically to accommodate depth \(maxDepth): height \(String(format: "%.0f", requiredHeight)) with \(String(format: "%.0f", targetSpacing))pt spacing")
+                    }
                 }
             }
             updatedForces = HierarchyLayoutHelper.applyLayerForces(
                 forces: updatedForces,
                 nodes: nodes,
                 depths: cachedDepths,
+                simulationBounds: simulationBounds
+            )
+        }
+        
+        // Apply directional layout forces for configured segments
+        if !segmentConfigs.isEmpty {
+            updatedForces = DirectionalLayoutCalculator.applyDirectionalForces(
+                forces: updatedForces,
+                nodes: nodes,
+                edges: edges,
+                segmentConfigs: segmentConfigs,
                 simulationBounds: simulationBounds
             )
         }
@@ -198,11 +215,11 @@ public class PhysicsEngine {
         return result
     }
     
-    private func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode) -> [NodeID: CGPoint] {
+    private func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode, edges: [GraphEdge], segmentConfigs: [NodeID: SegmentConfig]) -> [NodeID: CGPoint] {
         #if DEBUG
         let centeringState = Self.signposter.beginInterval("CenteringCalculation")
         #endif
-        let result = centeringCalculator.applyCentering(forces: forces, nodes: nodes, layoutMode: layoutMode)
+        let result = centeringCalculator.applyCentering(forces: forces, nodes: nodes, layoutMode: layoutMode, edges: edges, segmentConfigs: segmentConfigs)
         #if DEBUG
         Self.signposter.endInterval("CenteringCalculation", centeringState)
         #endif
@@ -258,10 +275,10 @@ public class PhysicsEngine {
     }
     
     private func logVelocityIfNeeded(nodes: [any NodeProtocol]) {
-        if stepCount % 10 == 0 {  // Reduced logging frequency
+        if LogManager.verboseSimulationLogging && stepCount % 10 == 0 {  // Reduced logging frequency
             let totalVel = nodes.reduce(0.0) { $0 + $1.velocity.magnitude }
             Self.logger.debugLog("Step \(stepCount): Total velocity = \(String(format: "%.2f", totalVel)), alpha = \(String(format: "%.3f", alpha))")
-            
+
             // Extra logging for hierarchical mode to debug positioning
             if layoutMode == .hierarchy && stepCount % 50 == 0 {
                 Self.logger.debug("Node positions at step \(self.stepCount):")
@@ -270,7 +287,7 @@ public class PhysicsEngine {
                     Self.logger.debug("  Node \(node.id): pos=(\(String(format: "%.1f", node.position.x)), \(String(format: "%.1f", node.position.y))), vel=\(String(format: "%.2f", node.velocity.magnitude)), depth=\(depth)")
                 }
             }
-            
+
             #if DEBUG
             Self.signposter.emitEvent("VelocityCheck", "Step \(self.stepCount): Total velocity = \(totalVel)")
             #endif

@@ -46,6 +46,7 @@ extension GraphModel {
                 self.associationEdgeColor = loadedState.associationEdgeColor.color
                 self.uiConfig = loadedState.uiConfig
                 self.globalUiConfig = loadedState.globalUiConfig
+                self.segmentConfigs = loadedState.segmentConfigs
                 // Use saved nextNodeLabel if available, otherwise compute from nodes
                 self.nextNodeLabel = loadedState.nextNodeLabel
                 self.layoutMode = loadedState.layoutMode
@@ -72,6 +73,7 @@ extension GraphModel {
                             self.associationEdgeColor = loadedState.associationEdgeColor.color
                             self.uiConfig = loadedState.uiConfig
                             self.globalUiConfig = loadedState.globalUiConfig
+                            self.segmentConfigs = loadedState.segmentConfigs
                             // Use saved nextNodeLabel if available, otherwise compute from nodes
                             self.nextNodeLabel = loadedState.nextNodeLabel
                             self.layoutMode = loadedState.layoutMode
@@ -163,7 +165,8 @@ extension GraphModel {
                 globalUiConfig: globalUiConfig,
                 isSimulating: isSimulating,  // NEW: Save simulation state
                 nextNodeLabel: nextNodeLabel,  // FIXED: Save nextNodeLabel to prevent label collisions
-                layoutMode: layoutMode
+                layoutMode: layoutMode,
+                segmentConfigs: segmentConfigs
             )
             try await storage.saveGraphState(state, for: currentGraphName)
             Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for '\(currentGraphName)'")
