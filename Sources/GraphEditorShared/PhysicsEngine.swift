@@ -339,6 +339,22 @@ public class PhysicsEngine {
         defer { Self.signposter.endInterval("CenterNodes", state) }
         #endif
         guard !nodes.isEmpty else { return [] }
+        
+        // Don't center if there are tables with seated persons - they should stay fixed
+        let hasSeatedTable = nodes.contains { node in
+            if let table = node as? TableNode {
+                return !table.seatingAssignments.isEmpty
+            }
+            return false
+        }
+        
+        if hasSeatedTable {
+            #if DEBUG
+            print("📐 [PhysicsEngine.centerNodes] Skipping centering - found table with seated persons")
+            #endif
+            return nodes
+        }
+        
         let targetCenter = center ?? CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
         
         // Compute current centroid
@@ -349,6 +365,11 @@ public class PhysicsEngine {
         // Create updated nodes with translation
         let deltaX = targetCenter.x - centroid.x
         let deltaY = targetCenter.y - centroid.y
+        
+        #if DEBUG
+        print("📐 [PhysicsEngine.centerNodes] Centroid: (\(String(format: "%.2f", centroid.x)),\(String(format: "%.2f", centroid.y))), Target: (\(String(format: "%.2f", targetCenter.x)),\(String(format: "%.2f", targetCenter.y))), Delta: (\(String(format: "%.2f", deltaX)),\(String(format: "%.2f", deltaY)))")
+        #endif
+        
         return nodes.map { node in
             let newPosition = CGPoint(x: node.position.x + deltaX, y: node.position.y + deltaY)
             return node.with(position: newPosition, velocity: node.velocity)
