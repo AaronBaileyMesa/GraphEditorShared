@@ -48,9 +48,9 @@ struct CenteringCalculator {
             let reducedForce = Constants.Physics.centeringForce * 0.3  // Much weaker than network mode
             
             for node in nodes {
-                // Skip nodes that belong to a directionally-laid-out segment
-                guard !segmentMembership.contains(node.id) else { continue }
-                
+                // Skip nodes that belong to a directionally-laid-out segment or are tables
+                guard !segmentMembership.contains(node.id) && !(node is TableNode) else { continue }
+
                 let deltaX = targetPoint.x - node.position.x
                 let deltaY = targetPoint.y - node.position.y
                 let distToTarget = hypot(deltaX, deltaY)
@@ -63,9 +63,9 @@ struct CenteringCalculator {
             // Network mode: standard centering to middle
             let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
             for node in nodes {
-                // Skip nodes that belong to a directionally-laid-out segment
-                guard !segmentMembership.contains(node.id) else { continue }
-                
+                // Skip nodes that belong to a directionally-laid-out segment or are tables
+                guard !segmentMembership.contains(node.id) && !(node is TableNode) else { continue }
+
                 let deltaX = center.x - node.position.x
                 let deltaY = center.y - node.position.y
                 let distToCenter = hypot(deltaX, deltaY)
