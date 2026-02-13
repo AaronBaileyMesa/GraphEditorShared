@@ -241,9 +241,11 @@ public actor GraphSimulator {
             fixedIDs.insert(draggedID)
         }
         
-        // Fix seated person nodes - they should stay at their assigned table positions
+        // Fix seated person nodes AND their tables - they should stay at their assigned positions
         for node in visibleNodes {
-            if let table = node as? TableNode {
+            if let table = node as? TableNode, !table.seatingAssignments.isEmpty {
+                // Fix the table itself so it doesn't drift
+                fixedIDs.insert(table.id)
                 // Fix all persons seated at this table
                 for personID in table.seatingAssignments.values {
                     fixedIDs.insert(personID)
