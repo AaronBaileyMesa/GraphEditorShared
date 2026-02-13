@@ -260,7 +260,26 @@ public actor GraphSimulator {
         }
         
         let segmentConfigs = await getSegmentConfigs()
+
+        // Debug: Log table position BEFORE physics step
+        #if DEBUG
+        for node in visibleNodes {
+            if let table = node as? TableNode {
+                print("📍 [GraphSimulator] Table \(table.id.uuidString.prefix(8)) position BEFORE physics: (\(String(format: "%.2f", table.position.x)),\(String(format: "%.2f", table.position.y)))")
+            }
+        }
+        #endif
+
         let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges, fixedIDs: fixedIDs, segmentConfigs: segmentConfigs)
+
+        // Debug: Log table position AFTER physics step
+        #if DEBUG
+        for node in updatedVisibleNodes {
+            if let table = node as? TableNode {
+                print("📍 [GraphSimulator] Table \(table.id.uuidString.prefix(8)) position AFTER physics: (\(String(format: "%.2f", table.position.x)),\(String(format: "%.2f", table.position.y)))")
+            }
+        }
+        #endif
         // let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }
         
         // Removed stray debug line that referenced self.stepCount, self.engine, and finalStable before declaration
