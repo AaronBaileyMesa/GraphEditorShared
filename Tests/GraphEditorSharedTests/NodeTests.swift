@@ -184,11 +184,15 @@ struct NodeTests {
     @Test func testNodeContentDecodingInvalidType() throws {
         let invalidJSON = """
         {"type": "invalid", "value": "test"}
-        """.data(using: .utf8)!
+        """
+        guard let jsonData = invalidJSON.data(using: .utf8) else {
+            Issue.record("Failed to convert test JSON to Data")
+            return
+        }
         
         let decoder = JSONDecoder()
         #expect(throws: DecodingError.self) {
-            _ = try decoder.decode(NodeContent.self, from: invalidJSON)
+            _ = try decoder.decode(NodeContent.self, from: jsonData)
         }
     }
     

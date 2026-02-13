@@ -49,8 +49,7 @@ public struct TransactionNode: NodeProtocol {
             ]
         }
         set {
-            // Contents are read-only for TransactionNode
-            // Updates should go through with(position:velocity:contents:)
+            _ = newValue  // Contents are read-only for TransactionNode
         }
     }
 

@@ -61,7 +61,7 @@ public struct TaskNode: NodeProtocol {
             return result
         }
         set {
-            // Contents are read-only
+            _ = newValue  // Contents are read-only
         }
     }
 

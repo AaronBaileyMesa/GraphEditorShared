@@ -45,7 +45,7 @@ public struct RecipeNode: NodeProtocol {
             ]
         }
         set {
-            // Contents are read-only for RecipeNode
+            _ = newValue  // Contents are read-only for RecipeNode
         }
     }
 

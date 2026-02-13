@@ -40,6 +40,9 @@ extension GraphModel {
                 let loadedState = try await storage.loadGraphState(for: name)
                 Self.storageLogger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")
                 
+                // Begin bulk operation to prevent simulation from running during load
+                await beginBulkOperation()
+                
                 self.nodes = loadedState.nodes
                 self.edges = loadedState.edges
                 self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
@@ -47,14 +50,25 @@ extension GraphModel {
                 self.uiConfig = loadedState.uiConfig
                 self.globalUiConfig = loadedState.globalUiConfig
                 self.segmentConfigs = loadedState.segmentConfigs
+                self.tableSeatingsByMeal = loadedState.tableSeatingsByMeal
                 // Use saved nextNodeLabel if available, otherwise compute from nodes
                 self.nextNodeLabel = loadedState.nextNodeLabel
                 self.layoutMode = loadedState.layoutMode
                 // Sync layout mode to physics engine
                 physicsEngine.updateLayoutMode(loadedState.layoutMode)
 
+                // Rebuild person-to-table cache for performance
+                rebuildPersonToTableCache()
+                
+                // Migrate seated persons to correct positions (for updated seat calculations)
+                migrateSeatedPersonPositions()
+                
+                // End bulk operation first, THEN restore simulation state
+                await endBulkOperation()
+                
+                // Now restore simulation state from saved graph
                 self.isSimulating = loadedState.isSimulating
-                if self.isSimulating {
+                if loadedState.isSimulating {
                     await startSimulation()
                 }
             } catch let storageError as GraphStorageError {
@@ -67,6 +81,9 @@ extension GraphModel {
                             let loadedState = try await storage.loadGraphState(for: "default")
                             Self.storageLogger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for default")
                             
+                            // Begin bulk operation to prevent simulation during load
+                            await beginBulkOperation()
+                            
                             self.nodes = loadedState.nodes
                             self.edges = loadedState.edges
                             self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
@@ -74,14 +91,25 @@ extension GraphModel {
                             self.uiConfig = loadedState.uiConfig
                             self.globalUiConfig = loadedState.globalUiConfig
                             self.segmentConfigs = loadedState.segmentConfigs
+                            self.tableSeatingsByMeal = loadedState.tableSeatingsByMeal
                             // Use saved nextNodeLabel if available, otherwise compute from nodes
                             self.nextNodeLabel = loadedState.nextNodeLabel
                             self.layoutMode = loadedState.layoutMode
                             // Sync layout mode to physics engine
                             physicsEngine.updateLayoutMode(loadedState.layoutMode)
 
+                            // Rebuild person-to-table cache for performance
+                            rebuildPersonToTableCache()
+                            
+                            // Migrate seated persons to correct positions (for updated seat calculations)
+                            migrateSeatedPersonPositions()
+
+                            // End bulk operation first, THEN restore simulation state
+                            await endBulkOperation()
+                            
+                            // Now restore simulation state from saved graph
                             self.isSimulating = loadedState.isSimulating
-                            if self.isSimulating {
+                            if loadedState.isSimulating {
                                 await startSimulation()
                             }
                         } catch let defaultError as GraphStorageError {
@@ -140,12 +168,18 @@ extension GraphModel {
             globalUiConfig = []
             self.isSimulating = false  // Added to ensure consistent default
             
+            // Begin bulk operation to prevent simulation during initialization
+            await beginBulkOperation()
+            
             // Add default nodes and edge
             let node1 = await addNode(at: CGPoint(x: 0, y: 0))
             let node2 = await addNode(at: CGPoint(x: 100, y: 0))
             await addEdge(from: node1.id, target: node2.id, type: .association)
             
             nextNodeLabel = 3
+            
+            // End bulk operation
+            await endBulkOperation()
             
             invalidateHiddenNodesCache()
             objectWillChange.send()
@@ -166,7 +200,8 @@ extension GraphModel {
                 isSimulating: isSimulating,  // NEW: Save simulation state
                 nextNodeLabel: nextNodeLabel,  // FIXED: Save nextNodeLabel to prevent label collisions
                 layoutMode: layoutMode,
-                segmentConfigs: segmentConfigs
+                segmentConfigs: segmentConfigs,
+                tableSeatingsByMeal: tableSeatingsByMeal
             )
             try await storage.saveGraphState(state, for: currentGraphName)
             Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for '\(currentGraphName)'")
@@ -273,9 +308,15 @@ extension GraphModel {
     }
     
     public func switchToGraph(named name: String) async throws {
+        // Validate that the graph exists before switching
+        let existingNames = try await storage.listGraphNames()
+        guard existingNames.contains(name) else {
+            throw GraphStorageError.graphNotFound(name)
+        }
+        
         nodes = []  // Clear before load
-            edges = []
-            currentGraphName = name
+        edges = []
+        currentGraphName = name
         try await loadGraph()
     }
 }

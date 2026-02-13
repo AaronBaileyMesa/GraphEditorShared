@@ -23,7 +23,7 @@ extension GraphModel {
         // Traverse backwards through hierarchy edges until we find a MealNode
         while true {
             // Check if current node is a MealNode
-            if let node = nodes.first(where: { $0.id == currentID })?.unwrapped as? MealNode {
+            if nodes.first(where: { $0.id == currentID })?.unwrapped is MealNode {
                 return currentID
             }
 

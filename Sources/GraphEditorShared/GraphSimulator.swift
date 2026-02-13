@@ -223,7 +223,7 @@ public actor GraphSimulator {
         let visibleNodes = await getVisibleNodes()
         let visibleEdges = await getVisibleEdges()
         
-        // Build fixedIDs: control nodes + their owner + dragged node (to prevent physics from moving them during drag)
+        // Build fixedIDs: control nodes + their owner + dragged node + seated persons (to prevent physics from moving them)
         var fixedIDs = Set<NodeID>()
         var ownerIDs = Set<NodeID>()
         
@@ -239,6 +239,16 @@ public actor GraphSimulator {
         }
         if let draggedID = await getDraggedNodeID() {
             fixedIDs.insert(draggedID)
+        }
+        
+        // Fix seated person nodes - they should stay at their assigned table positions
+        for node in visibleNodes {
+            if let table = node as? TableNode {
+                // Fix all persons seated at this table
+                for personID in table.seatingAssignments.values {
+                    fixedIDs.insert(personID)
+                }
+            }
         }
         
         let segmentConfigs = await getSegmentConfigs()

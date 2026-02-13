@@ -24,9 +24,10 @@ public struct DirectionalLayoutCalculator {
     ) -> [NodeID: NodeID] {  // nodeID -> rootNodeID
         var membership: [NodeID: NodeID] = [:]
         
-        // Build adjacency map for hierarchy edges
+        // Build adjacency map for hierarchy and precedes edges
+        // precedes edges allow decision trees to use directional layout
         var childrenMap: [NodeID: [NodeID]] = [:]
-        for edge in edges where edge.type == .hierarchy {
+        for edge in edges where edge.type == .hierarchy || edge.type == .precedes {
             childrenMap[edge.from, default: []].append(edge.target)
         }
         
@@ -79,6 +80,7 @@ public struct DirectionalLayoutCalculator {
             edges: edges,
             segmentConfigs: segmentConfigs
         )
+        print("🔍 DirectionalLayout: Built membership map with \(membership.count) nodes")
         
         // Calculate depths within each segment
         let depths = calculateSegmentDepths(
@@ -87,11 +89,13 @@ public struct DirectionalLayoutCalculator {
             segmentConfigs: segmentConfigs,
             membership: membership
         )
+        print("📏 DirectionalLayout: Calculated depths for \(depths.count) nodes")
         
         // Apply forces for each segment
         for (rootID, config) in segmentConfigs {
+            let segmentNodeCount = nodes.filter { membership[$0.id] == rootID }.count
+            print("🎨 DirectionalLayout: Segment \(rootID.uuidString.prefix(8)) - direction=\(config.direction.rawValue), nodes=\(segmentNodeCount)")
             if LogManager.verboseSimulationLogging {
-                let segmentNodeCount = nodes.filter { membership[$0.id] == rootID }.count
                 logger.debug("Segment \(rootID.uuidString.prefix(8)): direction=\(config.direction.rawValue), nodes=\(segmentNodeCount)")
             }
             
@@ -120,9 +124,10 @@ public struct DirectionalLayoutCalculator {
     ) -> [NodeID: Int] {
         var depths: [NodeID: Int] = [:]
         
-        // Build hierarchy adjacency map
+        // Build hierarchy and precedes adjacency map
+        // precedes edges allow decision trees to use directional layout
         var childrenMap: [NodeID: [NodeID]] = [:]
-        for edge in edges where edge.type == .hierarchy {
+        for edge in edges where edge.type == .hierarchy || edge.type == .precedes {
             childrenMap[edge.from, default: []].append(edge.target)
         }
         
@@ -180,8 +185,10 @@ public struct DirectionalLayoutCalculator {
         )
         
         // Calculate anchor position (where depth 0 should be)
+        // Use the root node's actual position as the anchor to preserve initial positioning
         let anchor = calculateAnchorPosition(
             segmentNodes: segmentNodes,
+            rootID: rootID,
             direction: config.direction,
             spacing: spacing,
             maxDepth: maxDepth,
@@ -189,16 +196,30 @@ public struct DirectionalLayoutCalculator {
             depths: depths
         )
         
-        // Calculate alignment target (average position on the unconstrained axis)
-        // This keeps all nodes aligned on a straight line
+        // Calculate alignment target (use root node's position as fixed reference)
+        // This prevents the moving target problem where recalculating the average
+        // every frame causes oscillation
         let alignmentTarget: CGFloat
-        switch config.direction {
-        case .horizontal:
-            // For horizontal layout, align all nodes to the same Y position
-            alignmentTarget = segmentNodes.map { $0.position.y }.reduce(0, +) / CGFloat(segmentNodes.count)
-        case .vertical:
-            // For vertical layout, align all nodes to the same X position
-            alignmentTarget = segmentNodes.map { $0.position.x }.reduce(0, +) / CGFloat(segmentNodes.count)
+        if let rootNode = segmentNodes.first(where: { $0.id == rootID }) {
+            switch config.direction {
+            case .horizontal:
+                // For horizontal layout, align all nodes to root's Y position
+                alignmentTarget = rootNode.position.y
+                logger.debug("  Alignment target (root Y): \(String(format: "%.1f", alignmentTarget))")
+            case .vertical:
+                // For vertical layout, align all nodes to root's X position
+                alignmentTarget = rootNode.position.x
+                logger.debug("  Alignment target (root X): \(String(format: "%.1f", alignmentTarget))")
+            }
+        } else {
+            // Fallback: use current average if root not found
+            logger.debug("  WARNING: Root node not found in segment!")
+            switch config.direction {
+            case .horizontal:
+                alignmentTarget = segmentNodes.map { $0.position.y }.reduce(0, +) / CGFloat(segmentNodes.count)
+            case .vertical:
+                alignmentTarget = segmentNodes.map { $0.position.x }.reduce(0, +) / CGFloat(segmentNodes.count)
+            }
         }
         
         // Apply forces along both axes
@@ -214,7 +235,7 @@ public struct DirectionalLayoutCalculator {
                 let forceX = (targetDepthPosition - node.position.x) * config.effectiveStiffness
                 let forceY = (alignmentTarget - node.position.y) * config.effectiveStiffness
                 
-                if LogManager.verboseSimulationLogging && (abs(forceX) > 1.0 || abs(forceY) > 1.0) {
+                if abs(forceX) > 1.0 || abs(forceY) > 1.0 {
                     logger.debug("  Node depth=\(depth): currentPos=(\(String(format: "%.1f", node.position.x)),\(String(format: "%.1f", node.position.y))), targetPos=(\(String(format: "%.1f", targetDepthPosition)),\(String(format: "%.1f", alignmentTarget))), force=(\(String(format: "%.1f", forceX)),\(String(format: "%.1f", forceY)))")
                 }
                 
@@ -227,6 +248,10 @@ public struct DirectionalLayoutCalculator {
                 // Constrain Y based on depth, align X to common line
                 let forceX = (alignmentTarget - node.position.x) * config.effectiveStiffness
                 let forceY = (targetDepthPosition - node.position.y) * config.effectiveStiffness
+                
+                if abs(forceX) > 1.0 || abs(forceY) > 1.0 {
+                    logger.debug("  Node depth=\(depth): currentPos=(\(String(format: "%.1f", node.position.x)),\(String(format: "%.1f", node.position.y))), targetPos=(\(String(format: "%.1f", alignmentTarget)),\(String(format: "%.1f", targetDepthPosition))), force=(\(String(format: "%.1f", forceX)),\(String(format: "%.1f", forceY)))")
+                }
                 
                 forces[node.id] = CGPoint(
                     x: currentForce.x + forceX,
@@ -266,43 +291,45 @@ public struct DirectionalLayoutCalculator {
     }
     
     /// Calculate anchor position (where depth 0 nodes should be positioned)
-    /// Centers the entire segment within simulation bounds for optimal layout
+    /// Uses the root node's actual position to preserve initial layout intentions
     private static func calculateAnchorPosition(
         segmentNodes: [any NodeProtocol],
+        rootID: NodeID,
         direction: LayoutDirection,
         spacing: CGFloat,
         maxDepth: Int,
         simulationBounds: CGSize,
         depths: [NodeID: Int]
     ) -> CGFloat {
-        // Calculate total extent of the segment
+        // Find the root node and use its position as the anchor
+        // This preserves the initial positioning set by the template builder
+        if let rootNode = segmentNodes.first(where: { $0.id == rootID }) {
+            switch direction {
+            case .horizontal:
+                return rootNode.position.x
+            case .vertical:
+                return rootNode.position.y
+            }
+        }
+        
+        // Fallback: if root not found, center within simulation bounds
         let totalExtent = CGFloat(maxDepth) * spacing
+        let margin: CGFloat = 20.0
 
         switch direction {
         case .horizontal:
-            // For horizontal layout, center the segment within available width
-            // Leave margin for node radius and comfort
-            let margin: CGFloat = 20.0
             let availableWidth = simulationBounds.width - (2 * margin)
-
             if totalExtent < availableWidth {
-                // Segment fits comfortably - center it
                 return margin + (availableWidth - totalExtent) / 2.0
             } else {
-                // Segment is wide - start from margin
                 return margin
             }
 
         case .vertical:
-            // For vertical layout, center the segment within available height
-            let margin: CGFloat = 20.0
             let availableHeight = simulationBounds.height - (2 * margin)
-
             if totalExtent < availableHeight {
-                // Segment fits comfortably - center it
                 return margin + (availableHeight - totalExtent) / 2.0
             } else {
-                // Segment is tall - start from margin
                 return margin
             }
         }

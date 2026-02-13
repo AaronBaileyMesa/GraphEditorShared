@@ -287,6 +287,39 @@ public struct AnyNode: NodeProtocol {
                 childOrder: toggleNode.childOrder
             )
             self.init(convertedNode)
+        case "mealNode":
+            let node = try container.decode(MealNode.self, forKey: .data)
+            self.init(node)
+        case "taskNode":
+            let node = try container.decode(TaskNode.self, forKey: .data)
+            self.init(node)
+        case "recipeNode":
+            let node = try container.decode(RecipeNode.self, forKey: .data)
+            self.init(node)
+        case "ingredientNode":
+            let node = try container.decode(IngredientNode.self, forKey: .data)
+            self.init(node)
+        case "transactionNode":
+            let node = try container.decode(TransactionNode.self, forKey: .data)
+            self.init(node)
+        case "categoryNode":
+            let node = try container.decode(CategoryNode.self, forKey: .data)
+            self.init(node)
+        case "personNode":
+            let node = try container.decode(PersonNode.self, forKey: .data)
+            self.init(node)
+        case "preferenceNode":
+            let node = try container.decode(PreferenceNode.self, forKey: .data)
+            self.init(node)
+        case "decisionNode":
+            let node = try container.decode(DecisionNode.self, forKey: .data)
+            self.init(node)
+        case "choiceNode":
+            let node = try container.decode(ChoiceNode.self, forKey: .data)
+            self.init(node)
+        case "tableNode":
+            let node = try container.decode(TableNode.self, forKey: .data)
+            self.init(node)
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: container,
                 debugDescription: "Unknown node type: \(type)")
@@ -302,6 +335,39 @@ public struct AnyNode: NodeProtocol {
         if let node = base as? Node {
             // Always encode as "node" type (even collapsible nodes)
             try container.encode("node", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? MealNode {
+            try container.encode("mealNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? TaskNode {
+            try container.encode("taskNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? RecipeNode {
+            try container.encode("recipeNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? IngredientNode {
+            try container.encode("ingredientNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? TransactionNode {
+            try container.encode("transactionNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? CategoryNode {
+            try container.encode("categoryNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? PersonNode {
+            try container.encode("personNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? PreferenceNode {
+            try container.encode("preferenceNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? DecisionNode {
+            try container.encode("decisionNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? ChoiceNode {
+            try container.encode("choiceNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? TableNode {
+            try container.encode("tableNode", forKey: .type)
             try container.encode(node, forKey: .data)
         } else {
             throw EncodingError.invalidValue(base, .init(codingPath: [], debugDescription: "Unknown node type"))

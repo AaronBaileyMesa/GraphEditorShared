@@ -38,11 +38,17 @@ import WatchKit
     public var uiConfig: [NodeID: [ControlConfig]] = [:]
     public var globalUiConfig: [ControlConfig] = []
     @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
+
+    // PERFORMANCE: Cache person-to-table lookups to avoid O(N*M) searches during rendering
+    internal var personToTableCache: [NodeID: NodeID] = [:]  // PersonID -> TableID
     public var isConfigMode: Bool = false
     
     // MARK: - Directional Layout Segments
     @Published public var segmentConfigs: [NodeID: SegmentConfig] = [:]  // Root node ID -> segment config
     @Published public var cancellables: Set<AnyCancellable> = []
+    
+    // MARK: - Table Seating
+    @Published public var tableSeatingsByMeal: [NodeID: TableSeating] = [:]  // Meal ID -> seating arrangement
     
     public var allNodes: [any NodeProtocol] {
         nodes + ephemeralControlNodes
@@ -289,8 +295,10 @@ import WatchKit
         let hidden = hiddenNodeIDs
         
         // Build the set of IDs that are actually visible (persistent nodes)
+        // Filter out ChoiceNodes - they're only shown in DecisionNodeMenuView
         var visibleNodeIDs = Set(nodes.lazy
             .filter { !hidden.contains($0.id) }
+            .filter { !($0.unwrapped is ChoiceNode) }  // Hide choice nodes from visual graph
             .map { $0.id })
         
         var visibleNodes: [any NodeProtocol] = []
@@ -306,9 +314,9 @@ import WatchKit
         // NEW: Add ephemeral IDs to visibleNodeIDs for edge filtering
         visibleNodeIDs.formUnion(ephemeralControlNodes.map { $0.id })
         
-        // Visible persistent hierarchy edges
+        // Visible persistent edges (hierarchy and precedes)
         var visibleEdges = edges.filter { edge in
-            edge.type == .hierarchy &&
+            (edge.type == .hierarchy || edge.type == .precedes) &&
             visibleNodeIDs.contains(edge.from) &&
             visibleNodeIDs.contains(edge.target)
         }

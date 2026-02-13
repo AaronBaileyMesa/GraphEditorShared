@@ -18,11 +18,27 @@ struct CenteringCalculator {
         // Build segment membership if we have segment configs
         var segmentMembership: Set<NodeID> = []
         if !segmentConfigs.isEmpty {
-            segmentMembership = DirectionalLayoutCalculator.buildSegmentMembership(
+            let membershipMap = DirectionalLayoutCalculator.buildSegmentMembership(
                 nodes: nodes,
                 edges: edges,
                 segmentConfigs: segmentConfigs
-            ).keys.reduce(into: Set<NodeID>()) { $0.insert($1) }
+            )
+            segmentMembership = Set(membershipMap.keys)
+            
+            // Debug: Log segment membership details
+            print("🧲 [CenteringCalculator] Segment configs: \(segmentConfigs.count)")
+            print("🧲 [CenteringCalculator] Segment membership: \(segmentMembership.count) nodes")
+            print("🧲 [CenteringCalculator] Total nodes: \(nodes.count)")
+            print("🧲 [CenteringCalculator] Nodes NOT in segments: \(nodes.count - segmentMembership.count)")
+            
+            // Show which nodes are and aren't in segments
+            for node in nodes {
+                if segmentMembership.contains(node.id) {
+                    print("  ✅ Node \(node.id.uuidString.prefix(8)) IN segment")
+                } else {
+                    print("  ❌ Node \(node.id.uuidString.prefix(8)) NOT in segment - will receive centering force")
+                }
+            }
         }
         
         // For hierarchy mode, apply gentle upward-left gravity instead of strong centering

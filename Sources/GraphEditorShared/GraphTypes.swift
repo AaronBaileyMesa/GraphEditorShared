@@ -150,6 +150,11 @@ public enum EdgeType: String, Codable {
     case participates   // User → Meal (user participated in meal work)
     case precedes       // Task → Task (temporal ordering)
     case costs          // ShoppingItem → Transaction (shopping creates expense)
+    
+    // NEW: Decision tree edge types
+    case configures     // PreferenceNode → MealNode (preferences configure meal)
+    case clonedFrom     // RecipeNode instance → RecipeNode template
+    case decidedBy      // PreferenceNode → DecisionNode (tracks which decisions produced prefs)
 }
 
 // Represents an edge connecting two nodes.
@@ -196,7 +201,7 @@ public struct GraphEdge: Identifiable, Equatable, Codable {
 @available(watchOS 9.0, *)
 public struct GraphState: Codable {
     enum CodingKeys: CodingKey {
-        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating, nextNodeLabel, layoutMode, segmentConfigs
+        case nodes, edges, hierarchyEdgeColor, associationEdgeColor, uiConfig, globalUiConfig, isSimulating, nextNodeLabel, layoutMode, segmentConfigs, tableSeatingsByMeal
     }
 
     public let nodes: [AnyNode]
@@ -209,8 +214,9 @@ public struct GraphState: Codable {
     public let nextNodeLabel: Int
     public let layoutMode: LayoutMode
     public let segmentConfigs: [NodeID: SegmentConfig]
+    public let tableSeatingsByMeal: [NodeID: TableSeating]
 
-    public init(nodes: [AnyNode] = [], edges: [GraphEdge] = [], hierarchyEdgeColor: CodableColor = CodableColor(.blue), associationEdgeColor: CodableColor = CodableColor(.white), uiConfig: [NodeID: [ControlConfig]] = [:], globalUiConfig: [ControlConfig] = [], isSimulating: Bool = false, nextNodeLabel: Int = 1, layoutMode: LayoutMode = .network, segmentConfigs: [NodeID: SegmentConfig] = [:]) {
+    public init(nodes: [AnyNode] = [], edges: [GraphEdge] = [], hierarchyEdgeColor: CodableColor = CodableColor(.blue), associationEdgeColor: CodableColor = CodableColor(.white), uiConfig: [NodeID: [ControlConfig]] = [:], globalUiConfig: [ControlConfig] = [], isSimulating: Bool = false, nextNodeLabel: Int = 1, layoutMode: LayoutMode = .network, segmentConfigs: [NodeID: SegmentConfig] = [:], tableSeatingsByMeal: [NodeID: TableSeating] = [:]) {
         self.nodes = nodes
         self.edges = edges
         self.hierarchyEdgeColor = hierarchyEdgeColor
@@ -221,6 +227,7 @@ public struct GraphState: Codable {
         self.nextNodeLabel = nextNodeLabel
         self.layoutMode = layoutMode
         self.segmentConfigs = segmentConfigs
+        self.tableSeatingsByMeal = tableSeatingsByMeal
     }
 
     public init(from decoder: Decoder) throws {
@@ -235,6 +242,7 @@ public struct GraphState: Codable {
         nextNodeLabel = try container.decodeIfPresent(Int.self, forKey: .nextNodeLabel) ?? 1
         layoutMode = try container.decodeIfPresent(LayoutMode.self, forKey: .layoutMode) ?? .network
         segmentConfigs = try container.decodeIfPresent([NodeID: SegmentConfig].self, forKey: .segmentConfigs) ?? [:]
+        tableSeatingsByMeal = try container.decodeIfPresent([NodeID: TableSeating].self, forKey: .tableSeatingsByMeal) ?? [:]
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -249,6 +257,7 @@ public struct GraphState: Codable {
         try container.encode(nextNodeLabel, forKey: .nextNodeLabel)
         try container.encode(layoutMode, forKey: .layoutMode)
         try container.encode(segmentConfigs, forKey: .segmentConfigs)
+        try container.encode(tableSeatingsByMeal, forKey: .tableSeatingsByMeal)
     }
 }
 

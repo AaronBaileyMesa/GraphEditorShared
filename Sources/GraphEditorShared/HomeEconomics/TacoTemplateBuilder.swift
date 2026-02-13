@@ -205,4 +205,161 @@ public struct TacoTemplateBuilder {
 
         return meal
     }
+    
+    // MARK: - Decision Tree Builder
+    
+    /// Builds a sample taco night decision tree for testing
+    // swiftlint:disable function_body_length
+    @MainActor
+    public static func buildDecisionTree(
+        in model: GraphModel,
+        at startPosition: CGPoint = CGPoint(x: 50, y: 125)
+    ) async -> DecisionNode {
+        // Begin bulk operation to prevent simulation from running during construction
+        await model.beginBulkOperation()
+        
+        // Better spacing for watch screen (205pt wide, 251pt tall)
+        // Decisions in a horizontal line with choices below
+        let horizontalSpacing: CGFloat = 50  // Space between decision nodes
+        let choiceOffset: CGFloat = 35       // Vertical offset for first choice
+        let choiceSpacing: CGFloat = 20      // Space between choices
+        
+        // Decision 1: How many guests? (centered in view)
+        let guestDecision = await model.addDecision(
+            question: "How many guests?",
+            preferenceKey: "guestCount",
+            inputType: .numeric,
+            at: startPosition
+        )
+        
+        // Decision 2: What protein?
+        let proteinDecision = await model.addDecision(
+            question: "What protein?",
+            preferenceKey: "protein",
+            inputType: .singleChoice,
+            at: CGPoint(x: startPosition.x + horizontalSpacing, y: startPosition.y)
+        )
+        
+        _ = await model.addChoice(
+            to: proteinDecision.id,
+            choiceText: "Beef",
+            value: .string("beef"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing, y: startPosition.y + choiceOffset)
+        )
+        
+        _ = await model.addChoice(
+            to: proteinDecision.id,
+            choiceText: "Chicken",
+            value: .string("chicken"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing, y: startPosition.y + choiceOffset + choiceSpacing)
+        )
+        
+        _ = await model.addChoice(
+            to: proteinDecision.id,
+            choiceText: "Fish",
+            value: .string("fish"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing, y: startPosition.y + choiceOffset + choiceSpacing * 2)
+        )
+        
+        // Decision 3: Spice level?
+        let spiceDecision = await model.addDecision(
+            question: "Spice level?",
+            preferenceKey: "spiceLevel",
+            inputType: .singleChoice,
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 2, y: startPosition.y)
+        )
+        
+        _ = await model.addChoice(
+            to: spiceDecision.id,
+            choiceText: "Mild",
+            value: .string("mild"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 2, y: startPosition.y + choiceOffset)
+        )
+        
+        _ = await model.addChoice(
+            to: spiceDecision.id,
+            choiceText: "Medium",
+            value: .string("medium"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 2, y: startPosition.y + choiceOffset + choiceSpacing)
+        )
+        
+        _ = await model.addChoice(
+            to: spiceDecision.id,
+            choiceText: "Hot",
+            value: .string("hot"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 2, y: startPosition.y + choiceOffset + choiceSpacing * 2)
+        )
+        
+        // Decision 4: Toppings? (multi-choice)
+        let toppingsDecision = await model.addDecision(
+            question: "What toppings?",
+            preferenceKey: "toppings",
+            inputType: .multiChoice,
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 3, y: startPosition.y)
+        )
+        
+        _ = await model.addChoice(
+            to: toppingsDecision.id,
+            choiceText: "Lettuce",
+            value: .string("lettuce"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 3, y: startPosition.y + choiceOffset)
+        )
+        
+        _ = await model.addChoice(
+            to: toppingsDecision.id,
+            choiceText: "Tomato",
+            value: .string("tomato"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 3, y: startPosition.y + choiceOffset + choiceSpacing)
+        )
+        
+        _ = await model.addChoice(
+            to: toppingsDecision.id,
+            choiceText: "Cheese",
+            value: .string("cheese"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 3, y: startPosition.y + choiceOffset + choiceSpacing * 2)
+        )
+        
+        _ = await model.addChoice(
+            to: toppingsDecision.id,
+            choiceText: "Sour Cream",
+            value: .string("sourCream"),
+            at: CGPoint(x: startPosition.x + horizontalSpacing * 3, y: startPosition.y + choiceOffset + choiceSpacing * 3)
+        )
+        
+        // Link decisions in sequence
+        await model.linkDecisions(from: guestDecision.id, to: proteinDecision.id)
+        await model.linkDecisions(from: proteinDecision.id, to: spiceDecision.id)
+        await model.linkDecisions(from: spiceDecision.id, to: toppingsDecision.id)
+        
+        // Verify edges were created
+        let precedesEdges = model.edges.filter { $0.type == .precedes }
+        print("🔗 Decision Tree: Created \(precedesEdges.count) precedes edges")
+        for edge in precedesEdges {
+            print("  Edge: \(edge.from.uuidString.prefix(8)) -> \(edge.target.uuidString.prefix(8))")
+        }
+        
+        // Configure directional layout for decision tree (horizontal flow)
+        // Use high strength (15.0) to overcome repulsion forces and prevent oscillation
+        model.setSegmentConfig(
+            rootNodeID: guestDecision.id,
+            direction: .horizontal,
+            strength: 15.0,
+            nodeSpacing: horizontalSpacing
+        )
+        
+        print("✅ Decision Tree: Created 4 decisions with choices at center position")
+        print("📐 Segment config set for decision tree: root=\(guestDecision.id.uuidString.prefix(8)), direction=horizontal, spacing=\(horizontalSpacing)")
+        print("📊 Segment configs in model: \(model.segmentConfigs.count) total")
+        print("🎯 Decision node IDs:")
+        print("  Guest: \(guestDecision.id.uuidString.prefix(8))")
+        print("  Protein: \(proteinDecision.id.uuidString.prefix(8))")
+        print("  Spice: \(spiceDecision.id.uuidString.prefix(8))")
+        print("  Toppings: \(toppingsDecision.id.uuidString.prefix(8))")
+        
+        // End bulk operation - this will trigger simulation with all nodes in place
+        await model.endBulkOperation()
+        
+        return guestDecision
+    }
+    // swiftlint:enable function_body_length
 }

@@ -18,6 +18,7 @@ public enum ControlKind: String, Codable, CaseIterable {
     case duplicate  // Duplicates the node
     case addToggleChild  // Adds a toggle node child
     case toggleExpand  // Toggles expand/collapse for collapsible nodes
+    case openMenu  // Opens the node's specialized menu view
     
     // Workflow-specific controls for meal planning
     case startWorkflow  // Start workflow execution (MealNode)
@@ -45,6 +46,36 @@ public enum ControlKind: String, Codable, CaseIterable {
         case .duplicate: return "doc.on.doc"
         case .addToggleChild: return "checklist"
         case .toggleExpand: return "chevron.right"  // Will rotate based on state
+        case .openMenu: return "list.bullet.circle.fill"
+        
+        // Workflow controls
+        case .startWorkflow: return "play.fill"
+        case .stopWorkflow: return "stop.fill"
+        case .completeTask: return "checkmark.circle.fill"
+        case .startTask: return "play.circle.fill"
+        case .blockTask: return "exclamationmark.triangle.fill"
+        case .unblockTask: return "play.circle.fill"
+        case .declineTask: return "xmark.circle.fill"
+        case .resetTask: return "arrow.counterclockwise"
+        case .addShopTask: return "cart.fill"
+        case .addPrepTask: return "fork.knife"
+        case .addCookTask: return "flame.fill"
+        case .addRecipe: return "book.fill"
+        case .scaleRecipe: return "person.2.fill"
+        }
+    }
+    
+    /// System image name for rendering in ControlNode's renderView (filled variants)
+    public var renderIcon: String {
+        switch self {
+        case .addChild: return "plus.circle.fill"
+        case .addEdge: return "arrow.right.circle.fill"
+        case .edit: return "pencil"
+        case .delete: return "trash.fill"
+        case .duplicate: return "doc.on.doc.fill"
+        case .addToggleChild: return "checklist"
+        case .toggleExpand: return "chevron.right"
+        case .openMenu: return "list.bullet.circle.fill"
         
         // Workflow controls
         case .startWorkflow: return "play.fill"
@@ -78,6 +109,8 @@ public enum ControlKind: String, Codable, CaseIterable {
             return .red  // Destructive action - red
         case .toggleExpand:
             return .purple  // Toggle action - purple
+        case .openMenu:
+            return .blue  // Menu action - blue
             
         // Workflow control colors
         case .startWorkflow, .startTask, .unblockTask:

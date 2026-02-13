@@ -39,7 +39,7 @@ public struct CategoryNode: NodeProtocol {
             [.string(name)]
         }
         set {
-            // Contents are read-only for CategoryNode
+            _ = newValue  // Contents are read-only for CategoryNode
         }
     }
 

@@ -25,6 +25,12 @@ public enum HomeEconNodeType: String, Codable, CaseIterable {
     case shoppingItem   // Item to purchase at store
     case task           // Work task (shop, prep, cook, cleanup)
     case mealPlan       // Weekly/monthly meal plan container
+    
+    // Decision tree & preferences
+    case person         // Household member or guest with preferences
+    case preference     // Preference artifact from decision tree
+    case decision       // Decision point in decision tree
+    case choice         // Selectable choice within decision
 }
 
 /// Transaction classification

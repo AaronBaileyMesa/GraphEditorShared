@@ -188,6 +188,9 @@ extension GraphModel {
             return filterControlKindsForTaskNode(taskNode, ownerID: ownerID)
         } else if owner is RecipeNode {
             return filterControlKindsForRecipeNode(owner, ownerID: ownerID)
+        } else if owner is PersonNode || owner is PreferenceNode || owner is DecisionNode || owner is TableNode {
+            // These node types have specialized menu UIs
+            return [.openMenu, .addEdge, .delete, .duplicate]
         }
         
         // Generic node - use original logic

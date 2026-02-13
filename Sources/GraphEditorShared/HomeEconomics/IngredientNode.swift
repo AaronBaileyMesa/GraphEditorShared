@@ -43,7 +43,7 @@ public struct IngredientNode: NodeProtocol {
             ]
         }
         set {
-            // Contents are read-only for IngredientNode
+            _ = newValue  // Contents are read-only for IngredientNode
         }
     }
 
