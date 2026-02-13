@@ -328,7 +328,7 @@ public actor GraphSimulator {
         
         var newPersistent: [any NodeProtocol] = []
         var newEphemerals: [any NodeProtocol] = []
-        
+
         for (_, node) in nodeMap {
             if node is ControlNode {
                 newEphemerals.append(node)
@@ -336,7 +336,16 @@ public actor GraphSimulator {
                 newPersistent.append(node)
             }
         }
-        
+
+        #if DEBUG
+        // Debug: Log table position in newPersistent BEFORE writing to storage
+        for node in newPersistent {
+            if let table = node as? TableNode {
+                print("💾 [GraphSimulator] Writing table \(table.id.uuidString.prefix(8)) to storage at position: (\(String(format: "%.2f", table.position.x)),\(String(format: "%.2f", table.position.y)))")
+            }
+        }
+        #endif
+
         await setNodes(newPersistent)
         await setEphemerals(newEphemerals)
         
