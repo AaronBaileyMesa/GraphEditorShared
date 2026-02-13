@@ -244,11 +244,17 @@ public actor GraphSimulator {
         // Fix seated person nodes AND their tables - they should stay at their assigned positions
         for node in visibleNodes {
             if let table = node as? TableNode, !table.seatingAssignments.isEmpty {
+                #if DEBUG
+                print("🔒 [GraphSimulator] Adding table \(table.id.uuidString.prefix(8)) '\(table.name)' to fixedIDs (has \(table.seatingAssignments.count) seated persons)")
+                #endif
                 // Fix the table itself so it doesn't drift
                 fixedIDs.insert(table.id)
                 // Fix all persons seated at this table
                 for personID in table.seatingAssignments.values {
                     fixedIDs.insert(personID)
+                    #if DEBUG
+                    print("🔒 [GraphSimulator] Adding seated person \(personID.uuidString.prefix(8)) to fixedIDs")
+                    #endif
                 }
             }
         }

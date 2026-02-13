@@ -259,8 +259,21 @@ public class PhysicsEngine {
                 // CRITICAL: Restore ORIGINAL position from before physics step, zero velocity
                 // This prevents fixed nodes from moving due to residual velocity
                 if let originalPos = originalPositions[node.id] {
+                    #if DEBUG
+                    if node is TableNode {
+                        let moved = hypot(node.position.x - originalPos.x, node.position.y - originalPos.y)
+                        if moved > 0.01 {
+                            print("🔧 [PhysicsEngine] Restoring table \(node.id.uuidString.prefix(8)): from (\(String(format: "%.2f", node.position.x)),\(String(format: "%.2f", node.position.y))) to (\(String(format: "%.2f", originalPos.x)),\(String(format: "%.2f", originalPos.y))) - moved \(String(format: "%.2f", moved))pt")
+                        }
+                    }
+                    #endif
                     return node.with(position: originalPos, velocity: .zero)
                 } else {
+                    #if DEBUG
+                    if node is TableNode {
+                        print("⚠️ [PhysicsEngine] WARNING: Table \(node.id.uuidString.prefix(8)) in fixedIDs but no original position!")
+                    }
+                    #endif
                     // Fallback: keep current position if original not found
                     return node.with(position: node.position, velocity: .zero)
                 }
