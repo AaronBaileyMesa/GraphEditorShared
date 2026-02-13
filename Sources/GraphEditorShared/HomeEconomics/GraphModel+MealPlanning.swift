@@ -561,10 +561,18 @@ extension GraphModel {
     @MainActor
     public func migrateSeatedPersonPositions() {
         var updated = false
-        
+
+        #if DEBUG
+        print("🔄 Starting seated person migration...")
+        #endif
+
         for (tableIndex, tableNode) in nodes.enumerated() {
             guard let table = tableNode.unwrapped as? TableNode else { continue }
-            
+
+            #if DEBUG
+            print("🔄 Checking table '\(table.name)' with \(table.seatingAssignments.count) seated persons")
+            #endif
+
             // Update each person seated at this table
             for (seatPosition, personID) in table.seatingAssignments {
                 guard let personIndex = nodes.firstIndex(where: { $0.id == personID }),
