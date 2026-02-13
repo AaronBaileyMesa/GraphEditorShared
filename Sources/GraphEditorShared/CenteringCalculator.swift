@@ -33,8 +33,12 @@ struct CenteringCalculator {
             
             // Show which nodes are and aren't in segments
             for node in nodes {
+                let isTable = node is TableNode
+                let tableLabel = isTable ? " [TABLE]" : ""
                 if segmentMembership.contains(node.id) {
-                    print("  ✅ Node \(node.id.uuidString.prefix(8)) IN segment")
+                    print("  ✅ Node \(node.id.uuidString.prefix(8)) IN segment\(tableLabel)")
+                } else if isTable {
+                    print("  🚫 Node \(node.id.uuidString.prefix(8)) NOT in segment but IS TABLE - will be excluded from centering")
                 } else {
                     print("  ❌ Node \(node.id.uuidString.prefix(8)) NOT in segment - will receive centering force")
                 }
@@ -49,7 +53,16 @@ struct CenteringCalculator {
             
             for node in nodes {
                 // Skip nodes that belong to a directionally-laid-out segment or are tables
-                guard !segmentMembership.contains(node.id) && !(node is TableNode) else { continue }
+                let isTable = node is TableNode
+                let inSegment = segmentMembership.contains(node.id)
+
+                if isTable {
+                    #if DEBUG
+                    print("🧲 [CenteringCalculator] Skipping table node \(node.id.uuidString.prefix(8)) - no centering force")
+                    #endif
+                }
+
+                guard !inSegment && !isTable else { continue }
 
                 let deltaX = targetPoint.x - node.position.x
                 let deltaY = targetPoint.y - node.position.y
@@ -64,7 +77,16 @@ struct CenteringCalculator {
             let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
             for node in nodes {
                 // Skip nodes that belong to a directionally-laid-out segment or are tables
-                guard !segmentMembership.contains(node.id) && !(node is TableNode) else { continue }
+                let isTable = node is TableNode
+                let inSegment = segmentMembership.contains(node.id)
+
+                if isTable {
+                    #if DEBUG
+                    print("🧲 [CenteringCalculator] Skipping table node \(node.id.uuidString.prefix(8)) - no centering force")
+                    #endif
+                }
+
+                guard !inSegment && !isTable else { continue }
 
                 let deltaX = center.x - node.position.x
                 let deltaY = center.y - node.position.y
