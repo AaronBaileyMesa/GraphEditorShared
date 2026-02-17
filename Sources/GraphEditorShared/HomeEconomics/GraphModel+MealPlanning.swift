@@ -579,7 +579,10 @@ extension GraphModel {
         return nodes.first(where: { $0.id == hierarchyEdge.from })?.unwrapped as? TaskNode
     }
 
-    /// Creates detailed taco night task hierarchy
+    /// Creates detailed taco night task hierarchy.
+    /// Top-level tasks are chained sequentially (meal→shop→prep→cook→assemble→serve→cleanup)
+    /// so that orderedTasks(for:) returns them in workflow order.
+    /// Subtasks are children of their parent task via hierarchy edges.
     @MainActor
     public func createTacoNightTasks(
         for mealID: NodeID,
@@ -592,24 +595,24 @@ extension GraphModel {
         let baseX = mealPosition.x
         var currentY = mealPosition.y + 100.0
 
-        // 1. Shop task
+        // 1. Shop task — linked from meal
         let shopTask = await addTask(
             type: .shop,
             estimatedTime: 45,
             at: CGPoint(x: baseX, y: currentY)
         )
         createdTasks.append(shopTask)
-        await addTaskToMeal(mealID: mealID, taskID: shopTask.id)
+        await addEdge(from: mealID, target: shopTask.id, type: .hierarchy)
         currentY += 60
 
-        // 2. Prep task (with subtasks)
+        // 2. Prep task (with subtasks) — linked from shop
         let prepTask = await addTask(
             type: .prep,
             estimatedTime: 60,
             at: CGPoint(x: baseX, y: currentY)
         )
         createdTasks.append(prepTask)
-        await addTaskToMeal(mealID: mealID, taskID: prepTask.id)
+        await addEdge(from: shopTask.id, target: prepTask.id, type: .hierarchy)
         currentY += 60
 
         // Prep subtasks
@@ -626,28 +629,28 @@ extension GraphModel {
             createdTasks.append(toppingSubtask)
         }
 
-        // 3. Cook task
+        // 3. Cook task — linked from prep
         let cookTask = await addTask(
             type: .cook,
             estimatedTime: 25,
             at: CGPoint(x: baseX, y: currentY)
         )
         createdTasks.append(cookTask)
-        await addTaskToMeal(mealID: mealID, taskID: cookTask.id)
+        await addEdge(from: prepTask.id, target: cookTask.id, type: .hierarchy)
         currentY += 60
 
         if let shellSubtask = await addSubtask(to: cookTask.id, taskType: .prepShells, estimatedTime: 5) {
             createdTasks.append(shellSubtask)
         }
 
-        // 4. Assemble task (with subtasks)
+        // 4. Assemble task (with subtasks) — linked from cook
         let assembleTask = await addTask(
             type: .assemble,
             estimatedTime: 20,
             at: CGPoint(x: baseX, y: currentY)
         )
         createdTasks.append(assembleTask)
-        await addTaskToMeal(mealID: mealID, taskID: assembleTask.id)
+        await addEdge(from: cookTask.id, target: assembleTask.id, type: .hierarchy)
         currentY += 60
 
         // Assembly subtasks
@@ -661,24 +664,24 @@ extension GraphModel {
             createdTasks.append(plateSubtask)
         }
 
-        // 5. Serve task
+        // 5. Serve task — linked from assemble
         let serveTask = await addTask(
             type: .serve,
             estimatedTime: 5,
             at: CGPoint(x: baseX, y: currentY)
         )
         createdTasks.append(serveTask)
-        await addTaskToMeal(mealID: mealID, taskID: serveTask.id)
+        await addEdge(from: assembleTask.id, target: serveTask.id, type: .hierarchy)
         currentY += 60
 
-        // 6. Cleanup task
+        // 6. Cleanup task — linked from serve
         let cleanupTask = await addTask(
             type: .cleanup,
             estimatedTime: 30,
             at: CGPoint(x: baseX, y: currentY)
         )
         createdTasks.append(cleanupTask)
-        await addTaskToMeal(mealID: mealID, taskID: cleanupTask.id)
+        await addEdge(from: serveTask.id, target: cleanupTask.id, type: .hierarchy)
 
         try? await saveGraph()
         return createdTasks

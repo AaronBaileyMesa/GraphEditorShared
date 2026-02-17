@@ -10,10 +10,15 @@ import Foundation
 import CoreGraphics
 @testable import GraphEditorShared
 
-@MainActor
 struct TaskHierarchyTests {
 
+    @MainActor
+    private func makeModel() -> GraphModel {
+        GraphModel(storage: MockGraphStorage(), physicsEngine: PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500)))
+    }
+
     @Test("New task types have correct properties")
+    @MainActor
     func testNewTaskTypes() {
         // Verify assembly task types exist
         #expect(TaskType.assemble.isTopLevel == true)
@@ -38,6 +43,7 @@ struct TaskHierarchyTests {
     }
 
     @Test("Task type display names are user-friendly")
+    @MainActor
     func testTaskTypeDisplayNames() {
         #expect(TaskType.prepMeat.displayName == "Prepare Meat")
         #expect(TaskType.prepVegetables.displayName == "Chop Vegetables")
@@ -46,8 +52,9 @@ struct TaskHierarchyTests {
     }
 
     @Test("addSubtask creates child task with hierarchy edge")
+    @MainActor
     func testAddSubtask() async throws {
-        let model = GraphModel()
+        let model = makeModel()
 
         // Create parent task
         let parentTask = await model.addTask(
@@ -64,8 +71,10 @@ struct TaskHierarchyTests {
         )
 
         #expect(subtask != nil)
-        #expect(subtask?.taskType == .prepMeat)
-        #expect(subtask?.estimatedTime == 20)
+        let subtaskTaskType = subtask?.taskType
+        #expect(subtaskTaskType == .prepMeat)
+        let subtaskTime = subtask?.estimatedTime
+        #expect(subtaskTime == 20)
 
         // Verify hierarchy edge exists
         let hierarchyEdge = model.edges.first {
@@ -79,8 +88,9 @@ struct TaskHierarchyTests {
     }
 
     @Test("subtasks() retrieves all child tasks")
+    @MainActor
     func testSubtasksRetrieval() async throws {
-        let model = GraphModel()
+        let model = makeModel()
 
         // Create parent task
         let parentTask = await model.addTask(
@@ -104,8 +114,9 @@ struct TaskHierarchyTests {
     }
 
     @Test("parentTask() finds parent of subtask")
+    @MainActor
     func testParentTaskRetrieval() async throws {
-        let model = GraphModel()
+        let model = makeModel()
 
         // Create parent and subtask
         let parentTask = await model.addTask(
@@ -124,18 +135,20 @@ struct TaskHierarchyTests {
         let foundParent = model.parentTask(of: subtask!.id)
 
         #expect(foundParent?.id == parentTask.id)
-        #expect(foundParent?.taskType == .assemble)
+        let foundParentType = foundParent?.taskType
+        #expect(foundParentType == .assemble)
     }
 
     @Test("createTacoNightTasks creates complete hierarchy")
+    @MainActor
     func testCreateTacoNightTasks() async throws {
-        let model = GraphModel()
+        let model = makeModel()
 
         // Create meal
         let meal = await model.addMeal(
             name: "Taco Night",
-            mealType: .dinner,
             date: Date(),
+            mealType: .dinner,
             servings: 8,
             at: CGPoint(x: 0, y: 0)
         )
@@ -182,14 +195,15 @@ struct TaskHierarchyTests {
         let assemblySubtasks = model.subtasks(of: assembleTask!.id)
         #expect(assemblySubtasks.count == 3) // setup, build, plate
 
-        // Verify tasks linked to meal
-        let mealTasks = model.tasks(for: meal.id)
+        // Verify tasks reachable from meal via ordered chain
+        let mealTasks = model.orderedTasks(for: meal.id)
         #expect(mealTasks.count >= 6) // Top-level tasks linked to meal
     }
 
     @Test("Task hierarchy positioning works correctly")
+    @MainActor
     func testTaskHierarchyPositioning() async throws {
-        let model = GraphModel()
+        let model = makeModel()
 
         // Create parent task at specific position
         let parentTask = await model.addTask(
@@ -222,14 +236,15 @@ struct TaskHierarchyTests {
     }
 
     @Test("Subtask inherits assignment from parent if specified")
+    @MainActor
     func testSubtaskAssignment() async throws {
-        let model = GraphModel()
+        let model = makeModel()
 
         // Create a person
         let person = await model.addPerson(
             name: "Alice",
-            spiceLevel: "medium",
-            restrictions: [],
+            defaultSpiceLevel: "medium",
+            dietaryRestrictions: [],
             at: CGPoint(x: 0, y: 0)
         )
 
@@ -249,7 +264,8 @@ struct TaskHierarchyTests {
             assignedUserID: person.id
         )
 
-        #expect(subtask?.assignedUserID == person.id)
+        let subtaskUserID = subtask?.assignedUserID
+        #expect(subtaskUserID == person.id)
 
         // Verify assignment edge exists
         let assignmentEdge = model.edges.first {
@@ -259,6 +275,7 @@ struct TaskHierarchyTests {
     }
 
     @Test("All new task types are CaseIterable")
+    @MainActor
     func testTaskTypeCaseIterable() {
         let allCases = TaskType.allCases
 
@@ -278,8 +295,9 @@ struct TaskHierarchyTests {
     }
 
     @Test("Task nodes with children are collapsible")
+    @MainActor
     func testTaskCollapsibility() async throws {
-        let model = GraphModel()
+        let model = makeModel()
 
         // Create task without children
         let task1 = await model.addTask(

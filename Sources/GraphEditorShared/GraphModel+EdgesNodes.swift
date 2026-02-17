@@ -29,10 +29,13 @@ extension GraphModel {
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     private func isAcyclic(edges: [GraphEdge]) -> Bool {
+        let nodeIDs = Set(nodes.map { $0.id })
+        // Only consider edges between known nodes to avoid false cycle detection
+        let relevantEdges = edges.filter { nodeIDs.contains($0.from) && nodeIDs.contains($0.target) }
         var adj: [NodeID: [NodeID]] = [:]
         var inDegree: [NodeID: Int] = [:]
         nodes.forEach { inDegree[$0.id] = 0 }
-        for edge in edges {
+        for edge in relevantEdges {
             adj[edge.from, default: []].append(edge.target)
             inDegree[edge.target, default: 0] += 1
         }

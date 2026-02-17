@@ -40,6 +40,8 @@ extension GraphModel {
     }
 
     /// Get all tasks for a meal in hierarchical order
+    /// Only follows the top-level chain (meal→shop→prep→cook→…), skipping subtasks
+    /// that are stored in a TaskNode's `children` array.
     @MainActor
     public func orderedTasks(for mealID: NodeID) -> [TaskNode] {
         var orderedTasks: [TaskNode] = []
@@ -47,8 +49,20 @@ extension GraphModel {
         var currentID: NodeID? = mealID
 
         while let nodeID = currentID {
+            // Collect the subtask IDs of the current node so we can skip them
+            let subtaskIDs: Set<NodeID>
+            if let taskNode = nodes.first(where: { $0.id == nodeID })?.unwrapped as? TaskNode {
+                subtaskIDs = Set(taskNode.children)
+            } else {
+                subtaskIDs = []
+            }
+
+            // Find the first hierarchy edge that leads to a non-subtask, unvisited node
             if let edge = edges.first(where: {
-                $0.from == nodeID && $0.type == .hierarchy && !visited.contains($0.target)
+                $0.from == nodeID &&
+                $0.type == .hierarchy &&
+                !visited.contains($0.target) &&
+                !subtaskIDs.contains($0.target)
             }) {
                 visited.insert(edge.target)
                 if let taskNode = nodes.first(where: { $0.id == edge.target })?.unwrapped as? TaskNode {
