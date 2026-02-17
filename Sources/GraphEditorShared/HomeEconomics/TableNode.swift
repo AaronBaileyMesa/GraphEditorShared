@@ -28,8 +28,9 @@ public struct TableNode: NodeProtocol {
     public let tableLength: CGFloat  // Visual length of the table
     public let tableWidth: CGFloat   // Visual width of the table
 
-    // Seating assignments (seat position -> person node ID)
-    public var seatingAssignments: [SeatPosition: NodeID]
+    // Seating assignments (seat index -> person node ID)
+    // Seat indices: 0 = head, (totalSeats-1) = foot, 1...n = sides
+    public var seatingAssignments: [Int: NodeID]
 
     /// Total number of seats at the table
     public var totalSeats: Int {
@@ -67,7 +68,7 @@ public struct TableNode: NodeProtocol {
         sideSeats: Int = 3,
         tableLength: CGFloat = 50.0,
         tableWidth: CGFloat = 30.0,
-        seatingAssignments: [SeatPosition: NodeID] = [:]
+        seatingAssignments: [Int: NodeID] = [:]
     ) {
         self.id = id
         self.label = label
@@ -89,9 +90,10 @@ public struct TableNode: NodeProtocol {
     // MARK: - Seat Position Calculation
 
     /// Get the position offset for a specific seat relative to the table center
-    public func seatOffset(for position: SeatPosition) -> CGPoint {
-        let seatSpacing = tableLength / CGFloat(max(sideSeats, 1) + 1)
-
+    /// - Parameters:
+    ///   - seatIndex: Seat index (0-11) where 0 = head, last index = foot, others = sides
+    /// - Returns: Position offset from table center
+    public func seatOffset(for seatIndex: Int) -> CGPoint {
         // Calculate offsets to position person nodes at the table edge
         // Seated person nodes are scaled to 24pt diameter (12pt radius) to represent ~2 feet per person
         // Using a negative gap to make person nodes overlap the table edge like chairs
@@ -107,34 +109,47 @@ public struct TableNode: NodeProtocol {
         let leftRightOffset = tableWidth / 2 + personRadius + gapFromTable
 
         #if DEBUG
-        print("🪑 TableNode seatOffset: tableWidth=\(tableWidth), tableLength=\(tableLength)")
+        print("🪑 TableNode seatOffset: seatIndex=\(seatIndex), tableWidth=\(tableWidth), tableLength=\(tableLength)")
         print("   headFootOffset=\(headFootOffset) (tableLength/2=\(tableLength/2) + personRadius=\(personRadius) + gap=\(gapFromTable))")
         print("   leftRightOffset=\(leftRightOffset) (tableWidth/2=\(tableWidth/2) + personRadius=\(personRadius) + gap=\(gapFromTable))")
         #endif
 
-        switch position {
-        case .head:
+        // Seating layout: index 0 = head, last index = foot, remaining indices alternate left/right sides
+        let lastIndex = totalSeats - 1
+        
+        // Head seat (index 0)
+        if seatIndex == 0 {
             return CGPoint(x: 0, y: -headFootOffset)
-        case .foot:
-            return CGPoint(x: 0, y: headFootOffset)
-        case .leftFront:
-            return CGPoint(x: -leftRightOffset, y: -seatSpacing)
-        case .leftMiddle:
-            return CGPoint(x: -leftRightOffset, y: 0)
-        case .leftBack:
-            return CGPoint(x: -leftRightOffset, y: seatSpacing)
-        case .rightFront:
-            return CGPoint(x: leftRightOffset, y: -seatSpacing)
-        case .rightMiddle:
-            return CGPoint(x: leftRightOffset, y: 0)
-        case .rightBack:
-            return CGPoint(x: leftRightOffset, y: seatSpacing)
         }
+        
+        // Foot seat (last index)
+        if seatIndex == lastIndex {
+            return CGPoint(x: 0, y: headFootOffset)
+        }
+        
+        // Side seats: indices 1 through (lastIndex - 1)
+        // Distribute evenly along left and right sides
+        let sideSeatsCount = totalSeats - 2  // Exclude head and foot
+        let seatsPerSide = sideSeatsCount / 2
+        let sideIndex = seatIndex - 1  // 0-based for side calculation
+        
+        // Even indices (1, 3, 5...) = left side, odd indices (2, 4, 6...) = right side
+        let isLeftSide = (sideIndex % 2 == 0)
+        let positionOnSide = sideIndex / 2  // 0, 1, 2... position along the side
+        
+        // Calculate Y offset: distribute evenly along table length
+        let seatSpacing = tableLength / CGFloat(seatsPerSide + 1)
+        let yOffset = -tableLength / 2 + seatSpacing * CGFloat(positionOnSide + 1)
+        
+        // X offset: left or right side
+        let xOffset = isLeftSide ? -leftRightOffset : leftRightOffset
+        
+        return CGPoint(x: xOffset, y: yOffset)
     }
 
     /// Get the absolute position for a specific seat
-    public func seatPosition(for position: SeatPosition) -> CGPoint {
-        let offset = seatOffset(for: position)
+    public func seatPosition(for seatIndex: Int) -> CGPoint {
+        let offset = seatOffset(for: seatIndex)
         return CGPoint(x: self.position.x + offset.x, y: self.position.y + offset.y)
     }
 
@@ -167,7 +182,7 @@ public struct TableNode: NodeProtocol {
                 // Table surface
                 RoundedRectangle(cornerRadius: 8 * zoomScale)
                     .fill(fillColor.opacity(0.3))
-                    .frame(width: tableLength * zoomScale, height: tableWidth * zoomScale)
+                    .frame(width: tableWidth * zoomScale, height: tableLength * zoomScale)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8 * zoomScale)
                             .stroke(fillColor, lineWidth: 2 * zoomScale)
@@ -205,6 +220,12 @@ public struct TableNode: NodeProtocol {
         true
     }
 
+    // MARK: - Type Descriptor
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        TableNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
@@ -238,7 +259,7 @@ public struct TableNode: NodeProtocol {
         sideSeats = try container.decode(Int.self, forKey: .sideSeats)
         tableLength = try container.decode(CGFloat.self, forKey: .tableLength)
         tableWidth = try container.decode(CGFloat.self, forKey: .tableWidth)
-        seatingAssignments = try container.decode([SeatPosition: NodeID].self, forKey: .seatingAssignments)
+        seatingAssignments = try container.decode([Int: NodeID].self, forKey: .seatingAssignments)
     }
 
     public func encode(to encoder: Encoder) throws {

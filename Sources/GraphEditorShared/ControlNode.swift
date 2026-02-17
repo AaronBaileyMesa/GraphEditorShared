@@ -72,7 +72,11 @@ public struct ControlNode: NodeProtocol {
     
     public mutating func collapse() { }
     public mutating func bulkCollapse() { }
-    
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        ControlNodeDescriptor(node: self)
+    }
+
     public func handlingTap() -> Self {
         action?()
         return self
@@ -87,6 +91,49 @@ public struct ControlNode: NodeProtocol {
         kind.color
     }
     
+    /// Check if this control represents a selected option
+    public func isSelected(in nodes: [AnyNode]) -> Bool {
+        guard let ownerID = ownerID,
+              let tacoNode = nodes.first(where: { $0.id == ownerID })?.unwrapped as? TacoNode else {
+            return false
+        }
+        
+        switch kind {
+        case .toggleBeef:
+            return tacoNode.protein == .beef
+        case .toggleChicken:
+            return tacoNode.protein == .chicken
+        case .toggleCrunchyShell:
+            return tacoNode.shell == .crunchy
+        case .toggleSoftFlourShell:
+            return tacoNode.shell == .softFlour
+        case .toggleSoftCornShell:
+            return tacoNode.shell == .softCorn
+        case .toggleLettuce:
+            return tacoNode.toppings.contains("Lettuce")
+        case .toggleTomatoes:
+            return tacoNode.toppings.contains("Tomatoes")
+        case .toggleCheese:
+            return tacoNode.toppings.contains("Cheese")
+        case .toggleSourCream:
+            return tacoNode.toppings.contains("Sour Cream")
+        case .toggleGuacamole:
+            return tacoNode.toppings.contains("Guacamole")
+        case .toggleSalsa:
+            return tacoNode.toppings.contains("Salsa")
+        case .toggleOnions:
+            return tacoNode.toppings.contains("Onions")
+        case .toggleCilantro:
+            return tacoNode.toppings.contains("Cilantro")
+        case .toggleJalapeños:
+            return tacoNode.toppings.contains("Jalapeños")
+        case .toggleHotSauce:
+            return tacoNode.toppings.contains("Hot Sauce")
+        default:
+            return false
+        }
+    }
+    
     @available(iOS 15.0, watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         return AnyView(
@@ -95,9 +142,19 @@ public struct ControlNode: NodeProtocol {
                     .fill(fillColor.opacity(0.9))
                     .frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale)
 
-                Image(systemName: kind.renderIcon)
-                    .font(.system(size: 16 * zoomScale, weight: .medium))
-                    .foregroundColor(.white)
+                if let textLabel = kind.textLabel {
+                    // Show text label for controls that need it (taco options)
+                    Text(textLabel)
+                        .font(.system(size: 10 * zoomScale, weight: .bold))
+                        .foregroundColor(.white)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                } else {
+                    // Show icon for standard controls
+                    Image(systemName: kind.renderIcon)
+                        .font(.system(size: 16 * zoomScale, weight: .medium))
+                        .foregroundColor(.white)
+                }
             }
             .opacity(isSelected ? 1.0 : 0.8)
         )

@@ -240,44 +240,25 @@ public actor GraphSimulator {
         if let draggedID = await getDraggedNodeID() {
             fixedIDs.insert(draggedID)
         }
-        
-        // Fix seated person nodes AND their tables - they should stay at their assigned positions
-        for node in visibleNodes {
-            if let table = node as? TableNode, !table.seatingAssignments.isEmpty {
-                #if DEBUG
-                print("🔒 [GraphSimulator] Adding table \(table.id.uuidString.prefix(8)) '\(table.name)' to fixedIDs (has \(table.seatingAssignments.count) seated persons)")
-                #endif
-                // Fix the table itself so it doesn't drift
-                fixedIDs.insert(table.id)
-                // Fix all persons seated at this table
-                for personID in table.seatingAssignments.values {
-                    fixedIDs.insert(personID)
-                    #if DEBUG
-                    print("🔒 [GraphSimulator] Adding seated person \(personID.uuidString.prefix(8)) to fixedIDs")
-                    #endif
-                }
-            }
-        }
-        
+
+        // NOTE: TableNode seating constraints are now handled via NodeTypeDescriptor.constraints
+        // No need to manually build fixedIDs for tables and seated persons
+
         let segmentConfigs = await getSegmentConfigs()
 
-        // Debug: Log table position BEFORE physics step
+        // Debug: Log constrained node positions BEFORE physics step
         #if DEBUG
-        for node in visibleNodes {
-            if let table = node as? TableNode {
-                print("📍 [GraphSimulator] Table \(table.id.uuidString.prefix(8)) position BEFORE physics: (\(String(format: "%.2f", table.position.x)),\(String(format: "%.2f", table.position.y)))")
-            }
+        for node in visibleNodes where !node.typeDescriptor.constraints.isEmpty {
+            print("📍 [GraphSimulator] Constrained node \(node.id.uuidString.prefix(8)) position BEFORE physics: (\(String(format: "%.2f", node.position.x)),\(String(format: "%.2f", node.position.y)))")
         }
         #endif
 
         let (updatedVisibleNodes, _) = physicsEngine.simulationStep(nodes: visibleNodes, edges: visibleEdges, fixedIDs: fixedIDs, segmentConfigs: segmentConfigs)
 
-        // Debug: Log table position AFTER physics step
+        // Debug: Log constrained node positions AFTER physics step
         #if DEBUG
-        for node in updatedVisibleNodes {
-            if let table = node as? TableNode {
-                print("📍 [GraphSimulator] Table \(table.id.uuidString.prefix(8)) position AFTER physics: (\(String(format: "%.2f", table.position.x)),\(String(format: "%.2f", table.position.y)))")
-            }
+        for node in updatedVisibleNodes where !node.typeDescriptor.constraints.isEmpty {
+            print("📍 [GraphSimulator] Constrained node \(node.id.uuidString.prefix(8)) position AFTER physics: (\(String(format: "%.2f", node.position.x)),\(String(format: "%.2f", node.position.y)))")
         }
         #endif
         // let totalVelocity = updatedVisibleNodes.reduce(0.0) { $0 + hypot($1.velocity.x, $1.velocity.y) }

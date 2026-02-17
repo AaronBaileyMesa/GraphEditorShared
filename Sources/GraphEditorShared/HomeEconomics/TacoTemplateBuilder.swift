@@ -91,6 +91,7 @@ public struct TacoTemplateBuilder {
 
     /// Build a complete taco dinner graph with meal node and task nodes
     @MainActor
+    // swiftlint:disable:next function_body_length
     public static func buildGraph(
         in model: GraphModel,
         guests: Int,
@@ -101,49 +102,9 @@ public struct TacoTemplateBuilder {
         // Begin bulk operation to prevent simulation from running during construction
         await model.beginBulkOperation()
 
-        // Calculate task schedule
-        let scheduledTasks = calculateSchedule(dinnerTime: dinnerTime, tasks: v1Tasks)
-
-        // Calculate initial positions to match directional layout targets
-        // This minimizes initial displacement and speeds up convergence
-        let preferredSpacing: CGFloat = 35.0  // Desired spacing between nodes
-        let maxDepth = v1Tasks.count  // 5 tasks = max depth of 5 (meal is depth 0)
-
-        // Simulation bounds for Apple Watch: ~205pt wide
-        let simulationWidth: CGFloat = 205.0
-        let margin: CGFloat = 20.0
-
-        // Match DirectionalLayoutCalculator's dynamic spacing calculation
-        // It uses 80% of width for horizontal layouts
-        let availableSpace = simulationWidth * 0.8  // 164pt
-        let totalNeeded = CGFloat(maxDepth) * preferredSpacing  // 175pt
-
-        // Apply same compression logic as DirectionalLayoutCalculator
-        let actualSpacing: CGFloat
-        if totalNeeded > availableSpace {
-            // Compress spacing to fit
-            actualSpacing = availableSpace / CGFloat(maxDepth)  // 164 / 5 = 32.8pt
-        } else {
-            actualSpacing = preferredSpacing  // 35pt
-        }
-
-        // Calculate total extent with actual spacing
-        let totalExtent = CGFloat(maxDepth) * actualSpacing
-        let availableWidth = simulationWidth - (2 * margin)  // 165pt
-
-        // Calculate anchor (where depth 0 = meal node should be positioned)
-        let anchorX: CGFloat
-        if totalExtent < availableWidth {
-            // Segment fits - center it
-            anchorX = margin + (availableWidth - totalExtent) / 2.0
-        } else {
-            // Segment is wide - start from margin
-            anchorX = margin  // 20pt
-        }
-
-        // Create meal node at the calculated anchor position
+        // Create meal node at the specified position
         let mealName = "\(protein.rawValue.capitalized) Tacos"
-        let anchorPosition = CGPoint(x: anchorX, y: position.y)
+        let anchorPosition = position
         let meal = await model.addMeal(
             name: mealName,
             date: dinnerTime,
@@ -155,39 +116,14 @@ public struct TacoTemplateBuilder {
             at: anchorPosition
         )
 
-        // Create task nodes with linear dependency chain
-        var previousTaskID: NodeID?
-
-        for (index, scheduledTask) in scheduledTasks.enumerated() {
-            // Position nodes according to their depth in the hierarchy
-            // Meal is at depth 0, tasks at depth 1, 2, 3, 4, 5
-            let depth = index + 1
-            let taskPosition = CGPoint(
-                x: anchorX + (CGFloat(depth) * actualSpacing),  // Use actual spacing (may be compressed)
-                y: position.y  // Same Y as meal - hierarchy forces will adjust
-            )
-
-            let task = await model.addTask(
-                type: scheduledTask.type,
-                estimatedTime: scheduledTask.minutes,
-                plannedStart: scheduledTask.plannedStart,
-                plannedEnd: scheduledTask.plannedEnd,
-                at: taskPosition
-            )
-
-            // First task connects to meal via hierarchy edge
-            if index == 0 {
-                await model.addEdge(from: meal.id, target: task.id, type: .hierarchy)
-            }
-            
-            // All subsequent tasks connect to previous task via hierarchy edge
-            // This creates a linear dependency chain: Meal -> Task1 -> Task2 -> Task3 -> Task4 -> Task5
-            if let prevID = previousTaskID {
-                await model.addEdge(from: prevID, target: task.id, type: .hierarchy)
-            }
-
-            previousTaskID = task.id
-        }
+        // Create detailed task hierarchy with assembly subtasks
+        let tasks = await model.createTacoNightTasks(
+            for: meal.id,
+            guestCount: guests,
+            mealPosition: anchorPosition
+        )
+        
+        print("✅ TacoTemplate: Created \(tasks.count) tasks with detailed assembly workflow")
         
         // Configure directional layout for this segment (default: horizontal)
         // Optimized for watchOS: very strong forces to overcome node repulsion
@@ -198,7 +134,7 @@ public struct TacoTemplateBuilder {
             nodeSpacing: 35.0        // Tight spacing for watch screen (~205pt wide)
         )
 
-        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)) at anchor x=\(String(format: "%.1f", anchorX)), direction=horizontal, spacing=\(String(format: "%.1f", actualSpacing))pt (preferred=35pt), strength=1.5, nodes=6")
+        print("✅ TacoTemplate: Created segment config for meal \(meal.id.uuidString.prefix(8)), direction=horizontal, strength=1.5, tasks=\(tasks.count)")
 
         // End bulk operation - this will trigger simulation with all nodes in place
         await model.endBulkOperation()
@@ -207,9 +143,9 @@ public struct TacoTemplateBuilder {
     }
     
     // MARK: - Decision Tree Builder
-    
-    /// Builds a sample taco night decision tree for testing
+
     // swiftlint:disable function_body_length
+    /// Builds a sample taco night decision tree for testing
     @MainActor
     public static func buildDecisionTree(
         in model: GraphModel,
@@ -358,7 +294,7 @@ public struct TacoTemplateBuilder {
         
         // End bulk operation - this will trigger simulation with all nodes in place
         await model.endBulkOperation()
-        
+
         return guestDecision
     }
     // swiftlint:enable function_body_length

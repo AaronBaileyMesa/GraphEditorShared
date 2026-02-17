@@ -9,6 +9,7 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 
+// swiftlint:disable file_length
 @available(iOS 16.0, watchOS 9.0, *)
 extension GraphModel {
 
@@ -47,6 +48,7 @@ extension GraphModel {
 
     /// Adds a meal node with taco dinner properties
     @MainActor
+    // swiftlint:disable:next function_parameter_count
     public func addMeal(
         name: String,
         date: Date,
@@ -84,6 +86,7 @@ extension GraphModel {
 
     /// Adds a recipe node
     @MainActor
+    // swiftlint:disable:next function_parameter_count
     public func addRecipe(
         name: String,
         instructions: String,
@@ -348,14 +351,14 @@ extension GraphModel {
     
     /// Assigns a person to a seat at a meal's table
     @MainActor
-    public func assignSeat(personID: NodeID, to position: SeatPosition, for mealID: NodeID) async {
+    public func assignSeat(personID: NodeID, to seatIndex: Int, for mealID: NodeID) async {
         var seating = tableSeating(for: mealID)
         
         // Remove person from any previous seat
         seating.remove(personID: personID)
         
         // Assign to new seat
-        seating.assign(personID: personID, to: position)
+        seating.assign(personID: personID, to: seatIndex)
         
         await updateTableSeating(seating)
     }
@@ -370,14 +373,14 @@ extension GraphModel {
     
     /// Gets all person nodes assigned to seats for a meal
     @MainActor
-    public func seatedPersons(for mealID: NodeID) -> [(PersonNode, SeatPosition)] {
+    public func seatedPersons(for mealID: NodeID) -> [(PersonNode, Int)] {
         let seating = tableSeating(for: mealID)
-        return seating.assignments.compactMap { (position, personID) in
+        return seating.assignments.compactMap { (seatIndex, personID) in
             guard let personNode = nodes.first(where: { $0.id == personID }),
                   let person = personNode.unwrapped as? PersonNode else {
                 return nil
             }
-            return (person, position)
+            return (person, seatIndex)
         }
     }
     
@@ -394,130 +397,6 @@ extension GraphModel {
             }
             return person
         }
-    }
-
-    // MARK: - Table Node Management
-
-    /// Adds a table node to the graph
-    @MainActor
-    public func addTable(
-        name: String,
-        headSeats: Int = 1,
-        sideSeats: Int = 3,
-        tableLength: CGFloat = 50.0,
-        tableWidth: CGFloat = 30.0,
-        at position: CGPoint
-    ) async -> TableNode {
-        let table = TableNode(
-            label: nextNodeLabel,
-            position: position,
-            name: name,
-            headSeats: headSeats,
-            sideSeats: sideSeats,
-            tableLength: tableLength,
-            tableWidth: tableWidth
-        )
-
-        nodes.append(AnyNode(table))
-        nextNodeLabel += 1
-        return table
-    }
-
-    /// Assigns a person to a seat at a table and positions the person node
-    @MainActor
-    public func assignPersonToTable(
-        personID: NodeID,
-        tableID: NodeID,
-        seatPosition: SeatPosition
-    ) async {
-        // Get the table and person nodes
-        guard let tableIndex = nodes.firstIndex(where: { $0.id == tableID }),
-              var table = nodes[tableIndex].unwrapped as? TableNode,
-              let personIndex = nodes.firstIndex(where: { $0.id == personID }),
-              var person = nodes[personIndex].unwrapped as? PersonNode else {
-            return
-        }
-
-        // Remove person from any previous seat
-        table.seatingAssignments = table.seatingAssignments.filter { $0.value != personID }
-
-        // Assign to new seat
-        table.seatingAssignments[seatPosition] = personID
-
-        // Calculate and set person's position
-        let newPosition = table.seatPosition(for: seatPosition)
-        person = person.with(position: newPosition, velocity: .zero)
-
-        // Update both nodes
-        nodes[tableIndex] = AnyNode(table)
-        nodes[personIndex] = AnyNode(person)
-
-        // Create association edge from table to person
-        await addEdge(from: tableID, target: personID, type: .association)
-
-        // Update cache
-        updateCacheForAssignment(personID: personID, tableID: tableID)
-
-        try? await saveGraph()
-    }
-
-    /// Removes a person from a table
-    @MainActor
-    public func removePersonFromTable(
-        personID: NodeID,
-        tableID: NodeID
-    ) async {
-        guard let tableIndex = nodes.firstIndex(where: { $0.id == tableID }),
-              var table = nodes[tableIndex].unwrapped as? TableNode else {
-            return
-        }
-
-        // Remove from seating assignments
-        table.seatingAssignments = table.seatingAssignments.filter { $0.value != personID }
-        nodes[tableIndex] = AnyNode(table)
-
-        // Remove edge
-        edges.removeAll { $0.from == tableID && $0.target == personID }
-
-        // Update cache
-        updateCacheForRemoval(personID: personID)
-
-        try? await saveGraph()
-    }
-
-    /// Arranges all assigned persons around a table
-    @MainActor
-    public func arrangePersonsAroundTable(tableID: NodeID) {
-        guard let tableIndex = nodes.firstIndex(where: { $0.id == tableID }),
-              let table = nodes[tableIndex].unwrapped as? TableNode else {
-            return
-        }
-
-        // Position each assigned person
-        for (seatPosition, personID) in table.seatingAssignments {
-            if let personIndex = nodes.firstIndex(where: { $0.id == personID }),
-               var person = nodes[personIndex].unwrapped as? PersonNode {
-                let newPosition = table.seatPosition(for: seatPosition)
-                person = person.with(position: newPosition, velocity: .zero)
-                nodes[personIndex] = AnyNode(person)
-            }
-        }
-    }
-
-    /// Updates a table's position and automatically repositions seated persons
-    @MainActor
-    public func updateTablePosition(tableID: NodeID, to position: CGPoint) {
-        guard let tableIndex = nodes.firstIndex(where: { $0.id == tableID }),
-              var table = nodes[tableIndex].unwrapped as? TableNode else {
-            return
-        }
-
-        // Update table position
-        table = table.with(position: position, velocity: .zero)
-        nodes[tableIndex] = AnyNode(table)
-
-        // Automatically rearrange seated persons
-        arrangePersonsAroundTable(tableID: tableID)
     }
 
     // MARK: - Meal-Table Linking
@@ -566,7 +445,7 @@ extension GraphModel {
         print("🔄 Starting seated person migration...")
         #endif
 
-        for (tableIndex, tableNode) in nodes.enumerated() {
+        for tableNode in nodes {
             guard let table = tableNode.unwrapped as? TableNode else { continue }
 
             #if DEBUG
@@ -574,17 +453,19 @@ extension GraphModel {
             #endif
 
             // Update each person seated at this table
-            for (seatPosition, personID) in table.seatingAssignments {
+            for (seatIndex, personID) in table.seatingAssignments {
                 guard let personIndex = nodes.firstIndex(where: { $0.id == personID }),
                       var person = nodes[personIndex].unwrapped as? PersonNode else {
                     continue
                 }
                 
                 // Calculate correct seat position
-                let correctPosition = table.seatPosition(for: seatPosition)
+                let correctPosition = table.seatPosition(for: seatIndex)
                 
                 // Check if person needs repositioning (tolerance of 0.1pt)
+                // swiftlint:disable:next identifier_name
                 let dx = person.position.x - correctPosition.x
+                // swiftlint:disable:next identifier_name
                 let dy = person.position.y - correctPosition.y
                 let distance = sqrt(dx * dx + dy * dy)
                 
@@ -595,7 +476,7 @@ extension GraphModel {
                     updated = true
                     
                     #if DEBUG
-                    print("🔄 Migrated person \(person.name) to seat \(seatPosition.rawValue) (moved \(String(format: "%.1f", distance))pt)")
+                    print("🔄 Migrated person \(person.name) to seat \(seatIndex) (moved \(String(format: "%.1f", distance))pt)")
                     #endif
                 }
             }
@@ -620,13 +501,192 @@ extension GraphModel {
 
     /// Updates cache when person is assigned to table
     @MainActor
-    private func updateCacheForAssignment(personID: NodeID, tableID: NodeID) {
+    func updateCacheForAssignment(personID: NodeID, tableID: NodeID) {
         personToTableCache[personID] = tableID
     }
 
     /// Updates cache when person is removed from table
     @MainActor
-    private func updateCacheForRemoval(personID: NodeID) {
+    func updateCacheForRemoval(personID: NodeID) {
         personToTableCache.removeValue(forKey: personID)
+    }
+
+    // MARK: - Task Hierarchy Methods
+
+    /// Adds a subtask to a parent task
+    @MainActor
+    public func addSubtask(
+        to parentTaskID: NodeID,
+        taskType: TaskType,
+        estimatedTime: Int,
+        assignedUserID: NodeID? = nil
+    ) async -> TaskNode? {
+        guard let parentIndex = nodes.firstIndex(where: { $0.id == parentTaskID }),
+              var parentTask = nodes[parentIndex].unwrapped as? TaskNode else {
+            return nil
+        }
+
+        // Position subtask near parent
+        let offset = CGFloat(parentTask.children.count) * 60.0
+        let subtaskPosition = CGPoint(
+            x: parentTask.position.x + offset,
+            y: parentTask.position.y + 80.0
+        )
+
+        // Create subtask
+        let subtask = await addTask(
+            type: taskType,
+            estimatedTime: estimatedTime,
+            assignedUserID: assignedUserID,
+            at: subtaskPosition
+        )
+
+        // Update parent's children array
+        parentTask = parentTask.with(children: parentTask.children + [subtask.id])
+        parentTask = parentTask.with(childOrder: parentTask.childOrder + [subtask.id])
+        nodes[parentIndex] = AnyNode(parentTask)
+
+        // Create hierarchy edge
+        await addEdge(from: parentTaskID, target: subtask.id, type: .hierarchy)
+
+        try? await saveGraph()
+        return subtask
+    }
+
+    /// Gets all subtasks of a parent task
+    @MainActor
+    public func subtasks(of parentTaskID: NodeID) -> [TaskNode] {
+        guard let parentNode = nodes.first(where: { $0.id == parentTaskID }),
+              let parent = parentNode.unwrapped as? TaskNode else {
+            return []
+        }
+
+        return parent.children.compactMap { childID in
+            nodes.first(where: { $0.id == childID })?.unwrapped as? TaskNode
+        }
+    }
+
+    /// Gets the parent task of a subtask (if any)
+    @MainActor
+    public func parentTask(of subtaskID: NodeID) -> TaskNode? {
+        // Find hierarchy edge pointing to this subtask
+        guard let hierarchyEdge = edges.first(where: {
+            $0.type == .hierarchy && $0.target == subtaskID
+        }) else {
+            return nil
+        }
+
+        return nodes.first(where: { $0.id == hierarchyEdge.from })?.unwrapped as? TaskNode
+    }
+
+    /// Creates detailed taco night task hierarchy
+    @MainActor
+    public func createTacoNightTasks(
+        for mealID: NodeID,
+        guestCount: Int,
+        mealPosition: CGPoint
+    ) async -> [TaskNode] {
+        var createdTasks: [TaskNode] = []
+
+        // Calculate task positions in a vertical column below meal
+        let baseX = mealPosition.x
+        var currentY = mealPosition.y + 100.0
+
+        // 1. Shop task
+        let shopTask = await addTask(
+            type: .shop,
+            estimatedTime: 45,
+            at: CGPoint(x: baseX, y: currentY)
+        )
+        createdTasks.append(shopTask)
+        await addTaskToMeal(mealID: mealID, taskID: shopTask.id)
+        currentY += 60
+
+        // 2. Prep task (with subtasks)
+        let prepTask = await addTask(
+            type: .prep,
+            estimatedTime: 60,
+            at: CGPoint(x: baseX, y: currentY)
+        )
+        createdTasks.append(prepTask)
+        await addTaskToMeal(mealID: mealID, taskID: prepTask.id)
+        currentY += 60
+
+        // Prep subtasks
+        if let meatSubtask = await addSubtask(to: prepTask.id, taskType: .prepMeat, estimatedTime: 20) {
+            createdTasks.append(meatSubtask)
+        }
+        if let vegSubtask = await addSubtask(to: prepTask.id, taskType: .prepVegetables, estimatedTime: 15) {
+            createdTasks.append(vegSubtask)
+        }
+        if let sauceSubtask = await addSubtask(to: prepTask.id, taskType: .prepSauces, estimatedTime: 15) {
+            createdTasks.append(sauceSubtask)
+        }
+        if let toppingSubtask = await addSubtask(to: prepTask.id, taskType: .prepToppings, estimatedTime: 10) {
+            createdTasks.append(toppingSubtask)
+        }
+
+        // 3. Cook task
+        let cookTask = await addTask(
+            type: .cook,
+            estimatedTime: 25,
+            at: CGPoint(x: baseX, y: currentY)
+        )
+        createdTasks.append(cookTask)
+        await addTaskToMeal(mealID: mealID, taskID: cookTask.id)
+        currentY += 60
+
+        if let shellSubtask = await addSubtask(to: cookTask.id, taskType: .prepShells, estimatedTime: 5) {
+            createdTasks.append(shellSubtask)
+        }
+
+        // 4. Assemble task (with subtasks)
+        let assembleTask = await addTask(
+            type: .assemble,
+            estimatedTime: 20,
+            at: CGPoint(x: baseX, y: currentY)
+        )
+        createdTasks.append(assembleTask)
+        await addTaskToMeal(mealID: mealID, taskID: assembleTask.id)
+        currentY += 60
+
+        // Assembly subtasks
+        if let setupSubtask = await addSubtask(to: assembleTask.id, taskType: .assemblySetup, estimatedTime: 5) {
+            createdTasks.append(setupSubtask)
+        }
+        if let buildSubtask = await addSubtask(to: assembleTask.id, taskType: .assemblyBuild, estimatedTime: 10) {
+            createdTasks.append(buildSubtask)
+        }
+        if let plateSubtask = await addSubtask(to: assembleTask.id, taskType: .assemblyPlate, estimatedTime: 5) {
+            createdTasks.append(plateSubtask)
+        }
+
+        // 5. Serve task
+        let serveTask = await addTask(
+            type: .serve,
+            estimatedTime: 5,
+            at: CGPoint(x: baseX, y: currentY)
+        )
+        createdTasks.append(serveTask)
+        await addTaskToMeal(mealID: mealID, taskID: serveTask.id)
+        currentY += 60
+
+        // 6. Cleanup task
+        let cleanupTask = await addTask(
+            type: .cleanup,
+            estimatedTime: 30,
+            at: CGPoint(x: baseX, y: currentY)
+        )
+        createdTasks.append(cleanupTask)
+        await addTaskToMeal(mealID: mealID, taskID: cleanupTask.id)
+
+        try? await saveGraph()
+        return createdTasks
+    }
+
+    /// Helper to link a task to a meal via hierarchy edge
+    @MainActor
+    private func addTaskToMeal(mealID: NodeID, taskID: NodeID) async {
+        await addEdge(from: mealID, target: taskID, type: .hierarchy)
     }
 }

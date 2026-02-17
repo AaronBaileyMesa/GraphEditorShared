@@ -42,6 +42,7 @@ extension GraphModel {
         edges.filter { ($0.from == id1 && $0.target == id2) || ($0.from == id2 && $0.target == id1) }
     }
 
+    // swiftlint:disable:next function_body_length
     public func handleTap(on nodeID: NodeID) async {
         guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
 #if DEBUG

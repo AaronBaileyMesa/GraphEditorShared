@@ -10,9 +10,9 @@ import Foundation
 import CoreGraphics
 @testable import GraphEditorShared
 
-@available(iOS 16.0, watchOS 9.0, *)
 struct CategoryNodeTests {
 
+    @available(iOS 16.0, watchOS 9.0, *)
     @Test("CategoryNode initializes correctly")
     func testInitialization() {
         let category = CategoryNode(
@@ -28,6 +28,7 @@ struct CategoryNodeTests {
         #expect(category.isCollapsible == true)
     }
 
+    @available(iOS 16.0, watchOS 9.0, *)
     @Test("CategoryNode can collapse and expand")
     func testCollapseExpand() {
         let category = CategoryNode(
@@ -42,6 +43,7 @@ struct CategoryNodeTests {
         #expect(collapsed.shouldHideChildren() == true)
     }
 
+    @available(iOS 16.0, watchOS 9.0, *)
     @Test("CategoryNode manages children")
     func testChildren() {
         let category = CategoryNode(
@@ -56,6 +58,7 @@ struct CategoryNodeTests {
         #expect(withChildren.children.contains(child1))
     }
 
+    @available(iOS 16.0, watchOS 9.0, *)
     @Test("CategoryNode is Codable")
     func testCodable() throws {
         let original = CategoryNode(

@@ -16,6 +16,7 @@ import WatchKit
 #endif
 
 @available(iOS 16.0, watchOS 6.0, *)
+// swiftlint:disable type_body_length file_length
 @MainActor public class GraphModel: ObservableObject {
     @Published public var currentGraphName: String = "default"
     @Published public var nodes: [AnyNode] = []
@@ -38,6 +39,9 @@ import WatchKit
     public var uiConfig: [NodeID: [ControlConfig]] = [:]
     public var globalUiConfig: [ControlConfig] = []
     @Published public var priorityEdges: [NodeID: [GraphEdge]] = [:]  // For future slot occupation by real edges
+    
+    // Taco node category navigation state
+    public var activeTacoCategory: [NodeID: ControlKind] = [:]  // TacoNode ID -> active category control
 
     // PERFORMANCE: Cache person-to-table lookups to avoid O(N*M) searches during rendering
     internal var personToTableCache: [NodeID: NodeID] = [:]  // PersonID -> TableID

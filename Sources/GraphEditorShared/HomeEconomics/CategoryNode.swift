@@ -125,6 +125,10 @@ public struct CategoryNode: NodeProtocol {
         isExpanded = false
     }
 
+    public var typeDescriptor: NodeTypeDescriptor {
+        CategoryNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

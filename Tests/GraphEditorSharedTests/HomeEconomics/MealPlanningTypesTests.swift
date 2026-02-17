@@ -6,9 +6,9 @@
 //
 
 import Testing
+import Foundation
 @testable import GraphEditorShared
 
-@available(iOS 16.0, watchOS 9.0, *)
 struct MealPlanningTypesTests {
 
     @Test("MealType has all expected cases")
@@ -44,11 +44,13 @@ struct MealPlanningTypesTests {
     @Test("TaskStatus has all states")
     func testTaskStatusCases() {
         let allCases = TaskStatus.allCases
-        #expect(allCases.count == 4)
+        #expect(allCases.count == 6)
         #expect(allCases.contains(.pending))
         #expect(allCases.contains(.inProgress))
         #expect(allCases.contains(.completed))
         #expect(allCases.contains(.skipped))
+        #expect(allCases.contains(.blocked))
+        #expect(allCases.contains(.declined))
     }
 
     @Test("MeasurementUnit has volume units")

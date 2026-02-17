@@ -15,7 +15,9 @@ final class DecisionTreeTests: XCTestCase {
     
     @MainActor
     override func setUp() async throws {
-        model = GraphModel()
+        let storage = MockGraphStorage()
+        let physicsEngine = PhysicsEngine(simulationBounds: CGSize(width: 500, height: 500))
+        model = GraphModel(storage: storage, physicsEngine: physicsEngine)
     }
     
     // MARK: - Person Node Tests
@@ -140,8 +142,8 @@ final class DecisionTreeTests: XCTestCase {
         )!
         
         // Select both
-        await model.selectChoice(lettuce.id, in: decision.id)
-        await model.selectChoice(tomato.id, in: decision.id)
+        _ = await model.selectChoice(lettuce.id, in: decision.id)
+        _ = await model.selectChoice(tomato.id, in: decision.id)
         
         // Verify both are selected
         let lettuceNode = model.nodes.first(where: { $0.id == lettuce.id })?.unwrapped as? ChoiceNode
@@ -227,7 +229,7 @@ final class DecisionTreeTests: XCTestCase {
             inputType: .numeric,
             at: CGPoint(x: 100, y: 100)
         )
-        await model.setNumericValue(5.0, for: guestDecision.id)
+        _ = await model.setNumericValue(5.0, for: guestDecision.id)
         
         let proteinDecision = await model.addDecision(
             question: "What protein?",
@@ -241,7 +243,7 @@ final class DecisionTreeTests: XCTestCase {
             value: .string("beef"),
             at: CGPoint(x: 250, y: 150)
         )!
-        await model.selectChoice(beef.id, in: proteinDecision.id)
+        _ = await model.selectChoice(beef.id, in: proteinDecision.id)
         
         let toppingsDecision = await model.addDecision(
             question: "What toppings?",
@@ -261,8 +263,8 @@ final class DecisionTreeTests: XCTestCase {
             value: .string("tomato"),
             at: CGPoint(x: 400, y: 150)
         )!
-        await model.selectChoice(lettuce.id, in: toppingsDecision.id)
-        await model.selectChoice(tomato.id, in: toppingsDecision.id)
+        _ = await model.selectChoice(lettuce.id, in: toppingsDecision.id)
+        _ = await model.selectChoice(tomato.id, in: toppingsDecision.id)
         
         // Link them
         await model.linkDecisions(from: guestDecision.id, to: proteinDecision.id)
@@ -310,7 +312,7 @@ final class DecisionTreeTests: XCTestCase {
             value: .string("beef"),
             at: CGPoint(x: 150, y: 150)
         )!
-        await model.selectChoice(beef.id, in: decision.id)
+        _ = await model.selectChoice(beef.id, in: decision.id)
         
         // Generate preference
         let preference = await model.generatePreference(

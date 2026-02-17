@@ -118,7 +118,11 @@ public struct ChoiceNode: NodeProtocol {
     public mutating func bulkCollapse() {
         // ChoiceNode doesn't collapse
     }
-    
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        ChoiceNodeDescriptor(node: self)
+    }
+
     public var mass: CGFloat {
         8.0
     }
@@ -146,8 +150,10 @@ public struct ChoiceNode: NodeProtocol {
         // swiftlint:disable:next identifier_name
         let y = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: x, y: y)
-        
+
+        // swiftlint:disable:next identifier_name
         let vx = try container.decode(CGFloat.self, forKey: .velocityX)
+        // swiftlint:disable:next identifier_name
         let vy = try container.decode(CGFloat.self, forKey: .velocityY)
         velocity = CGPoint(x: vx, y: vy)
         

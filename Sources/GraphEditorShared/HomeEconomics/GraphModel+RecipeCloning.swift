@@ -72,6 +72,7 @@ extension GraphModel {
             if let recipe = recipe(for: mealID) {
                 for ingredient in ingredients(in: recipe.id) {
                     if let existing = aggregated[ingredient.name] {
+                        // swiftlint:disable:next todo
                         // Add quantities (assuming same unit - FIXME: implement unit conversion)
                         aggregated[ingredient.name] = (existing.0 + ingredient.quantity, ingredient.unit)
                     } else {

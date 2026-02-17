@@ -149,6 +149,7 @@ extension GraphModel {
     // ADDED: @MainActor to isolate this method to the main thread
     @MainActor
     // Private helper to avoid duplication (handles common logic like offsets, edges, and childOrder updates)
+    // swiftlint:disable:next function_body_length
     private func addChildInternal(to parentID: NodeID, createChild: (Int, CGPoint) -> some NodeProtocol) async {
         pushUndo()
         let newLabel = nextNodeLabel
@@ -331,7 +332,73 @@ extension GraphModel {
 
         // Create new node based on type, preserving contents and collapsibility
         let duplicateNode: AnyNode
-        if let node = originalNode as? Node {
+        if let tacoNode = originalNode as? TacoNode {
+            // Duplicate TacoNode with all its properties
+            let newNode = TacoNode(
+                label: newLabel,
+                position: newPosition,
+                protein: tacoNode.protein,
+                shell: tacoNode.shell,
+                toppings: tacoNode.toppings
+            )
+            duplicateNode = AnyNode(newNode)
+        } else if let personNode = originalNode as? PersonNode {
+            // Duplicate PersonNode
+            let newNode = PersonNode(
+                label: newLabel,
+                position: newPosition,
+                name: personNode.name,
+                defaultSpiceLevel: personNode.defaultSpiceLevel,
+                dietaryRestrictions: personNode.dietaryRestrictions,
+                contactIdentifier: personNode.contactIdentifier,
+                thumbnailImageData: personNode.thumbnailImageData,
+                proteinPreference: personNode.proteinPreference,
+                shellPreference: personNode.shellPreference,
+                toppingPreferences: personNode.toppingPreferences
+            )
+            duplicateNode = AnyNode(newNode)
+        } else if let tableNode = originalNode as? TableNode {
+            // Duplicate TableNode
+            let newNode = TableNode(
+                label: newLabel,
+                position: newPosition,
+                name: tableNode.name,
+                headSeats: tableNode.headSeats,
+                sideSeats: tableNode.sideSeats,
+                tableLength: tableNode.tableLength,
+                tableWidth: tableNode.tableWidth,
+                seatingAssignments: [:] // Don't duplicate seating assignments
+            )
+            duplicateNode = AnyNode(newNode)
+        } else if let preferenceNode = originalNode as? PreferenceNode {
+            // Duplicate PreferenceNode
+            let newNode = PreferenceNode(
+                label: newLabel,
+                position: newPosition,
+                name: preferenceNode.name,
+                guestCount: preferenceNode.guestCount,
+                dinnerTime: preferenceNode.dinnerTime,
+                mealNodeID: preferenceNode.mealNodeID,
+                baseRecipeID: preferenceNode.baseRecipeID,
+                clonedRecipeID: preferenceNode.clonedRecipeID,
+                preferences: preferenceNode.preferences
+            )
+            duplicateNode = AnyNode(newNode)
+        } else if let decisionNode = originalNode as? DecisionNode {
+            // Duplicate DecisionNode
+            let newNode = DecisionNode(
+                label: newLabel,
+                position: newPosition,
+                question: decisionNode.question,
+                preferenceKey: decisionNode.preferenceKey,
+                inputType: decisionNode.inputType,
+                selectedChoiceID: decisionNode.selectedChoiceID,
+                selectedChoiceIDs: decisionNode.selectedChoiceIDs,
+                numericValue: decisionNode.numericValue
+            )
+            duplicateNode = AnyNode(newNode)
+        } else if let node = originalNode as? Node {
+            // Duplicate generic Node
             let newNode = Node(
                 label: newLabel,
                 position: newPosition,
@@ -343,7 +410,7 @@ extension GraphModel {
             )
             duplicateNode = AnyNode(newNode)
         } else {
-            // Fallback for other node types
+            // Fallback for any other node types - create a generic Node with contents
             var newNode = Node(
                 label: newLabel,
                 position: newPosition

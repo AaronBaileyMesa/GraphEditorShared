@@ -147,6 +147,10 @@ public struct TransactionNode: NodeProtocol {
         // Transactions don't collapse
     }
 
+    public var typeDescriptor: NodeTypeDescriptor {
+        TransactionNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

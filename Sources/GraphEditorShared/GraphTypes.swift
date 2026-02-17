@@ -123,10 +123,14 @@ extension Node {
     public mutating func collapse() {
         isExpanded = false
     }
-    
+
     public mutating func bulkCollapse() {
         isExpanded = false
         // Recursion handled in GraphModel for full graph access
+    }
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        GenericNodeDescriptor(node: self)
     }
 }
 

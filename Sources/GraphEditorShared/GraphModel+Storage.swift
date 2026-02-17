@@ -167,24 +167,32 @@ extension GraphModel {
             uiConfig = [:]
             globalUiConfig = []
             self.isSimulating = false  // Added to ensure consistent default
-            
+
             // Begin bulk operation to prevent simulation during initialization
             await beginBulkOperation()
-            
+
+            // Add taco node at the top center
+            let tacoNode = TacoNode(
+                label: nextNodeLabel,
+                position: CGPoint(x: 0, y: -80)
+            )
+            nextNodeLabel += 1
+            nodes.append(AnyNode(tacoNode))
+
             // Add default nodes and edge
             let node1 = await addNode(at: CGPoint(x: 0, y: 0))
             let node2 = await addNode(at: CGPoint(x: 100, y: 0))
             await addEdge(from: node1.id, target: node2.id, type: .association)
-            
-            nextNodeLabel = 3
-            
+
+            nextNodeLabel = 4
+
             // End bulk operation
             await endBulkOperation()
-            
+
             invalidateHiddenNodesCache()
             objectWillChange.send()
-            
-            Self.storageLogger.infoLog("Initialized default graph with 2 nodes and 1 edge")
+
+            Self.storageLogger.infoLog("Initialized default graph with taco node, 2 nodes and 1 edge")
         }
     
     public func saveGraph() async throws {

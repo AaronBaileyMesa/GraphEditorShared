@@ -136,6 +136,10 @@ public struct RecipeNode: NodeProtocol {
         isExpanded = false
     }
 
+    public var typeDescriptor: NodeTypeDescriptor {
+        RecipeNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

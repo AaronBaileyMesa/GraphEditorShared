@@ -135,6 +135,10 @@ public struct IngredientNode: NodeProtocol {
         // No collapse behavior
     }
 
+    public var typeDescriptor: NodeTypeDescriptor {
+        IngredientNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

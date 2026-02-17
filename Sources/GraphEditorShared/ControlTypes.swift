@@ -34,6 +34,30 @@ public enum ControlKind: String, Codable, CaseIterable {
     case addCookTask    // Add cook task (MealNode)
     case addRecipe      // Add recipe to meal (MealNode)
     case scaleRecipe    // Scale recipe based on guests (RecipeNode)
+    case createTacoOrder // Create a taco order for a person (PersonNode)
+    
+    // Taco category controls (navigation)
+    case selectProtein   // Show protein selection controls (TacoNode)
+    case selectShell     // Show shell selection controls (TacoNode)
+    case selectToppings  // Show toppings selection controls (TacoNode)
+    case backToCategories // Return to category selection (TacoNode)
+    
+    // Taco configuration controls (detail level)
+    case toggleBeef      // Toggle beef protein selection (TacoNode)
+    case toggleChicken   // Toggle chicken protein selection (TacoNode)
+    case toggleCrunchyShell // Toggle crunchy shell selection (TacoNode)
+    case toggleSoftFlourShell // Toggle soft flour shell selection (TacoNode)
+    case toggleSoftCornShell // Toggle soft corn shell selection (TacoNode)
+    case toggleLettuce   // Toggle lettuce topping (TacoNode)
+    case toggleTomatoes  // Toggle tomatoes topping (TacoNode)
+    case toggleCheese    // Toggle cheese topping (TacoNode)
+    case toggleSourCream // Toggle sour cream topping (TacoNode)
+    case toggleGuacamole // Toggle guacamole topping (TacoNode)
+    case toggleSalsa     // Toggle salsa topping (TacoNode)
+    case toggleOnions    // Toggle onions topping (TacoNode)
+    case toggleCilantro  // Toggle cilantro topping (TacoNode)
+    case toggleJalapeños // Toggle jalapeños topping (TacoNode)
+    case toggleHotSauce  // Toggle hot sauce topping (TacoNode)
 
     // Future: Value editor kinds (e.g., .toggleBool, .sliderDouble) for node content editing
 
@@ -62,6 +86,30 @@ public enum ControlKind: String, Codable, CaseIterable {
         case .addCookTask: return "flame.fill"
         case .addRecipe: return "book.fill"
         case .scaleRecipe: return "person.2.fill"
+        case .createTacoOrder: return "takeoutbag.and.cup.and.straw.fill"
+        
+        // Taco category controls
+        case .selectProtein: return "fork.knife"
+        case .selectShell: return "circlebadge.fill"
+        case .selectToppings: return "list.bullet"
+        case .backToCategories: return "chevron.left"
+        
+        // Taco configuration controls - using text labels in renderIcon
+        case .toggleBeef: return "circle"
+        case .toggleChicken: return "circle"
+        case .toggleCrunchyShell: return "circle"
+        case .toggleSoftFlourShell: return "circle"
+        case .toggleSoftCornShell: return "circle"
+        case .toggleLettuce: return "circle"
+        case .toggleTomatoes: return "circle"
+        case .toggleCheese: return "circle"
+        case .toggleSourCream: return "circle"
+        case .toggleGuacamole: return "circle"
+        case .toggleSalsa: return "circle"
+        case .toggleOnions: return "circle"
+        case .toggleCilantro: return "circle"
+        case .toggleJalapeños: return "circle"
+        case .toggleHotSauce: return "circle"
         }
     }
     
@@ -91,6 +139,58 @@ public enum ControlKind: String, Codable, CaseIterable {
         case .addCookTask: return "flame.fill"
         case .addRecipe: return "book.fill"
         case .scaleRecipe: return "person.2.fill"
+        case .createTacoOrder: return "takeoutbag.and.cup.and.straw.fill"
+        
+        // Taco category controls
+        case .selectProtein: return "fork.knife"
+        case .selectShell: return "circlebadge.fill"
+        case .selectToppings: return "list.bullet"
+        case .backToCategories: return "chevron.left.circle.fill"
+        
+        // Taco configuration controls
+        case .toggleBeef: return "circle.fill"
+        case .toggleChicken: return "circle.fill"
+        case .toggleCrunchyShell: return "circle.fill"
+        case .toggleSoftFlourShell: return "circle.fill"
+        case .toggleSoftCornShell: return "circle.fill"
+        case .toggleLettuce: return "circle.fill"
+        case .toggleTomatoes: return "circle.fill"
+        case .toggleCheese: return "circle.fill"
+        case .toggleSourCream: return "circle.fill"
+        case .toggleGuacamole: return "circle.fill"
+        case .toggleSalsa: return "circle.fill"
+        case .toggleOnions: return "circle.fill"
+        case .toggleCilantro: return "circle.fill"
+        case .toggleJalapeños: return "circle.fill"
+        case .toggleHotSauce: return "circle.fill"
+        }
+    }
+    
+    /// Text label for controls that need text display (like taco options)
+    public var textLabel: String? {
+        switch self {
+        // Taco protein options
+        case .toggleBeef: return "🥩"
+        case .toggleChicken: return "🍗"
+        
+        // Taco shell options
+        case .toggleCrunchyShell: return "Crunchy"
+        case .toggleSoftFlourShell: return "Soft Flour"
+        case .toggleSoftCornShell: return "Soft Corn"
+        
+        // Taco topping options
+        case .toggleLettuce: return "Let"
+        case .toggleTomatoes: return "Tom"
+        case .toggleCheese: return "Che"
+        case .toggleSourCream: return "SC"
+        case .toggleGuacamole: return "Gua"
+        case .toggleSalsa: return "Sal"
+        case .toggleOnions: return "Oni"
+        case .toggleCilantro: return "Cil"
+        case .toggleJalapeños: return "Jal"
+        case .toggleHotSauce: return "Hot"
+        
+        default: return nil
         }
     }
     
@@ -131,6 +231,28 @@ public enum ControlKind: String, Codable, CaseIterable {
             return .cyan  // Recipe addition - cyan
         case .scaleRecipe:
             return .blue  // Scale operation - blue
+        case .createTacoOrder:
+            return .orange  // Taco order creation - orange (taco-themed)
+            
+        // Taco category controls
+        case .selectProtein:
+            return .brown  // Protein category - brown
+        case .selectShell:
+            return .yellow  // Shell category - yellow
+        case .selectToppings:
+            return .green  // Toppings category - green
+        case .backToCategories:
+            return .gray  // Back navigation - gray
+            
+        // Taco configuration controls - gray for unselected, will be overridden based on selection state
+        case .toggleBeef, .toggleChicken:
+            return .brown  // Protein choices - brown
+        case .toggleCrunchyShell, .toggleSoftFlourShell, .toggleSoftCornShell:
+            return .yellow  // Shell choices - yellow
+        case .toggleLettuce, .toggleTomatoes, .toggleCheese, .toggleSourCream,
+             .toggleGuacamole, .toggleSalsa, .toggleOnions, .toggleCilantro,
+             .toggleJalapeños, .toggleHotSauce:
+            return .green  // Toppings - green
         }
     }
 }

@@ -26,6 +26,15 @@ public struct PersonNode: NodeProtocol {
     public let defaultSpiceLevel: String?  // "mild", "medium", "hot"
     public let dietaryRestrictions: [String]  // ["vegetarian", "gluten-free", etc.]
     
+    // Contact integration
+    public let contactIdentifier: String?  // CNContact identifier for refetching
+    public let thumbnailImageData: Data?   // Cached thumbnail image data
+    
+    // Taco preferences (optional - for backward compatibility)
+    public let proteinPreference: ProteinType?    // beef/chicken/veggie
+    public let shellPreference: ShellType?        // soft/hard
+    public let toppingPreferences: [String]       // ["cheese", "lettuce", "tomato", etc.]
+    
     public var displayRadius: CGFloat {
         radius
     }
@@ -60,7 +69,12 @@ public struct PersonNode: NodeProtocol {
         radius: CGFloat = 12.0,  // 24" diameter (1pt = 1 inch scale)
         name: String,
         defaultSpiceLevel: String? = nil,
-        dietaryRestrictions: [String] = []
+        dietaryRestrictions: [String] = [],
+        contactIdentifier: String? = nil,
+        thumbnailImageData: Data? = nil,
+        proteinPreference: ProteinType? = nil,
+        shellPreference: ShellType? = nil,
+        toppingPreferences: [String] = []
     ) {
         self.id = id
         self.label = label
@@ -74,6 +88,11 @@ public struct PersonNode: NodeProtocol {
         self.name = name
         self.defaultSpiceLevel = defaultSpiceLevel
         self.dietaryRestrictions = dietaryRestrictions
+        self.contactIdentifier = contactIdentifier
+        self.thumbnailImageData = thumbnailImageData
+        self.proteinPreference = proteinPreference
+        self.shellPreference = shellPreference
+        self.toppingPreferences = toppingPreferences
     }
     
     // MARK: - NodeProtocol Methods
@@ -87,7 +106,12 @@ public struct PersonNode: NodeProtocol {
             radius: radius,
             name: name,
             defaultSpiceLevel: defaultSpiceLevel,
-            dietaryRestrictions: dietaryRestrictions
+            dietaryRestrictions: dietaryRestrictions,
+            contactIdentifier: contactIdentifier,
+            thumbnailImageData: thumbnailImageData,
+            proteinPreference: proteinPreference,
+            shellPreference: shellPreference,
+            toppingPreferences: toppingPreferences
         )
     }
     
@@ -124,6 +148,12 @@ public struct PersonNode: NodeProtocol {
     public mutating func bulkCollapse() {
         // PersonNode doesn't collapse
     }
+
+    // MARK: - Type Descriptor
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        PersonNodeDescriptor(node: self)
+    }
     
     public var mass: CGFloat {
         10.0
@@ -139,6 +169,8 @@ public struct PersonNode: NodeProtocol {
         case id, label, positionX, positionY, velocityX, velocityY, radius
         case isExpanded, isCollapsible, children, childOrder
         case name, defaultSpiceLevel, dietaryRestrictions
+        case contactIdentifier, thumbnailImageData
+        case proteinPreference, shellPreference, toppingPreferences
     }
     
     public init(from decoder: Decoder) throws {
@@ -152,8 +184,10 @@ public struct PersonNode: NodeProtocol {
         // swiftlint:disable:next identifier_name
         let y = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: x, y: y)
-        
+
+        // swiftlint:disable:next identifier_name
         let vx = try container.decode(CGFloat.self, forKey: .velocityX)
+        // swiftlint:disable:next identifier_name
         let vy = try container.decode(CGFloat.self, forKey: .velocityY)
         velocity = CGPoint(x: vx, y: vy)
         
@@ -166,6 +200,15 @@ public struct PersonNode: NodeProtocol {
         name = try container.decode(String.self, forKey: .name)
         defaultSpiceLevel = try container.decodeIfPresent(String.self, forKey: .defaultSpiceLevel)
         dietaryRestrictions = try container.decode([String].self, forKey: .dietaryRestrictions)
+        
+        // Contact integration (optional for backward compatibility)
+        contactIdentifier = try container.decodeIfPresent(String.self, forKey: .contactIdentifier)
+        thumbnailImageData = try container.decodeIfPresent(Data.self, forKey: .thumbnailImageData)
+        
+        // Taco preferences (optional for backward compatibility)
+        proteinPreference = try container.decodeIfPresent(ProteinType.self, forKey: .proteinPreference)
+        shellPreference = try container.decodeIfPresent(ShellType.self, forKey: .shellPreference)
+        toppingPreferences = try container.decodeIfPresent([String].self, forKey: .toppingPreferences) ?? []
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -186,5 +229,14 @@ public struct PersonNode: NodeProtocol {
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(defaultSpiceLevel, forKey: .defaultSpiceLevel)
         try container.encode(dietaryRestrictions, forKey: .dietaryRestrictions)
+        
+        // Contact integration
+        try container.encodeIfPresent(contactIdentifier, forKey: .contactIdentifier)
+        try container.encodeIfPresent(thumbnailImageData, forKey: .thumbnailImageData)
+        
+        // Taco preferences
+        try container.encodeIfPresent(proteinPreference, forKey: .proteinPreference)
+        try container.encodeIfPresent(shellPreference, forKey: .shellPreference)
+        try container.encode(toppingPreferences, forKey: .toppingPreferences)
     }
 }

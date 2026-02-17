@@ -20,6 +20,9 @@ extension GraphModel {
         name: String,
         defaultSpiceLevel: String? = nil,
         dietaryRestrictions: [String] = [],
+        proteinPreference: ProteinType? = nil,
+        shellPreference: ShellType? = nil,
+        toppingPreferences: [String] = [],
         at position: CGPoint
     ) async -> PersonNode {
         let person = PersonNode(
@@ -27,7 +30,10 @@ extension GraphModel {
             position: position,
             name: name,
             defaultSpiceLevel: defaultSpiceLevel,
-            dietaryRestrictions: dietaryRestrictions
+            dietaryRestrictions: dietaryRestrictions,
+            proteinPreference: proteinPreference,
+            shellPreference: shellPreference,
+            toppingPreferences: toppingPreferences
         )
         
         nodes.append(AnyNode(person))
@@ -336,6 +342,7 @@ extension GraphModel {
     /// Applies a PersonNode's default preferences to a decision tree
     /// This pre-fills decisions based on person's spice level and dietary restrictions
     @MainActor
+    // swiftlint:disable:next cyclomatic_complexity
     public func applyPersonDefaults(
         personID: NodeID,
         toDecisionTree rootDecisionID: NodeID

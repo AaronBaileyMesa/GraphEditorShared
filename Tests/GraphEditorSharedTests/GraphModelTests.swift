@@ -94,7 +94,7 @@ struct GraphModelTests {
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
         model.nextNodeLabel = 1
         
-        await model.addNode(at: CGPoint.zero)
+        _ = await model.addNode(at: CGPoint.zero)
         #expect(model.nodes.count == 1, "Node added")
         #expect(model.nodes[0].unwrapped.label == 1, "Label set correctly")
         #expect(model.nextNodeLabel == 2, "Label incremented")
@@ -111,13 +111,13 @@ struct GraphModelTests {
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
         model.nextNodeLabel = 1  // Set for label consistency
         
-        await model.addToggleNode(at: CGPoint.zero)  // Creates ToggleNode parent (label 1)
-        #expect(model.nodes.count == 1, "Parent ToggleNode added")
-        #expect(model.nodes[0].unwrapped is ToggleNode, "Confirm parent type")  // Validates fix
+        await model.addToggleNode(at: CGPoint.zero)  // Creates collapsible Node parent (label 1)
+        #expect(model.nodes.count == 1, "Parent collapsible Node added")
+        #expect((model.nodes[0].unwrapped as? Node)?.isCollapsible == true, "Confirm parent type")  // Validates fix
         let parentID = model.nodes[0].id
         #expect(model.nextNodeLabel == 2, "Label incremented")
         
-        await model.addPlainChild(to: parentID)  // Adds child (label 2)
+        _ = await model.addPlainChild(to: parentID)  // Adds child (label 2)
         #expect(model.nodes.count == 2, "Child added")
         #expect(model.edges.count == 1, "Hierarchy edge added")
         #expect(model.edges[0].type == EdgeType.hierarchy, "Correct edge type")
@@ -146,16 +146,16 @@ struct GraphModelTests {
     
     @MainActor @Test func testAddChildWithPosition() async {
             let model = await setupModel()
-            
-            // Setup: Add a ToggleNode parent
+
+            // Setup: Add a collapsible Node parent
             let parentPos = CGPoint(x: 0, y: 0)
-            let parent = ToggleNode(label: 1, position: parentPos)
+            let parent = Node(label: 1, position: parentPos, isCollapsible: true)
             model.nodes.append(AnyNode(parent))  // No 'await' needed – now on main actor
-            
+
             // Test: Add child at specific position
             let childPos = CGPoint(x: 50, y: 50)
             await model.addChild(to: parent.id, at: childPos)
-            
+
             // Assertions with safe unwraps
             #expect(model.nodes.count == 2, "Should add one child node")
             guard let addedChild = model.nodes.last?.unwrapped as? Node else {
@@ -165,9 +165,9 @@ struct GraphModelTests {
             #expect(addedChild.position == childPos, "Child position should match provided")
             #expect(model.edges.count == 1, "Should add one hierarchy edge")
             #expect(model.edges.first?.from == parent.id && model.edges.first?.target == addedChild.id, "Edge should connect parent to child")
-            
-            guard let updatedParent = model.nodes.first(where: { $0.id == parent.id })?.unwrapped as? ToggleNode else {
-                Issue.record("Failed to unwrap updated parent as ToggleNode")
+
+            guard let updatedParent = model.nodes.first(where: { $0.id == parent.id })?.unwrapped as? Node else {
+                Issue.record("Failed to unwrap updated parent as Node")
                 return
             }
             #expect(updatedParent.children == [addedChild.id], "Parent children should include new child")

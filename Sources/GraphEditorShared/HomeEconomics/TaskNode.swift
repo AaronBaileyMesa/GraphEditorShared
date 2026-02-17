@@ -199,6 +199,12 @@ public struct TaskNode: NodeProtocol {
         isExpanded = false
     }
 
+    // MARK: - Type Descriptor
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        TaskNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

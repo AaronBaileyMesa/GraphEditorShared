@@ -149,6 +149,12 @@ public struct MealNode: NodeProtocol {
         isExpanded = false
     }
 
+    // MARK: - Type Descriptor
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        MealNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

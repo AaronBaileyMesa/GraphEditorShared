@@ -29,7 +29,12 @@ struct NodeTests {
         let data = try encoder.encode(node)
         let decoder = JSONDecoder()
         let decoded = try decoder.decode(Node.self, from: data)
-        #expect(node == decoded, "Node should encode and decode without data loss")
+        // Velocity is intentionally reset to .zero on decode (transient physics state)
+        #expect(decoded.id == node.id, "ID preserved")
+        #expect(decoded.label == node.label, "Label preserved")
+        #expect(decoded.position == node.position, "Position preserved")
+        #expect(decoded.velocity == .zero, "Velocity reset to zero on decode")
+        #expect(decoded.radius == node.radius, "Radius preserved")
     }
 
     @MainActor @Test func testHandleTapOnToggleNode() async {
@@ -38,18 +43,18 @@ struct NodeTests {
         let model = GraphModel(storage: storage, physicsEngine: physicsEngine)
         let parentID = UUID()
         let childID = UUID()
-        let parent = ToggleNode(id: parentID, label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false, children: [childID])
+        let parent = Node(id: parentID, label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false, isCollapsible: true, children: [childID])
         let child = Node(id: childID, label: 2, position: .zero)
         model.nodes = [AnyNode(parent), AnyNode(child)]
         model.edges = [GraphEdge(from: parentID, target: childID, type: EdgeType.hierarchy)]
-        
+
         await model.handleTap(on: parentID)
-        let updatedParent = model.nodes[0].unwrapped as? ToggleNode
+        let updatedParent = model.nodes[0].unwrapped as? Node
         print("Test Post-handleTap: updatedParent isExpanded: \(updatedParent?.isExpanded.description ?? "nil")")
         #expect(updatedParent?.isExpanded == true, "Toggled to expanded")
         print("testHandleTapOnToggleNode")
         print(updatedParent?.isExpanded ?? "nil")
-        
+
         #expect(updatedParent?.isExpanded == true, "Toggled to expanded")
         #expect(model.nodes[1].position != .zero, "Child position offset")
     }
@@ -62,16 +67,16 @@ struct NodeTests {
         let child1 = AnyNode(Node(id: UUID(), label: 3, position: .zero))  // Unsorted labels
         let child2 = AnyNode(Node(id: UUID(), label: 1, position: .zero))
         let child3 = AnyNode(Node(id: UUID(), label: 2, position: .zero))
-        let parent = AnyNode(ToggleNode(id: parentID, label: 0, position: .zero, children: [child1.id, child2.id, child3.id], childOrder: [child1.id, child2.id, child3.id]))
+        let parent = AnyNode(Node(id: parentID, label: 0, position: .zero, isCollapsible: true, children: [child1.id, child2.id, child3.id], childOrder: [child1.id, child2.id, child3.id]))
         model.nodes = [parent, child1, child2, child3]
-        
+
         await model.sortChildren(of: parentID, by: \.label)
-        let sortedParent = model.nodes[0].unwrapped as? ToggleNode
+        let sortedParent = model.nodes[0].unwrapped as? Node
         #expect(sortedParent?.childOrder == [child2.id, child3.id, child1.id])  // Sorted by label: 1,2,3
         #expect(sortedParent?.children == [child1.id, child2.id, child3.id])  // children unchanged
-        
+
         await model.undo()  // Test revert
-        let undoneParent = model.nodes[0].unwrapped as? ToggleNode
+        let undoneParent = model.nodes[0].unwrapped as? Node
         #expect(undoneParent?.childOrder == [child1.id, child2.id, child3.id])  // Original order
     }
     
@@ -89,10 +94,10 @@ struct NodeTests {
         let storage = MockGraphStorage()
         let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
         let model = GraphModel(storage: storage, physicsEngine: physics)
-        let parent = AnyNode(ToggleNode(label: 1, position: .zero))
+        let parent = AnyNode(Node(label: 1, position: .zero, isCollapsible: true))
         model.nodes = [parent]
-        await model.addPlainChild(to: parent.id)
-        let updatedParent = model.nodes.first(where: { $0.id == parent.id })?.unwrapped as? ToggleNode
+        _ = await model.addPlainChild(to: parent.id)
+        let updatedParent = model.nodes.first(where: { $0.id == parent.id })?.unwrapped as? Node
         #expect(updatedParent?.children.count == 1)
         #expect(updatedParent?.childOrder.count == 1)
         #expect(updatedParent?.childOrder == updatedParent?.children)  // Order matches
@@ -101,7 +106,7 @@ struct NodeTests {
 
     @MainActor @Test func testToggleNodeChildOrdering() {
         let child1 = UUID(), child2 = UUID(), child3 = UUID()
-        let node = ToggleNode(label: 1, position: .zero, children: [child1, child2, child3], childOrder: [child3, child1, child2])
+        let node = Node(label: 1, position: .zero, isCollapsible: true, children: [child1, child2, child3], childOrder: [child3, child1, child2])
         #expect(node.childOrder == [child3, child1, child2])
         let reordered = node.with(childOrder: [child2, child3, child1])
         #expect(reordered.childOrder == [child2, child3, child1])

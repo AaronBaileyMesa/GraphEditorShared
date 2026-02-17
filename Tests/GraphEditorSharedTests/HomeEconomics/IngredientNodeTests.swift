@@ -10,7 +10,6 @@ import Foundation
 import CoreGraphics
 @testable import GraphEditorShared
 
-@available(iOS 16.0, watchOS 9.0, *)
 struct IngredientNodeTests {
 
     @Test("IngredientNode initializes with correct properties")

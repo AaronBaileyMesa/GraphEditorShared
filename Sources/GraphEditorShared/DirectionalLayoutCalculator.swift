@@ -158,9 +158,9 @@ public struct DirectionalLayoutCalculator {
     }
     
     // MARK: - Force Application
-    
+
     /// Apply directional forces for a single segment
-    private static func applySegmentForces(
+    private static func applySegmentForces( // swiftlint:disable:this function_parameter_count function_body_length
         forces: inout [NodeID: CGPoint],
         nodes: [any NodeProtocol],
         depths: [NodeID: Int],
@@ -292,7 +292,7 @@ public struct DirectionalLayoutCalculator {
     
     /// Calculate anchor position (where depth 0 nodes should be positioned)
     /// Uses the root node's actual position to preserve initial layout intentions
-    private static func calculateAnchorPosition(
+    private static func calculateAnchorPosition( // swiftlint:disable:this function_parameter_count
         segmentNodes: [any NodeProtocol],
         rootID: NodeID,
         direction: LayoutDirection,

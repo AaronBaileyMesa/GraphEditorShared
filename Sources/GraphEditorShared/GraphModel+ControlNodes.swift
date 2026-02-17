@@ -45,7 +45,9 @@ extension GraphModel {
         var blockedAngles = Set<CGFloat>()
         
         for nearbyNode in nearbyNodes {
+            // swiftlint:disable:next identifier_name
             let dx = nearbyNode.position.x - owner.position.x
+            // swiftlint:disable:next identifier_name
             let dy = nearbyNode.position.y - owner.position.y
             let distance = hypot(dx, dy)
             
@@ -92,6 +94,13 @@ extension GraphModel {
             #if DEBUG
             Self.controlLogger.debug("Clearing previous ephemerals for owner: \(previousOwnerID.uuidString.prefix(8))")
             #endif
+            
+            // Only clear taco category state when switching to a different node
+            if previousOwnerID != selectedNodeID,
+               let _ = nodes.first(where: { $0.id == previousOwnerID })?.unwrapped as? TacoNode {
+                activeTacoCategory.removeValue(forKey: previousOwnerID)
+            }
+            
             await removeEphemerals(for: previousOwnerID)
         } else {
             ephemeralControlNodes.removeAll()
@@ -188,7 +197,13 @@ extension GraphModel {
             return filterControlKindsForTaskNode(taskNode, ownerID: ownerID)
         } else if owner is RecipeNode {
             return filterControlKindsForRecipeNode(owner, ownerID: ownerID)
-        } else if owner is PersonNode || owner is PreferenceNode || owner is DecisionNode || owner is TableNode {
+        } else if let _ = owner as? PersonNode {
+            // PersonNode has specialized menu UI plus taco order creation
+            return [.createTacoOrder, .openMenu, .addEdge, .delete, .duplicate]
+        } else if let tacoNode = owner as? TacoNode {
+            // TacoNode uses hierarchical controls for configuration
+            return filterControlKindsForTacoNode(tacoNode, ownerID: ownerID)
+        } else if owner is PreferenceNode || owner is DecisionNode || owner is TableNode {
             // These node types have specialized menu UIs
             return [.openMenu, .addEdge, .delete, .duplicate]
         }
@@ -317,6 +332,57 @@ extension GraphModel {
         // RecipeNode - CRUD controls disabled for workflow
         let kinds: [ControlKind] = [.scaleRecipe]
 
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
+        }
+    }
+    
+    private func filterControlKindsForTacoNode(_ tacoNode: TacoNode, ownerID: NodeID) -> [ControlKind] {
+        var kinds: [ControlKind] = []
+        
+        // Check if we have an active category for this taco node
+        let activeCategory = activeTacoCategory[ownerID]
+        
+        if let category = activeCategory {
+            // Show back button when in detail view
+            kinds.append(.backToCategories)
+            
+            // Show detail controls for the selected category
+            switch category {
+            case .selectProtein:
+                kinds.append(.toggleBeef)
+                kinds.append(.toggleChicken)
+            case .selectShell:
+                kinds.append(.toggleCrunchyShell)
+                kinds.append(.toggleSoftFlourShell)
+                kinds.append(.toggleSoftCornShell)
+            case .selectToppings:
+                kinds.append(.toggleLettuce)
+                kinds.append(.toggleTomatoes)
+                kinds.append(.toggleCheese)
+                kinds.append(.toggleSourCream)
+                kinds.append(.toggleGuacamole)
+                kinds.append(.toggleSalsa)
+                kinds.append(.toggleOnions)
+                kinds.append(.toggleCilantro)
+                kinds.append(.toggleJalapeños)
+                kinds.append(.toggleHotSauce)
+            default:
+                break
+            }
+            // Don't show delete/duplicate in detail view - keep focus on selection
+        } else {
+            // Show category controls (default view)
+            kinds.append(.selectProtein)
+            kinds.append(.selectShell)
+            kinds.append(.selectToppings)
+            
+            // Show standard controls only at category level
+            kinds.append(.delete)
+            kinds.append(.duplicate)
+        }
+        
         // Apply UI config filtering
         return kinds.filter { kind in
             uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true

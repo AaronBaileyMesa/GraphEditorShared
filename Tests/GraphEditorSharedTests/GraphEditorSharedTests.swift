@@ -155,7 +155,6 @@ struct ClampingAndMiscTests {
     
     @Test func testAsymmetricAttraction() throws {
         let engine = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
-        engine.useAsymmetricAttraction = true  // Assumes this property is added (see implementation below)
         let fromID = UUID()
         let targetID = UUID()
         var nodes: [any NodeProtocol] = [Node(id: fromID, label: 1, position: CGPoint(x: 0, y: 0)),
@@ -252,23 +251,23 @@ struct ClampingAndMiscTests {
         let node = Node(id: UUID(), label: 1, position: .zero)
         #expect(node.handlingTap() == node, "Default tap: no change")
         #expect(node.isVisible == true, "Default visible")
-        #expect(node.fillColor == .red, "Default color")
+        #expect(node.fillColor == .blue, "Default color")
         #expect(node.shouldHideChildren() == false, "Default: show children")
     }
     
     @available(iOS 15.0, watchOS 9.0, *)
     @MainActor @Test func testAnyNodeMutabilityAndCoding() throws {
-        let base = ToggleNode(id: UUID(), label: 1, position: .zero, isExpanded: false, contents: [.string("Test")])
+        let base = Node(id: UUID(), label: 1, position: .zero, isExpanded: false, isCollapsible: true, contents: [NodeContent.string("Test")])
         var anyNode = AnyNode(base)
         anyNode.position = CGPoint(x: 10, y: 20)
-        anyNode.contents = [.number(42.0)]
+        anyNode.contents = [NodeContent.number(42.0)]
         #expect(anyNode.position == CGPoint(x: 10, y: 20), "Position mutable")
-        #expect(anyNode.contents == [.number(42.0)], "Contents mutable")
-        
+        #expect(anyNode.contents == [NodeContent.number(42.0)], "Contents mutable")
+
         let data = try JSONEncoder().encode(anyNode)
         let decoded = try JSONDecoder().decode(AnyNode.self, from: data)
         #expect(decoded == anyNode, "AnyNode codes round-trip")
-        #expect((decoded.unwrapped as? ToggleNode)?.isExpanded == false, "Wrapped type preserved")
+        #expect((decoded.unwrapped as? Node)?.isExpanded == false, "Wrapped type preserved")
     }
     
     @available(iOS 15.0, watchOS 9.0, *)

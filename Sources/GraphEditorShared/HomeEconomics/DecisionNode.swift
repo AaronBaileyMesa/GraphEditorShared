@@ -141,7 +141,11 @@ public struct DecisionNode: NodeProtocol {
     public mutating func bulkCollapse() {
         isExpanded = false
     }
-    
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        DecisionNodeDescriptor(node: self)
+    }
+
     public var mass: CGFloat {
         12.0
     }
@@ -170,8 +174,10 @@ public struct DecisionNode: NodeProtocol {
         // swiftlint:disable:next identifier_name
         let y = try container.decode(CGFloat.self, forKey: .positionY)
         position = CGPoint(x: x, y: y)
-        
+
+        // swiftlint:disable:next identifier_name
         let vx = try container.decode(CGFloat.self, forKey: .velocityX)
+        // swiftlint:disable:next identifier_name
         let vy = try container.decode(CGFloat.self, forKey: .velocityY)
         velocity = CGPoint(x: vx, y: vy)
         
