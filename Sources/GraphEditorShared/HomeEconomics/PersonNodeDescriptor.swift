@@ -23,10 +23,11 @@ struct PersonNodeDescriptor: NodeTypeDescriptor {
     }
 
     var constraints: [NodeConstraint] {
-        // Note: We can't easily determine which table this person is seated at from the PersonNode alone
-        // The seating relationship is stored in TableNode.seatingAssignments
-        // This constraint will be resolved at runtime via the physics engine's constraint context
-        [SeatedPersonConstraint(personID: node.id)]
+        // PersonNode doesn't declare its own constraints
+        // Constraints affecting PersonNode are declared by:
+        // - PeopleListNode (GridConstraint when expanded)
+        // - TableNode (SeatedPersonConstraint when seated)
+        []
     }
 
     // MARK: - Visual Configuration

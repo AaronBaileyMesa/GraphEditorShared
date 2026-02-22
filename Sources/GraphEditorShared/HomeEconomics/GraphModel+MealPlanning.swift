@@ -84,6 +84,39 @@ extension GraphModel {
         return meal
     }
 
+    /// Adds a person node with taco preferences
+    @MainActor
+    // swiftlint:disable:next function_parameter_count
+    public func addPerson(
+        name: String,
+        defaultSpiceLevel: String? = nil,
+        dietaryRestrictions: [String] = [],
+        proteinPreference: ProteinType? = nil,
+        shellPreference: ShellType? = nil,
+        toppingPreferences: [String] = [],
+        contactIdentifier: String? = nil,
+        thumbnailImageData: Data? = nil,
+        at position: CGPoint
+    ) async -> PersonNode {
+        let person = PersonNode(
+            label: nextNodeLabel,
+            position: position,
+            name: name,
+            defaultSpiceLevel: defaultSpiceLevel,
+            dietaryRestrictions: dietaryRestrictions,
+            contactIdentifier: contactIdentifier,
+            thumbnailImageData: thumbnailImageData,
+            proteinPreference: proteinPreference,
+            shellPreference: shellPreference,
+            toppingPreferences: toppingPreferences
+        )
+
+        nodes.append(AnyNode(person))
+        nextNodeLabel += 1
+
+        return person
+    }
+
     /// Adds a recipe node
     @MainActor
     // swiftlint:disable:next function_parameter_count
@@ -691,5 +724,134 @@ extension GraphModel {
     @MainActor
     private func addTaskToMeal(mealID: NodeID, taskID: NodeID) async {
         await addEdge(from: mealID, target: taskID, type: .hierarchy)
+    }
+
+    // MARK: - Query Helpers
+
+    /// Returns all TacoNodes in the graph
+    @MainActor
+    public func allTacos() -> [TacoNode] {
+        nodes.compactMap { $0.unwrapped as? TacoNode }
+    }
+
+    /// Returns all PersonNodes in the graph
+    @MainActor
+    public func allPersons() -> [PersonNode] {
+        nodes.compactMap { $0.unwrapped as? PersonNode }
+    }
+
+    /// Returns all TableNodes in the graph
+    @MainActor
+    public func allTables() -> [TableNode] {
+        nodes.compactMap { $0.unwrapped as? TableNode }
+    }
+
+    // MARK: - Taco Linking
+
+    /// Returns TacoNodes linked to a meal via .includesTaco edges
+    @MainActor
+    public func tacosForMeal(_ mealID: NodeID) -> [TacoNode] {
+        let tacoIDs = edges
+            .filter { $0.from == mealID && $0.type == .includesTaco }
+            .map { $0.target }
+        return tacoIDs.compactMap { id in
+            nodes.first(where: { $0.id == id })?.unwrapped as? TacoNode
+        }
+    }
+
+    /// Links a TacoNode to a MealNode with an .includesTaco edge
+    @MainActor
+    public func linkTacoToMeal(tacoID: NodeID, mealID: NodeID) async {
+        let alreadyLinked = edges.contains { $0.from == mealID && $0.target == tacoID && $0.type == .includesTaco }
+        guard !alreadyLinked else { return }
+        await addEdge(from: mealID, target: tacoID, type: .includesTaco)
+    }
+
+    /// Removes the .includesTaco link between a TacoNode and a MealNode
+    @MainActor
+    public func unlinkTacoFromMeal(tacoID: NodeID, mealID: NodeID) {
+        edges.removeAll { $0.from == mealID && $0.target == tacoID && $0.type == .includesTaco }
+    }
+
+    // MARK: - Person Linking
+
+    /// Returns PersonNodes linked to a meal via .attendsMeal edges
+    @MainActor
+    public func personsForMeal(_ mealID: NodeID) -> [PersonNode] {
+        let personIDs = edges
+            .filter { $0.target == mealID && $0.type == .attendsMeal }
+            .map { $0.from }
+        return personIDs.compactMap { id in
+            nodes.first(where: { $0.id == id })?.unwrapped as? PersonNode
+        }
+    }
+
+    /// Links a PersonNode to a MealNode with an .attendsMeal edge
+    @MainActor
+    public func linkPersonToMeal(personID: NodeID, mealID: NodeID) async {
+        let alreadyLinked = edges.contains { $0.from == personID && $0.target == mealID && $0.type == .attendsMeal }
+        guard !alreadyLinked else { return }
+        await addEdge(from: personID, target: mealID, type: .attendsMeal)
+    }
+
+    /// Removes the .attendsMeal link between a PersonNode and a MealNode
+    @MainActor
+    public func unlinkPersonFromMeal(personID: NodeID, mealID: NodeID) {
+        edges.removeAll { $0.from == personID && $0.target == mealID && $0.type == .attendsMeal }
+    }
+
+    // MARK: - Table Linking
+
+    /// Returns the TableNode linked to a meal via a .usesTable edge
+    @MainActor
+    public func tableForMeal(_ mealID: NodeID) -> TableNode? {
+        guard let tableID = edges.first(where: { $0.from == mealID && $0.type == .usesTable })?.target else {
+            return nil
+        }
+        return nodes.first(where: { $0.id == tableID })?.unwrapped as? TableNode
+    }
+
+    /// Links a TableNode to a MealNode with a .usesTable edge (replaces any existing link)
+    @MainActor
+    public func linkTableToMeal(tableID: NodeID, mealID: NodeID) async {
+        // Remove existing table link first
+        edges.removeAll { $0.from == mealID && $0.type == .usesTable }
+        await addEdge(from: mealID, target: tableID, type: .usesTable)
+    }
+
+    // MARK: - Shopping List Generation
+
+    /// Aggregates and scales ingredients from all TacoNodes linked to a meal.
+    /// Scales per-taco quantities by (guests × tacosPerPerson / tacoTypeCount).
+    @MainActor
+    public func generateTacoShoppingList(for mealID: NodeID) -> [ShoppingItem] {
+        guard let meal = nodes.first(where: { $0.id == mealID })?.unwrapped as? MealNode else {
+            return []
+        }
+
+        let linkedTacos = tacosForMeal(mealID)
+        guard !linkedTacos.isEmpty else { return [] }
+
+        let totalTacos = Double(meal.guests) * meal.tacosPerPerson
+        // Each taco type gets an equal share of the total count
+        let tacosPerType = totalTacos / Double(linkedTacos.count)
+
+        var aggregated: [String: (Decimal, String)] = [:]
+
+        for taco in linkedTacos {
+            let ingredients = taco.ingredientsForTaco()
+            for ingredient in ingredients {
+                let scaledQty = ingredient.quantity * Decimal(tacosPerType)
+                if let existing = aggregated[ingredient.name] {
+                    aggregated[ingredient.name] = (existing.0 + scaledQty, existing.1)
+                } else {
+                    aggregated[ingredient.name] = (scaledQty, ingredient.unit)
+                }
+            }
+        }
+
+        return aggregated
+            .map { name, value in ShoppingItem(name: name, quantity: value.0, unit: value.1) }
+            .sorted { $0.name < $1.name }
     }
 }

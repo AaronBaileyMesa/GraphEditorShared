@@ -20,9 +20,12 @@ public struct HierarchyLayoutHelper {
     public static func calculateDepths(nodes: [any NodeProtocol], edges: [GraphEdge]) -> [NodeID: Int] {
         var depths: [NodeID: Int] = [:]
 
-        // Filter out control nodes - they're ephemeral UI elements, not part of the graph hierarchy
+        // Filter out control nodes and RootNode - they're not part of the hierarchy layout
+        // ControlNodes are ephemeral UI elements
+        // RootNode is fixed at origin and acts as an entry point, not a hierarchy participant
         let graphNodes = nodes.filter { node in
-            node.fullyUnwrapped() is ControlNode == false
+            let unwrapped = node.fullyUnwrapped()
+            return unwrapped is ControlNode == false && unwrapped is RootNode == false
         }
 
         // Build adjacency list of hierarchy edges (parent -> children)
@@ -101,11 +104,12 @@ public struct HierarchyLayoutHelper {
         var nodesLogged = 0
         
         for node in nodes {
-            // Skip control nodes - they shouldn't be affected by hierarchical layout
-            if node.fullyUnwrapped() is ControlNode {
+            // Skip control nodes and RootNode - they shouldn't be affected by hierarchical layout
+            let unwrapped = node.fullyUnwrapped()
+            if unwrapped is ControlNode || unwrapped is RootNode {
                 continue
             }
-            
+
             guard let depth = depths[node.id] else { continue }
 
             // Calculate target Y position for this depth

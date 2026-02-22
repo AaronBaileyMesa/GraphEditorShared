@@ -110,9 +110,32 @@ public class PhysicsEngine {
         for node in nodes {
             let constraints = node.typeDescriptor.constraints
             if !constraints.isEmpty {
-                constraintsByNode[node.id] = constraints
                 allConstraints.append(contentsOf: constraints)
+                #if DEBUG
+                print("🔍 PhysicsEngine: Collected \(constraints.count) constraint(s) from node \(node.id.uuidString.prefix(8)) (type: \(String(describing: type(of: node))))")
+                #endif
+                if LogManager.verboseSimulationLogging {
+                    Self.logger.debug("Collected \(constraints.count) constraint(s) from node \(node.id) (type: \(String(describing: type(of: node))))")
+                }
             }
+        }
+        
+        if LogManager.verboseSimulationLogging && !allConstraints.isEmpty {
+            Self.logger.debug("Total constraints collected: \(allConstraints.count)")
+        }
+        
+        // Distribute constraints to affected nodes
+        for constraint in allConstraints {
+            for affectedID in constraint.affectedNodeIDs() {
+                constraintsByNode[affectedID, default: []].append(constraint)
+                if LogManager.verboseSimulationLogging {
+                    Self.logger.debug("Distributing constraint to node \(affectedID)")
+                }
+            }
+        }
+        
+        if LogManager.verboseSimulationLogging && !constraintsByNode.isEmpty {
+            Self.logger.debug("Constraints distributed to \(constraintsByNode.count) nodes")
         }
 
         // Build set of nodes affected by constraints
@@ -210,6 +233,9 @@ public class PhysicsEngine {
                     proposedPosition: node.position,
                     context: constraintContext
                 ) {
+                    if LogManager.verboseSimulationLogging {
+                        Self.logger.debug("Applied constraint to node \(node.id): \(String(format: "%.1f", node.position.x)),\(String(format: "%.1f", node.position.y)) → \(String(format: "%.1f", newPos.x)),\(String(format: "%.1f", newPos.y))")
+                    }
                     constrainedPosition = newPos
                 }
             }

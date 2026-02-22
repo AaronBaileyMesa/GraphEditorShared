@@ -34,6 +34,8 @@ public struct ControlNode: NodeProtocol {
     public var priority: Int = 0
     // Optional action closure
     public var action: (() -> Void)?
+    // Owner node's expansion state (for toggleExpand icon rendering)
+    public var ownerIsExpanded: Bool = true
     
     // MARK: Init – supports both global and per-node controls
     public init(
@@ -43,7 +45,8 @@ public struct ControlNode: NodeProtocol {
         isVisible: Bool = true,
         priority: Int = 0,
         action: (() -> Void)? = nil,
-        relativeAngle: CGFloat = 0.0
+        relativeAngle: CGFloat = 0.0,
+        ownerIsExpanded: Bool = true
     ) {
         self.position = position
         self.ownerID = ownerID
@@ -52,6 +55,7 @@ public struct ControlNode: NodeProtocol {
         self.priority = priority
         self.action = action
         self.relativeAngle = relativeAngle
+        self.ownerIsExpanded = ownerIsExpanded
     }
     
     // MARK: Required NodeProtocol methods
@@ -129,6 +133,12 @@ public struct ControlNode: NodeProtocol {
             return tacoNode.toppings.contains("Jalapeños")
         case .toggleHotSauce:
             return tacoNode.toppings.contains("Hot Sauce")
+        case .toggleRadishes:
+            return tacoNode.toppings.contains("Radishes")
+        case .toggleLime:
+            return tacoNode.toppings.contains("Lime")
+        case .togglePickledJalapeños:
+            return tacoNode.toppings.contains("Pickled Jalapeños")
         default:
             return false
         }
@@ -150,8 +160,16 @@ public struct ControlNode: NodeProtocol {
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                 } else {
-                    // Show icon for standard controls
-                    Image(systemName: kind.renderIcon)
+                    // Show icon for standard controls (with dynamic chevron for toggleExpand)
+                    let iconName = kind.renderIcon(isExpanded: ownerIsExpanded)
+                    #if DEBUG
+                    let _ = {
+                        if kind == .toggleExpand {
+                            print("🔧 Rendering toggleExpand icon: '\(iconName)' with ownerIsExpanded=\(ownerIsExpanded)")
+                        }
+                    }()
+                    #endif
+                    Image(systemName: iconName)
                         .font(.system(size: 16 * zoomScale, weight: .medium))
                         .foregroundColor(.white)
                 }
@@ -170,14 +188,15 @@ extension ControlNode: Equatable {
         lhs.kind == rhs.kind &&
         lhs.ownerID == rhs.ownerID &&
         lhs.isVisible == rhs.isVisible &&
-        lhs.relativeAngle == rhs.relativeAngle  // NEW
+        lhs.relativeAngle == rhs.relativeAngle &&
+        lhs.ownerIsExpanded == rhs.ownerIsExpanded
     }
 }
 
 // MARK: - Codable (optional – only if you ever persist controls, which you don’t)
 extension ControlNode: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, position, velocity, radius, ownerID, kind, isVisible, priority, relativeAngle
+        case id, position, velocity, radius, ownerID, kind, isVisible, priority, relativeAngle, ownerIsExpanded
     }
     
     public init(from decoder: Decoder) throws {
@@ -191,6 +210,7 @@ extension ControlNode: Codable {
         self.isVisible = try container.decode(Bool.self, forKey: .isVisible)
         self.priority = try container.decode(Int.self, forKey: .priority)
         self.relativeAngle = try container.decode(CGFloat.self, forKey: .relativeAngle)
+        self.ownerIsExpanded = try container.decodeIfPresent(Bool.self, forKey: .ownerIsExpanded) ?? true
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -204,5 +224,6 @@ extension ControlNode: Codable {
         try container.encode(isVisible, forKey: .isVisible)
         try container.encode(priority, forKey: .priority)
         try container.encode(relativeAngle, forKey: .relativeAngle)
+        try container.encode(ownerIsExpanded, forKey: .ownerIsExpanded)
     }
 }

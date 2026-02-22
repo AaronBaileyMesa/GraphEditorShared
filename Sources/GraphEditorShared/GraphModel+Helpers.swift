@@ -189,6 +189,9 @@ extension GraphModel {
     
     // Add this to GraphModel+Helpers.swift to include color resets (and optionally call save() if needed)
     public func resetGraph() async {
+        // Preserve RootNode before clearing
+        let rootNode = nodes.first(where: { $0.unwrapped is RootNode })
+        
         nodes.removeAll()
         edges.removeAll()
         nextNodeLabel = 1  // Reset label counter
@@ -196,6 +199,14 @@ extension GraphModel {
         associationEdgeColor = .white  // Reset to default
         undoStack.removeAll()
         redoStack.removeAll()
+        
+        // Restore or create RootNode
+        if let root = rootNode {
+            nodes.append(root)
+        } else {
+            await ensureRootNode()
+        }
+        
         objectWillChange.send()
         do {
             try await saveGraph()  // Add this to persist the reset

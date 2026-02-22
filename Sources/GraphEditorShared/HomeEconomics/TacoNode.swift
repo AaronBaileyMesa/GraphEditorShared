@@ -51,8 +51,8 @@ public struct TacoNode: NodeProtocol {
         position: CGPoint,
         velocity: CGPoint = .zero,
         radius: CGFloat = Constants.App.nodeModelRadius,
-        protein: ProteinType? = nil,
-        shell: ShellType? = nil,
+        protein: ProteinType? = .beef,
+        shell: ShellType? = .softFlour,
         toppings: [String] = []
     ) {
         self.id = id
@@ -119,6 +119,61 @@ public struct TacoNode: NodeProtocol {
         var updated = self
         updated.toppings = toppings
         return updated
+    }
+
+    // MARK: - Ingredient Lookup
+
+    /// Returns ingredients for this taco based on protein, shell, and toppings.
+    /// Quantities are per single taco; callers should scale by total taco count.
+    public func ingredientsForTaco() -> [(name: String, quantity: Decimal, unit: String)] {
+        var ingredients: [(name: String, quantity: Decimal, unit: String)] = []
+
+        // Protein
+        switch protein {
+        case .beef:
+            ingredients.append(("Ground Beef", 0.25, "lb"))
+        case .chicken:
+            ingredients.append(("Chicken", 0.25, "lb"))
+        case .none:
+            break
+        }
+
+        // Shell
+        switch shell {
+        case .crunchy:
+            ingredients.append(("Crunchy Taco Shells", 2, "count"))
+        case .softFlour:
+            ingredients.append(("Flour Tortillas", 2, "count"))
+        case .softCorn:
+            ingredients.append(("Corn Tortillas", 2, "count"))
+        case .none:
+            break
+        }
+
+        // Toppings
+        let toppingIngredients: [String: (Decimal, String)] = [
+            "Lettuce":            (0.25, "cup"),
+            "Tomatoes":           (0.25, "cup"),
+            "Cheese":             (0.125, "cup"),
+            "Sour Cream":         (1, "tbsp"),
+            "Guacamole":          (2, "tbsp"),
+            "Salsa":              (2, "tbsp"),
+            "Onions":             (2, "tbsp"),
+            "Cilantro":           (1, "tbsp"),
+            "Jalapeños":          (1, "tbsp"),
+            "Hot Sauce":          (1, "tsp"),
+            "Radishes":           (2, "count"),
+            "Lime":               (0.25, "count"),
+            "Pickled Jalapeños":  (1, "tbsp")
+        ]
+
+        for topping in toppings {
+            if let (qty, unit) = toppingIngredients[topping] {
+                ingredients.append((topping, qty, unit))
+            }
+        }
+
+        return ingredients
     }
 
     public func shouldHideChildren() -> Bool {

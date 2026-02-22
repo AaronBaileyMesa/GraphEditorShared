@@ -47,6 +47,22 @@ public struct PersonNodeRenderer: NodeRenderer {
                 height: radius * 2
             )
             
+            // Draw selection glow if selected
+            if isSelected {
+                let glowPath = Circle()
+                    .path(in: CGRect(
+                        x: screenPosition.x - radius - 3 * zoomScale,
+                        y: screenPosition.y - radius - 3 * zoomScale,
+                        width: (radius + 3 * zoomScale) * 2,
+                        height: (radius + 3 * zoomScale) * 2
+                    ))
+                context.stroke(
+                    glowPath,
+                    with: .color(.white.opacity(0.6)),
+                    lineWidth: 6.0 * zoomScale
+                )
+            }
+            
             // Clip to circle
             context.clip(to: circlePath)
             
@@ -55,11 +71,11 @@ public struct PersonNodeRenderer: NodeRenderer {
             
             // Reset clip
             context.clipToLayer { layerContext in
-                // Draw border over the image
-                let strokeWidth = isSelected ? 3.0 * zoomScale : 2.0 * zoomScale
+                // Draw border over the image - make it more prominent when selected
+                let strokeWidth = isSelected ? 4.0 * zoomScale : 2.0 * zoomScale
                 layerContext.stroke(
                     circlePath,
-                    with: .color(.white.opacity(0.5)),
+                    with: .color(.white),
                     lineWidth: strokeWidth
                 )
             }
@@ -119,9 +135,15 @@ public struct PersonNodeRenderer: NodeRenderer {
                     .overlay(
                         Circle()
                             .strokeBorder(
-                                Color.white.opacity(0.5),
-                                lineWidth: isSelected ? 3 : 2
+                                Color.white,
+                                lineWidth: isSelected ? 4 : 2
                             )
+                    )
+                    .shadow(
+                        color: isSelected ? .white.opacity(0.6) : .clear,
+                        radius: isSelected ? 6 : 0,
+                        x: 0,
+                        y: 0
                     )
             )
         } else {

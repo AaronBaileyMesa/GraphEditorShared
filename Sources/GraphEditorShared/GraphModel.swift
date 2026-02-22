@@ -42,6 +42,7 @@ import WatchKit
     
     // Taco node category navigation state
     public var activeTacoCategory: [NodeID: ControlKind] = [:]  // TacoNode ID -> active category control
+    public var activeToppingSubCategory: [NodeID: ControlKind] = [:]  // TacoNode ID -> active topping sub-category
 
     // PERFORMANCE: Cache person-to-table lookups to avoid O(N*M) searches during rendering
     internal var personToTableCache: [NodeID: NodeID] = [:]  // PersonID -> TableID
@@ -79,6 +80,7 @@ import WatchKit
     
     public let storage: GraphStorage
     public var physicsEngine: PhysicsEngine
+    private let bypassSimulatorAppCheck: Bool
     
     // MARK: - Hidden Nodes Caching (fixes extreme performance regression)
     
@@ -120,11 +122,20 @@ import WatchKit
 
         for wrapper in nodes {
             let node = wrapper.unwrapped
-            // Check if node is collapsible and collapsed (should hide children)
-            guard let concreteNode = node as? Node, concreteNode.isCollapsible, !concreteNode.isExpanded else {
+            // Check if node should hide its children (collapsed state)
+            let shouldHide = node.shouldHideChildren()
+            
 #if DEBUG
-                if LogManager.verboseSimulationLogging, let debugNode = node as? Node, debugNode.isCollapsible {
-                    print("Collapsible node label \(debugNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
+            // Log all PeopleListNode states for debugging
+            if let peopleList = node as? PeopleListNode {
+                print("🔍 PeopleListNode '\(peopleList.name)' (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded=\(peopleList.isExpanded), isCollapsible=\(peopleList.isCollapsible), shouldHideChildren=\(shouldHide)")
+            }
+#endif
+            
+            guard shouldHide else {
+#if DEBUG
+                if LogManager.verboseSimulationLogging, node.typeDescriptor.isCollapsible {
+                    print("Collapsible node label \(node.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = true, result = false")
                 }
 #endif
                 continue
@@ -135,8 +146,9 @@ import WatchKit
                 .map { $0.target }
 
 #if DEBUG
+            print("🔒 Hiding children of node label \(node.label) (ID: \(wrapper.id.uuidString.prefix(8))): \(children.map { $0.uuidString.prefix(8) })")
             if LogManager.verboseSimulationLogging {
-                print("Collapsible node label \(concreteNode.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
+                print("Collapsible node label \(node.label) (ID: \(wrapper.id.uuidString.prefix(8))): isExpanded = false, result = true")
                 print("  Adding to toHide: \(children.map { $0.uuidString.prefix(8) })")
             }
 #endif
@@ -262,19 +274,18 @@ import WatchKit
                     self?.isSimulating = false
                     Self.logger.infoLog("Auto-paused simulation after inactivity")
                 }
-            } /*,
-             getAllEdges: { self.allEdges },
-             getHiddenNodeIDs: { self.hiddenNodeIDs },  // If private, add public getter or change visibility
-             invalidateHiddenNodesCache: { self.invalidateHiddenNodesCache() },*/
+            },
+            bypassAppCheck: self.bypassSimulatorAppCheck
         )
     }()
     
     public var canUndo: Bool { !undoStack.isEmpty }
     public var canRedo: Bool { !redoStack.isEmpty }
     
-    public init(storage: GraphStorage, physicsEngine: PhysicsEngine) {
+    public init(storage: GraphStorage, physicsEngine: PhysicsEngine, bypassAppCheck: Bool = false) {
         self.storage = storage
         self.physicsEngine = physicsEngine
+        self.bypassSimulatorAppCheck = bypassAppCheck
         Self.logger.infoLog("GraphModel initialized with storage: \(type(of: storage))")
     }
     
@@ -386,8 +397,31 @@ import WatchKit
         
         let clusterRadius = ownerNode.radius * 2.2
         
+        // Check if owner is a PersonNode in an expanded PeopleListNode table
+        let isInTable: Bool = {
+            guard ownerNode is PersonNode else { return false }
+            // Find if there's a PeopleListNode parent that's expanded
+            if let parentEdge = edges.first(where: { $0.target == selectedID && $0.type == .hierarchy }),
+               let peopleList = nodes.first(where: { $0.id == parentEdge.from })?.unwrapped as? PeopleListNode,
+               peopleList.isExpanded {
+                return true
+            }
+            return false
+        }()
+        
         for (index, kind) in kinds.enumerated() {
-            let angle = CGFloat(index) * .pi * 2 / CGFloat(kinds.count) - .pi / 2
+            var angle = CGFloat(index) * .pi * 2 / CGFloat(kinds.count) - .pi / 2
+            
+            // If in table, avoid the horizontal right area (where the label is)
+            // Shift angles to cluster on the left side instead
+            if isInTable {
+                // Map angles: instead of top/right/bottom, use top-left/left/bottom-left
+                // Original angles: -90°, 30°, 150° (top, top-right, bottom-right)
+                // New angles: -120°, -180°, -60° (top-left, left, bottom-left)
+                let leftAngles: [CGFloat] = [-.pi * 2/3, -.pi, -.pi / 3]  // -120°, -180°, -60°
+                angle = leftAngles[index]
+            }
+            
             let offset = CGPoint(x: cos(angle), y: sin(angle)) * clusterRadius
             
             let control = ControlNode(

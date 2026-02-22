@@ -32,13 +32,25 @@ struct MealPlanningTypesTests {
     @Test("TaskType has all workflow stages")
     func testTaskTypeCases() {
         let allCases = TaskType.allCases
-        #expect(allCases.count == 6)
+        #expect(allCases.count == 15)
+        // Top-level workflow stages
         #expect(allCases.contains(.plan))
         #expect(allCases.contains(.shop))
         #expect(allCases.contains(.prep))
         #expect(allCases.contains(.cook))
+        #expect(allCases.contains(.assemble))
         #expect(allCases.contains(.serve))
         #expect(allCases.contains(.cleanup))
+        // Prep subtasks
+        #expect(allCases.contains(.prepMeat))
+        #expect(allCases.contains(.prepVegetables))
+        #expect(allCases.contains(.prepSauces))
+        #expect(allCases.contains(.prepShells))
+        #expect(allCases.contains(.prepToppings))
+        // Assembly subtasks
+        #expect(allCases.contains(.assemblySetup))
+        #expect(allCases.contains(.assemblyBuild))
+        #expect(allCases.contains(.assemblyPlate))
     }
 
     @Test("TaskStatus has all states")

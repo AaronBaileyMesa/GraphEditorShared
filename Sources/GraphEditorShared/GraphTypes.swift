@@ -159,6 +159,11 @@ public enum EdgeType: String, Codable {
     case configures     // PreferenceNode → MealNode (preferences configure meal)
     case clonedFrom     // RecipeNode instance → RecipeNode template
     case decidedBy      // PreferenceNode → DecisionNode (tracks which decisions produced prefs)
+
+    // NEW: Taco night plan edge types
+    case includesTaco   // MealNode → TacoNode (meal includes this taco type)
+    case attendsMeal    // PersonNode → MealNode (person attends this meal)
+    case usesTable      // MealNode → TableNode (meal uses this table)
 }
 
 // Represents an edge connecting two nodes.

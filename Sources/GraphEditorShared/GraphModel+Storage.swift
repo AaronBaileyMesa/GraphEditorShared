@@ -63,6 +63,9 @@ extension GraphModel {
                 // Migrate seated persons to correct positions (for updated seat calculations)
                 migrateSeatedPersonPositions()
                 
+                // Repair stale children references in parent nodes
+                repairParentChildrenReferences()
+                
                 // End bulk operation first, THEN restore simulation state
                 await endBulkOperation()
                 
@@ -71,6 +74,9 @@ extension GraphModel {
                 if loadedState.isSimulating {
                     await startSimulation()
                 }
+                
+                // Ensure RootNode exists (for empty or legacy graphs)
+                await ensureRootNode()
             } catch let storageError as GraphStorageError {
                 if case .graphNotFound = storageError {
                     Self.storageLogger.warning("Graph '\(name)' not found")
@@ -103,6 +109,9 @@ extension GraphModel {
                             
                             // Migrate seated persons to correct positions (for updated seat calculations)
                             migrateSeatedPersonPositions()
+                            
+                            // Repair stale children references in parent nodes
+                            repairParentChildrenReferences()
 
                             // End bulk operation first, THEN restore simulation state
                             await endBulkOperation()
@@ -112,6 +121,9 @@ extension GraphModel {
                             if loadedState.isSimulating {
                                 await startSimulation()
                             }
+                            
+                            // Ensure RootNode exists (for empty or legacy graphs)
+                            await ensureRootNode()
                         } catch let defaultError as GraphStorageError {
                             if case .graphNotFound = defaultError {
                                 Self.storageLogger.warning("Default graph not found – initializing")
@@ -171,20 +183,8 @@ extension GraphModel {
             // Begin bulk operation to prevent simulation during initialization
             await beginBulkOperation()
 
-            // Add taco node at the top center
-            let tacoNode = TacoNode(
-                label: nextNodeLabel,
-                position: CGPoint(x: 0, y: -80)
-            )
-            nextNodeLabel += 1
-            nodes.append(AnyNode(tacoNode))
-
-            // Add default nodes and edge
-            let node1 = await addNode(at: CGPoint(x: 0, y: 0))
-            let node2 = await addNode(at: CGPoint(x: 100, y: 0))
-            await addEdge(from: node1.id, target: node2.id, type: .association)
-
-            nextNodeLabel = 4
+            // Create RootNode for empty graph
+            await ensureRootNode()
 
             // End bulk operation
             await endBulkOperation()
@@ -304,14 +304,17 @@ extension GraphModel {
         // 6. Clear undo/redo
         undoStack.removeAll()
         redoStack.removeAll()
-        
-        // 7. Save empty state (optional but recommended for consistency)
+
+        // 7. Ensure RootNode exists in new graph
+        await ensureRootNode()
+
+        // 8. Save state with RootNode
         try await saveGraph()
-        
-        // 8. Invalidate caches and notify
+
+        // 9. Invalidate caches and notify
         invalidateHiddenNodesCache()
         objectWillChange.send()
-        
+
         Self.logger.infoLog("Created and switched to new empty graph: '\(trimmedName)'")
     }
     

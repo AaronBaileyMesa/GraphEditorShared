@@ -146,4 +146,50 @@ extension GraphModel {
         let tasks = orderedTasks(for: mealID)
         return !tasks.isEmpty && tasks.allSatisfy { $0.status == .completed }
     }
+
+    // MARK: - Plan Management
+
+    /// Returns the most recently created active or draft taco night plan
+    @MainActor
+    public func activePlan() -> MealNode? {
+        nodes
+            .compactMap { $0.unwrapped as? MealNode }
+            .filter { $0.planStatus == .active || $0.planStatus == .draft }
+            .sorted { $0.date > $1.date }
+            .first
+    }
+
+    /// Updates the plan status of a meal node
+    @MainActor
+    public func updatePlanStatus(_ mealID: NodeID, to status: PlanStatus) {
+        guard let index = nodes.firstIndex(where: { $0.id == mealID }),
+              let meal = nodes[index].unwrapped as? MealNode else { return }
+        nodes[index] = AnyNode(meal.with(planStatus: status))
+        Task { try? await saveGraph() }
+    }
+
+    /// Updates the tacosPerPerson on a meal node
+    @MainActor
+    public func updateTacosPerPerson(_ mealID: NodeID, to count: Double) {
+        guard let index = nodes.firstIndex(where: { $0.id == mealID }),
+              let meal = nodes[index].unwrapped as? MealNode else { return }
+        nodes[index] = AnyNode(meal.with(tacosPerPerson: count))
+        Task { try? await saveGraph() }
+    }
+
+    /// Updates the table mode on a meal node
+    @MainActor
+    public func updateTableMode(_ mealID: NodeID, to mode: TableMode?) {
+        guard let index = nodes.firstIndex(where: { $0.id == mealID }),
+              let meal = nodes[index].unwrapped as? MealNode else { return }
+        nodes[index] = AnyNode(meal.with(tableMode: mode))
+        Task { try? await saveGraph() }
+    }
+
+    /// Generates a default plan name for a given date (e.g. "Taco Night Feb 18")
+    public static func defaultPlanName(for date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Taco Night \(formatter.string(from: date))"
+    }
 }

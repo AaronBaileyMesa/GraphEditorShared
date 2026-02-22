@@ -19,7 +19,7 @@ public enum NodeContent: Codable, Equatable {
     
     public var displayText: String {
         switch self {
-        case .string(let value): return value.prefix(10) + (value.count > 10 ? "…" : "")
+        case .string(let value): return value  // Return full string without truncation
         case .date(let value):
             let formatter = DateFormatter()
             formatter.dateStyle = .short
@@ -231,6 +231,7 @@ public struct AnyNode: NodeProtocol {
     }
     public var fillColor: Color { base.fillColor }
     public var unwrapped: any NodeProtocol { base }
+    public var typeDescriptor: NodeTypeDescriptor { base.typeDescriptor }
 
     public init(_ base: any NodeProtocol) {
         self.base = base
@@ -333,6 +334,12 @@ public struct AnyNode: NodeProtocol {
         case "tacoNode":
             let node = try container.decode(TacoNode.self, forKey: .data)
             self.init(node)
+        case "peopleListNode":
+            let node = try container.decode(PeopleListNode.self, forKey: .data)
+            self.init(node)
+        case "rootNode":
+            let node = try container.decode(RootNode.self, forKey: .data)
+            self.init(node)
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: container,
                 debugDescription: "Unknown node type: \(type)")
@@ -384,6 +391,12 @@ public struct AnyNode: NodeProtocol {
             try container.encode(node, forKey: .data)
         } else if let node = base as? TacoNode {
             try container.encode("tacoNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? PeopleListNode {
+            try container.encode("peopleListNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? RootNode {
+            try container.encode("rootNode", forKey: .type)
             try container.encode(node, forKey: .data)
         } else {
             throw EncodingError.invalidValue(base, .init(codingPath: [], debugDescription: "Unknown node type"))

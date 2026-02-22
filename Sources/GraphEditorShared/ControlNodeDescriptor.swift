@@ -19,7 +19,7 @@ struct ControlNodeDescriptor: NodeTypeDescriptor {
     var renderer: NodeRenderer { CircleNodeRenderer() }
     var visualMultiplier: CGFloat { 1.0 }
     var baseFillColor: Color { node.fillColor }
-    var icon: NodeIcon? { .systemName(node.kind.renderIcon) }
+    var icon: NodeIcon? { .systemName(node.kind.renderIcon(isExpanded: node.ownerIsExpanded)) }
 
     var tapBehavior: NodeTapBehavior {
         .custom { node in

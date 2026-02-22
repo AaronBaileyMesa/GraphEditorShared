@@ -245,18 +245,75 @@ extension GraphModel {
     
     @MainActor
     public func deleteNode(withID id: NodeID) async {
+        // Prevent deletion of RootNode
+        if let node = nodes.first(where: { $0.id == id })?.unwrapped as? RootNode {
+            Self.logger.warning("Attempted to delete undeletable RootNode: \(node.name)")
+            return
+        }
+
         Self.logger.debugLog("Deleting node with ID: \(id.uuidString.prefix(8))")
-        
+
+        // Check if this is a PersonNode - if so, check if parent PeopleListNode becomes empty
+        let isPersonNode = nodes.first(where: { $0.id == id })?.unwrapped is PersonNode
+        var peopleListToDelete: NodeID?
+
+        if isPersonNode {
+            // Find parent PeopleListNode
+            if let parentEdge = edges.first(where: { $0.target == id && $0.type == .hierarchy }),
+               let parentNode = nodes.first(where: { $0.id == parentEdge.from })?.unwrapped as? PeopleListNode {
+                // Check if this is the last child
+                let siblingCount = edges.filter { $0.from == parentNode.id && $0.type == .hierarchy && $0.target != id }.count
+                if siblingCount == 0 {
+                    peopleListToDelete = parentNode.id
+                    Self.logger.debug("PeopleListNode \(parentNode.id.uuidString.prefix(8)) will be auto-deleted (last child)")
+                }
+            }
+        }
+
         pushUndo()
-        
+
+        // Update parent nodes' children arrays BEFORE deletion
+        // Find all parent nodes that have this node as a child
+        let parentEdges = edges.filter { $0.target == id && $0.type == .hierarchy }
+        for parentEdge in parentEdges {
+            if let parentIndex = nodes.firstIndex(where: { $0.id == parentEdge.from }) {
+                let unwrappedParent = nodes[parentIndex].unwrapped
+                
+                // Update Node type parents
+                if var parentNode = unwrappedParent as? Node {
+                    parentNode.children.removeAll { $0 == id }
+                    parentNode.childOrder.removeAll { $0 == id }
+                    nodes[parentIndex] = AnyNode(parentNode)
+                    Self.logger.debug("Removed child \(id.uuidString.prefix(8)) from Node parent \(parentEdge.from.uuidString.prefix(8))")
+                }
+                // Update PeopleListNode type parents
+                else if var peopleListNode = unwrappedParent as? PeopleListNode {
+                    peopleListNode.children.removeAll { $0 == id }
+                    peopleListNode.childOrder.removeAll { $0 == id }
+                    nodes[parentIndex] = AnyNode(peopleListNode)
+                    Self.logger.debug("Removed child \(id.uuidString.prefix(8)) from PeopleListNode parent \(parentEdge.from.uuidString.prefix(8))")
+                }
+            }
+        }
+
         // Cleanup ephemerals and configs BEFORE removal (prevents dangling refs)
         ephemeralControlNodes.removeAll { $0.ownerID == id }
         ephemeralControlEdges.removeAll { $0.from == id || $0.target == id }
         uiConfig.removeValue(forKey: id)
-        
+
         nodes.removeAll { $0.id == id }
         edges.removeAll { $0.from == id || $0.target == id }
-        
+
+        // Auto-delete empty PeopleListNode if needed
+        if let peopleListID = peopleListToDelete {
+            Self.logger.debug("Auto-deleting empty PeopleListNode \(peopleListID.uuidString.prefix(8))")
+            ephemeralControlNodes.removeAll { $0.ownerID == peopleListID }
+            ephemeralControlEdges.removeAll { $0.from == peopleListID || $0.target == peopleListID }
+            uiConfig.removeValue(forKey: peopleListID)
+            nodes.removeAll { $0.id == peopleListID }
+            edges.removeAll { $0.from == peopleListID || $0.target == peopleListID }
+        }
+
         objectWillChange.send()
         invalidateHiddenNodesCache()
         
@@ -273,6 +330,12 @@ extension GraphModel {
     // MARK: - Node Movement (drag & drop)
     @MainActor
     public func moveNode(withID nodeID: NodeID, to newPosition: CGPoint) async {
+        // Prevent moving RootNode (it's fixed at origin)
+        if nodes.first(where: { $0.id == nodeID })?.unwrapped is RootNode {
+            Self.logger.debug("Ignored attempt to move immovable RootNode")
+            return
+        }
+        
         Self.logger.debug("Moving node \(nodeID.uuidString.prefix(8)) → (\(newPosition.x), \(newPosition.y))")
         
         pushUndo()  // Always snapshot before mutation!
@@ -479,26 +542,69 @@ extension GraphModel {
             return
         }
         
-        // Must unwrap to a concrete Node to call handlingTap()
-        guard var node = nodes[index].unwrapped as? Node else {
-            Self.logger.warning("toggleExpansion: Node is not a Node type – \(nodeID.uuidString.prefix(8))")
-            return
-        }
-        
-        guard node.isCollapsible else {
+        let unwrapped = nodes[index].unwrapped
+
+        // Check if node is collapsible via its type descriptor
+        guard unwrapped.typeDescriptor.isCollapsible else {
             Self.logger.warning("toggleExpansion: Node is not collapsible – \(nodeID.uuidString.prefix(8))")
             return
         }
-        
-        node = node.handlingTap()           // toggles isExpanded + zeros velocity
-        nodes[index] = AnyNode(node)        // write back
+
+        // Call handlingTap() which toggles isExpanded
+        let toggledNode = unwrapped.handlingTap()
+        nodes[index] = AnyNode(toggledNode)  // write back
         
         objectWillChange.send()
         
         invalidateHiddenNodesCache()
         
+        // Refresh control nodes to update chevron direction
+        await updateEphemerals(selectedNodeID: nodeID)
+        
         await simulator.resetVelocityHistory()
         await resumeSimulation()
+    }
+    
+    /// Repairs parent nodes' children arrays to remove references to deleted nodes
+    /// This is a migration/cleanup function for graphs with stale data
+    @MainActor
+    public func repairParentChildrenReferences() {
+        let existingNodeIDs = Set(nodes.map { $0.id })
+        var modified = false
+        
+        for index in 0..<nodes.count {
+            let unwrapped = nodes[index].unwrapped
+            
+            // Repair Node type parents
+            if var node = unwrapped as? Node {
+                let originalChildCount = node.children.count
+                node.children.removeAll { !existingNodeIDs.contains($0) }
+                node.childOrder.removeAll { !existingNodeIDs.contains($0) }
+                
+                if node.children.count != originalChildCount {
+                    nodes[index] = AnyNode(node)
+                    modified = true
+                    Self.logger.debug("Repaired Node \(node.id.uuidString.prefix(8)): removed \(originalChildCount - node.children.count) stale child references")
+                }
+            }
+            // Repair PeopleListNode type parents
+            else if var peopleListNode = unwrapped as? PeopleListNode {
+                let originalChildCount = peopleListNode.children.count
+                peopleListNode.children.removeAll { !existingNodeIDs.contains($0) }
+                peopleListNode.childOrder.removeAll { !existingNodeIDs.contains($0) }
+                
+                if peopleListNode.children.count != originalChildCount {
+                    nodes[index] = AnyNode(peopleListNode)
+                    modified = true
+                    Self.logger.debug("Repaired PeopleListNode \(peopleListNode.id.uuidString.prefix(8)): removed \(originalChildCount - peopleListNode.children.count) stale child references")
+                }
+            }
+        }
+        
+        if modified {
+            objectWillChange.send()
+            Self.logger.info("Completed parent-child reference repair")
+        }
     }
     
     @MainActor
