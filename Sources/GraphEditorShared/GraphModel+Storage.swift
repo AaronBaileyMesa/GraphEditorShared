@@ -40,22 +40,43 @@ extension GraphModel {
                 let loadedState = try await storage.loadGraphState(for: name)
                 Self.storageLogger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for \(name)")
                 
+                // Begin bulk operation to prevent simulation from running during load
+                await beginBulkOperation()
+                
                 self.nodes = loadedState.nodes
                 self.edges = loadedState.edges
                 self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
                 self.associationEdgeColor = loadedState.associationEdgeColor.color
                 self.uiConfig = loadedState.uiConfig
                 self.globalUiConfig = loadedState.globalUiConfig
+                self.segmentConfigs = loadedState.segmentConfigs
+                self.tableSeatingsByMeal = loadedState.tableSeatingsByMeal
                 // Use saved nextNodeLabel if available, otherwise compute from nodes
                 self.nextNodeLabel = loadedState.nextNodeLabel
                 self.layoutMode = loadedState.layoutMode
                 // Sync layout mode to physics engine
                 physicsEngine.updateLayoutMode(loadedState.layoutMode)
 
+                // Rebuild person-to-table cache for performance
+                rebuildPersonToTableCache()
+                
+                // Migrate seated persons to correct positions (for updated seat calculations)
+                migrateSeatedPersonPositions()
+                
+                // Repair stale children references in parent nodes
+                repairParentChildrenReferences()
+                
+                // End bulk operation first, THEN restore simulation state
+                await endBulkOperation()
+                
+                // Now restore simulation state from saved graph
                 self.isSimulating = loadedState.isSimulating
-                if self.isSimulating {
+                if loadedState.isSimulating {
                     await startSimulation()
                 }
+                
+                // Ensure RootNode exists (for empty or legacy graphs)
+                await ensureRootNode()
             } catch let storageError as GraphStorageError {
                 if case .graphNotFound = storageError {
                     Self.storageLogger.warning("Graph '\(name)' not found")
@@ -66,22 +87,43 @@ extension GraphModel {
                             let loadedState = try await storage.loadGraphState(for: "default")
                             Self.storageLogger.infoLog("loadFromStorage: loaded \(loadedState.nodes.count) nodes, \(loadedState.edges.count) edges for default")
                             
+                            // Begin bulk operation to prevent simulation during load
+                            await beginBulkOperation()
+                            
                             self.nodes = loadedState.nodes
                             self.edges = loadedState.edges
                             self.hierarchyEdgeColor = loadedState.hierarchyEdgeColor.color
                             self.associationEdgeColor = loadedState.associationEdgeColor.color
                             self.uiConfig = loadedState.uiConfig
                             self.globalUiConfig = loadedState.globalUiConfig
+                            self.segmentConfigs = loadedState.segmentConfigs
+                            self.tableSeatingsByMeal = loadedState.tableSeatingsByMeal
                             // Use saved nextNodeLabel if available, otherwise compute from nodes
                             self.nextNodeLabel = loadedState.nextNodeLabel
                             self.layoutMode = loadedState.layoutMode
                             // Sync layout mode to physics engine
                             physicsEngine.updateLayoutMode(loadedState.layoutMode)
 
+                            // Rebuild person-to-table cache for performance
+                            rebuildPersonToTableCache()
+                            
+                            // Migrate seated persons to correct positions (for updated seat calculations)
+                            migrateSeatedPersonPositions()
+                            
+                            // Repair stale children references in parent nodes
+                            repairParentChildrenReferences()
+
+                            // End bulk operation first, THEN restore simulation state
+                            await endBulkOperation()
+                            
+                            // Now restore simulation state from saved graph
                             self.isSimulating = loadedState.isSimulating
-                            if self.isSimulating {
+                            if loadedState.isSimulating {
                                 await startSimulation()
                             }
+                            
+                            // Ensure RootNode exists (for empty or legacy graphs)
+                            await ensureRootNode()
                         } catch let defaultError as GraphStorageError {
                             if case .graphNotFound = defaultError {
                                 Self.storageLogger.warning("Default graph not found – initializing")
@@ -137,18 +179,20 @@ extension GraphModel {
             uiConfig = [:]
             globalUiConfig = []
             self.isSimulating = false  // Added to ensure consistent default
-            
-            // Add default nodes and edge
-            let node1 = await addNode(at: CGPoint(x: 0, y: 0))
-            let node2 = await addNode(at: CGPoint(x: 100, y: 0))
-            await addEdge(from: node1.id, target: node2.id, type: .association)
-            
-            nextNodeLabel = 3
-            
+
+            // Begin bulk operation to prevent simulation during initialization
+            await beginBulkOperation()
+
+            // Create RootNode for empty graph
+            await ensureRootNode()
+
+            // End bulk operation
+            await endBulkOperation()
+
             invalidateHiddenNodesCache()
             objectWillChange.send()
-            
-            Self.storageLogger.infoLog("Initialized default graph with 2 nodes and 1 edge")
+
+            Self.storageLogger.infoLog("Initialized default graph with taco node, 2 nodes and 1 edge")
         }
     
     public func saveGraph() async throws {
@@ -163,7 +207,9 @@ extension GraphModel {
                 globalUiConfig: globalUiConfig,
                 isSimulating: isSimulating,  // NEW: Save simulation state
                 nextNodeLabel: nextNodeLabel,  // FIXED: Save nextNodeLabel to prevent label collisions
-                layoutMode: layoutMode
+                layoutMode: layoutMode,
+                segmentConfigs: segmentConfigs,
+                tableSeatingsByMeal: tableSeatingsByMeal
             )
             try await storage.saveGraphState(state, for: currentGraphName)
             Self.logger.infoLog("Saved \(self.nodes.count) nodes and \(self.edges.count) edges for '\(currentGraphName)'")
@@ -258,21 +304,30 @@ extension GraphModel {
         // 6. Clear undo/redo
         undoStack.removeAll()
         redoStack.removeAll()
-        
-        // 7. Save empty state (optional but recommended for consistency)
+
+        // 7. Ensure RootNode exists in new graph
+        await ensureRootNode()
+
+        // 8. Save state with RootNode
         try await saveGraph()
-        
-        // 8. Invalidate caches and notify
+
+        // 9. Invalidate caches and notify
         invalidateHiddenNodesCache()
         objectWillChange.send()
-        
+
         Self.logger.infoLog("Created and switched to new empty graph: '\(trimmedName)'")
     }
     
     public func switchToGraph(named name: String) async throws {
+        // Validate that the graph exists before switching
+        let existingNames = try await storage.listGraphNames()
+        guard existingNames.contains(name) else {
+            throw GraphStorageError.graphNotFound(name)
+        }
+        
         nodes = []  // Clear before load
-            edges = []
-            currentGraphName = name
+        edges = []
+        currentGraphName = name
         try await loadGraph()
     }
 }

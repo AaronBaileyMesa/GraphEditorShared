@@ -34,6 +34,8 @@ public struct ControlNode: NodeProtocol {
     public var priority: Int = 0
     // Optional action closure
     public var action: (() -> Void)?
+    // Owner node's expansion state (for toggleExpand icon rendering)
+    public var ownerIsExpanded: Bool = true
     
     // MARK: Init – supports both global and per-node controls
     public init(
@@ -43,7 +45,8 @@ public struct ControlNode: NodeProtocol {
         isVisible: Bool = true,
         priority: Int = 0,
         action: (() -> Void)? = nil,
-        relativeAngle: CGFloat = 0.0
+        relativeAngle: CGFloat = 0.0,
+        ownerIsExpanded: Bool = true
     ) {
         self.position = position
         self.ownerID = ownerID
@@ -52,6 +55,7 @@ public struct ControlNode: NodeProtocol {
         self.priority = priority
         self.action = action
         self.relativeAngle = relativeAngle
+        self.ownerIsExpanded = ownerIsExpanded
     }
     
     // MARK: Required NodeProtocol methods
@@ -72,7 +76,11 @@ public struct ControlNode: NodeProtocol {
     
     public mutating func collapse() { }
     public mutating func bulkCollapse() { }
-    
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        ControlNodeDescriptor(node: self)
+    }
+
     public func handlingTap() -> Self {
         action?()
         return self
@@ -87,28 +95,84 @@ public struct ControlNode: NodeProtocol {
         kind.color
     }
     
+    /// Check if this control represents a selected option
+    public func isSelected(in nodes: [AnyNode]) -> Bool {
+        guard let ownerID = ownerID,
+              let tacoNode = nodes.first(where: { $0.id == ownerID })?.unwrapped as? TacoNode else {
+            return false
+        }
+        
+        switch kind {
+        case .toggleBeef:
+            return tacoNode.protein == .beef
+        case .toggleChicken:
+            return tacoNode.protein == .chicken
+        case .toggleCrunchyShell:
+            return tacoNode.shell == .crunchy
+        case .toggleSoftFlourShell:
+            return tacoNode.shell == .softFlour
+        case .toggleSoftCornShell:
+            return tacoNode.shell == .softCorn
+        case .toggleLettuce:
+            return tacoNode.toppings.contains("Lettuce")
+        case .toggleTomatoes:
+            return tacoNode.toppings.contains("Tomatoes")
+        case .toggleCheese:
+            return tacoNode.toppings.contains("Cheese")
+        case .toggleSourCream:
+            return tacoNode.toppings.contains("Sour Cream")
+        case .toggleGuacamole:
+            return tacoNode.toppings.contains("Guacamole")
+        case .toggleSalsa:
+            return tacoNode.toppings.contains("Salsa")
+        case .toggleOnions:
+            return tacoNode.toppings.contains("Onions")
+        case .toggleCilantro:
+            return tacoNode.toppings.contains("Cilantro")
+        case .toggleJalapeños:
+            return tacoNode.toppings.contains("Jalapeños")
+        case .toggleHotSauce:
+            return tacoNode.toppings.contains("Hot Sauce")
+        case .toggleRadishes:
+            return tacoNode.toppings.contains("Radishes")
+        case .toggleLime:
+            return tacoNode.toppings.contains("Lime")
+        case .togglePickledJalapeños:
+            return tacoNode.toppings.contains("Pickled Jalapeños")
+        default:
+            return false
+        }
+    }
+    
     @available(iOS 15.0, watchOS 9.0, *)
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
-        let iconName: String = switch kind {
-
-        case .addChild:         "plus.circle.fill"
-        case .addEdge:          "arrow.right.circle.fill"
-        case .edit:             "pencil"
-        case .delete:           "trash.fill"
-        case .duplicate:        "doc.on.doc.fill"
-        case .addToggleChild:   "checklist"
-        case .toggleExpand:     "chevron.right"  // Default, will be overridden based on state
-        }
-
         return AnyView(
             ZStack {
                 Circle()
                     .fill(fillColor.opacity(0.9))
                     .frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale)
 
-                Image(systemName: iconName)
-                    .font(.system(size: 16 * zoomScale, weight: .medium))
-                    .foregroundColor(.white)
+                if let textLabel = kind.textLabel {
+                    // Show text label for controls that need it (taco options)
+                    Text(textLabel)
+                        .font(.system(size: 10 * zoomScale, weight: .bold))
+                        .foregroundColor(.white)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                } else {
+                    // Show icon for standard controls (with dynamic chevron for toggleExpand)
+                    let iconName = kind.renderIcon(isExpanded: ownerIsExpanded)
+                    #if DEBUG
+                    let _ = {
+                        if kind == .toggleExpand {
+                            print("🔧 Rendering toggleExpand icon: '\(iconName)' with ownerIsExpanded=\(ownerIsExpanded)")
+                        }
+                    }()
+                    #endif
+                    Image(systemName: iconName)
+                        .font(.system(size: 16 * zoomScale, weight: .medium))
+                        .foregroundColor(.white)
+                }
             }
             .opacity(isSelected ? 1.0 : 0.8)
         )
@@ -124,14 +188,15 @@ extension ControlNode: Equatable {
         lhs.kind == rhs.kind &&
         lhs.ownerID == rhs.ownerID &&
         lhs.isVisible == rhs.isVisible &&
-        lhs.relativeAngle == rhs.relativeAngle  // NEW
+        lhs.relativeAngle == rhs.relativeAngle &&
+        lhs.ownerIsExpanded == rhs.ownerIsExpanded
     }
 }
 
 // MARK: - Codable (optional – only if you ever persist controls, which you don’t)
 extension ControlNode: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, position, velocity, radius, ownerID, kind, isVisible, priority, relativeAngle
+        case id, position, velocity, radius, ownerID, kind, isVisible, priority, relativeAngle, ownerIsExpanded
     }
     
     public init(from decoder: Decoder) throws {
@@ -145,6 +210,7 @@ extension ControlNode: Codable {
         self.isVisible = try container.decode(Bool.self, forKey: .isVisible)
         self.priority = try container.decode(Int.self, forKey: .priority)
         self.relativeAngle = try container.decode(CGFloat.self, forKey: .relativeAngle)
+        self.ownerIsExpanded = try container.decodeIfPresent(Bool.self, forKey: .ownerIsExpanded) ?? true
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -158,5 +224,6 @@ extension ControlNode: Codable {
         try container.encode(isVisible, forKey: .isVisible)
         try container.encode(priority, forKey: .priority)
         try container.encode(relativeAngle, forKey: .relativeAngle)
+        try container.encode(ownerIsExpanded, forKey: .ownerIsExpanded)
     }
 }

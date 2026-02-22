@@ -11,6 +11,7 @@ struct UndoGraphState {
     let nodes: [AnyNode]
     let edges: [GraphEdge]
     let nextLabel: Int
+    let segmentConfigs: [NodeID: SegmentConfig]
 }
 
 @available(iOS 16.0, watchOS 6.0, *)
@@ -24,7 +25,7 @@ extension GraphModel {
     }
     
     private func currentState() -> UndoGraphState {
-        UndoGraphState(nodes: nodes, edges: edges, nextLabel: nextNodeLabel)
+        UndoGraphState(nodes: nodes, edges: edges, nextLabel: nextNodeLabel, segmentConfigs: segmentConfigs)
     }
     
     public func undo(resume: Bool = true) async {
@@ -41,6 +42,7 @@ extension GraphModel {
             // Restore previous state
             nodes = state.nodes
             edges = state.edges
+            segmentConfigs = state.segmentConfigs
             // FIXED: Don't restore nextNodeLabel - it should never decrease to prevent duplicate labels
             // nextNodeLabel = state.nextLabel
             objectWillChange.send()
@@ -75,6 +77,7 @@ extension GraphModel {
             // Restore redo state
             nodes = state.nodes
             edges = state.edges
+            segmentConfigs = state.segmentConfigs
             // FIXED: Don't restore nextNodeLabel - it should never decrease to prevent duplicate labels
             // nextNodeLabel = state.nextLabel
             objectWillChange.send()
@@ -94,7 +97,7 @@ extension GraphModel {
     
     public func snapshot() async {
         Self.logger.debug("snapshot() called from: \(#function), nodes: \(self.nodes.count), edges: \(self.edges.count)")  // Use debug for transient info
-        let state = UndoGraphState(nodes: nodes, edges: edges, nextLabel: nextNodeLabel)
+        let state = UndoGraphState(nodes: nodes, edges: edges, nextLabel: nextNodeLabel, segmentConfigs: segmentConfigs)
         undoStack.append(state)
         if undoStack.count > maxUndo { undoStack.removeFirst() }
         redoStack.removeAll()

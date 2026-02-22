@@ -10,6 +10,8 @@ import SwiftUI
 import Foundation
 import CoreGraphics
 
+// swiftlint:disable type_body_length function_body_length cyclomatic_complexity
+
 @available(iOS 16.0, *)
 @available(watchOS 9.0, *)
 public class PhysicsEngine {
@@ -68,7 +70,9 @@ public class PhysicsEngine {
     /// Only affects vertical dimension; horizontal stays at screen width
     public func updateSimulationBounds(_ newBounds: CGSize) {
         guard newBounds != simulationBounds else { return }
-        Self.logger.debug("Simulation bounds updated: \(String(format: "%.0fx%.0f", self.simulationBounds.width, self.simulationBounds.height)) -> \(String(format: "%.0fx%.0f", newBounds.width, newBounds.height))")
+        if LogManager.verboseSimulationLogging {
+            Self.logger.debug("Simulation bounds updated: \(String(format: "%.0fx%.0f", self.simulationBounds.width, self.simulationBounds.height)) -> \(String(format: "%.0fx%.0f", newBounds.width, newBounds.height))")
+        }
         simulationBounds = newBounds
         // Recreate calculators with new bounds since they store bounds internally
         centeringCalculator = CenteringCalculator(simulationBounds: newBounds)
@@ -85,32 +89,68 @@ public class PhysicsEngine {
     }
     
     public var isPaused: Bool = false
-    
+
     @discardableResult
-    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge], fixedIDs: Set<NodeID>? = nil) -> ([any NodeProtocol], Bool) {
+    public func simulationStep(nodes: [any NodeProtocol], edges: [GraphEdge], fixedIDs: Set<NodeID>? = nil, segmentConfigs: [NodeID: SegmentConfig] = [:]) -> ([any NodeProtocol], Bool) {
         if isPaused || stepCount > Constants.Physics.maxSimulationSteps { return (nodes, false) }
         stepCount += 1
-        
-        if stepCount == 1 {
+
+        if stepCount == 1 && LogManager.verboseSimulationLogging {
             Self.logger.debug("First simulation step with layoutMode=\(String(describing: self.layoutMode)), nodes=\(nodes.count), edges=\(edges.count)")
         }
-        
+
         #if DEBUG
         let stepState = Self.signposter.beginInterval("SimulationStep", "Step \(self.stepCount), Nodes: \(nodes.count), Edges: \(edges.count)")
         #endif
-        
-        // CRITICAL: Store original positions for fixed nodes BEFORE physics runs
-        // This prevents fixed nodes from moving due to residual velocity or forces
-        var originalPositions: [NodeID: CGPoint] = [:]
-        if let fixed = fixedIDs {
-            for node in nodes where fixed.contains(node.id) {
-                originalPositions[node.id] = node.position
+
+        // NEW: Build constraint map from node descriptors
+        var constraintsByNode: [NodeID: [NodeConstraint]] = [:]
+        var allConstraints: [NodeConstraint] = []
+
+        for node in nodes {
+            let constraints = node.typeDescriptor.constraints
+            if !constraints.isEmpty {
+                allConstraints.append(contentsOf: constraints)
+                #if DEBUG
+                print("🔍 PhysicsEngine: Collected \(constraints.count) constraint(s) from node \(node.id.uuidString.prefix(8)) (type: \(String(describing: type(of: node))))")
+                #endif
+                if LogManager.verboseSimulationLogging {
+                    Self.logger.debug("Collected \(constraints.count) constraint(s) from node \(node.id) (type: \(String(describing: type(of: node))))")
+                }
             }
+        }
+        
+        if LogManager.verboseSimulationLogging && !allConstraints.isEmpty {
+            Self.logger.debug("Total constraints collected: \(allConstraints.count)")
+        }
+        
+        // Distribute constraints to affected nodes
+        for constraint in allConstraints {
+            for affectedID in constraint.affectedNodeIDs() {
+                constraintsByNode[affectedID, default: []].append(constraint)
+                if LogManager.verboseSimulationLogging {
+                    Self.logger.debug("Distributing constraint to node \(affectedID)")
+                }
+            }
+        }
+        
+        if LogManager.verboseSimulationLogging && !constraintsByNode.isEmpty {
+            Self.logger.debug("Constraints distributed to \(constraintsByNode.count) nodes")
+        }
+
+        // Build set of nodes affected by constraints
+        let constrainedNodeIDs = Set(allConstraints.flatMap { $0.affectedNodeIDs() })
+
+        // CRITICAL: Store original positions for constrained nodes BEFORE physics runs
+        // This prevents constrained nodes from moving due to residual velocity or forces
+        var originalPositions: [NodeID: CGPoint] = [:]
+        for node in nodes where constrainedNodeIDs.contains(node.id) || (fixedIDs?.contains(node.id) ?? false) {
+            originalPositions[node.id] = node.position
         }
         
         let (forces, quadtree) = computeRepulsions(nodes: nodes)
         var updatedForces = applyAttractions(forces: forces, edges: edges, nodes: nodes)
-        updatedForces = applyCentering(forces: updatedForces, nodes: nodes, layoutMode: layoutMode)
+        updatedForces = applyCentering(forces: updatedForces, nodes: nodes, layoutMode: layoutMode, edges: edges, segmentConfigs: segmentConfigs)
 
         // Apply layer forces in hierarchy mode
         if layoutMode == .hierarchy {
@@ -119,7 +159,9 @@ public class PhysicsEngine {
                 cachedDepths = HierarchyLayoutHelper.calculateDepths(nodes: nodes, edges: edges)
                 lastDepthUpdateStep = stepCount
                 let maxDepth = cachedDepths.values.max() ?? 0
-                Self.logger.debug("Hierarchical layout: calculated depths for \(self.cachedDepths.count) nodes, maxDepth=\(maxDepth)")
+                if LogManager.verboseSimulationLogging {
+                    Self.logger.debug("Hierarchical layout: calculated depths for \(self.cachedDepths.count) nodes, maxDepth=\(maxDepth)")
+                }
 
                 // Check if we need to expand bounds vertically to accommodate hierarchy
                 // For deep hierarchies (10+), use aggressive expansion to maintain 40pt spacing
@@ -132,7 +174,9 @@ public class PhysicsEngine {
                     let screenWidth = simulationBounds.width
                     let newBounds = CGSize(width: screenWidth, height: requiredHeight)
                     updateSimulationBounds(newBounds)
-                    Self.logger.info("Expanded simulation bounds vertically to accommodate depth \(maxDepth): height \(String(format: "%.0f", requiredHeight)) with \(String(format: "%.0f", targetSpacing))pt spacing")
+                    if LogManager.verboseSimulationLogging {
+                        Self.logger.info("Expanded simulation bounds vertically to accommodate depth \(maxDepth): height \(String(format: "%.0f", requiredHeight)) with \(String(format: "%.0f", targetSpacing))pt spacing")
+                    }
                 }
             }
             updatedForces = HierarchyLayoutHelper.applyLayerForces(
@@ -142,10 +186,24 @@ public class PhysicsEngine {
                 simulationBounds: simulationBounds
             )
         }
+        
+        // Apply directional layout forces for configured segments
+        if !segmentConfigs.isEmpty {
+            updatedForces = DirectionalLayoutCalculator.applyDirectionalForces(
+                forces: updatedForces,
+                nodes: nodes,
+                edges: edges,
+                segmentConfigs: segmentConfigs,
+                simulationBounds: simulationBounds
+            )
+        }
 
         updatedForces = scaleForcesByAlpha(forces: updatedForces)
-        
-        // NEW: Skip forces for fixed nodes (set to .zero)
+
+        // NEW: Zero forces for constrained nodes and legacy fixed nodes
+        for nodeID in constrainedNodeIDs {
+            updatedForces[nodeID] = .zero
+        }
         if let fixed = fixedIDs {
             for id in fixed {
                 updatedForces[id] = .zero
@@ -153,9 +211,41 @@ public class PhysicsEngine {
         }
         
         let (tempNodes, isActive) = positionUpdater.updatePositionsAndVelocities(nodes: nodes, forces: updatedForces, edges: edges, quadtree: quadtree, damping: self.damping)
-        
-        // NEW: For fixed nodes, enforce position/velocity in post-processing
-        let updatedNodes = postProcessNodes(tempNodes: tempNodes, isActive: isActive, fixedIDs: fixedIDs, originalPositions: originalPositions)
+
+        // NEW: Apply constraints
+        let constraintContext = ConstraintContext(
+            allNodes: tempNodes,
+            deltaTime: Constants.Physics.timeStep,
+            simulationBounds: simulationBounds,
+            originalPositions: originalPositions
+        )
+
+        let constrainedNodes = tempNodes.map { node in
+            guard let constraints = constraintsByNode[node.id], !constraints.isEmpty else {
+                return node  // No constraints, use physics position
+            }
+
+            // Apply constraints in order, last one wins
+            var constrainedPosition = node.position
+            for constraint in constraints {
+                if let newPos = constraint.apply(
+                    to: node,
+                    proposedPosition: node.position,
+                    context: constraintContext
+                ) {
+                    if LogManager.verboseSimulationLogging {
+                        Self.logger.debug("Applied constraint to node \(node.id): \(String(format: "%.1f", node.position.x)),\(String(format: "%.1f", node.position.y)) → \(String(format: "%.1f", newPos.x)),\(String(format: "%.1f", newPos.y))")
+                    }
+                    constrainedPosition = newPos
+                }
+            }
+
+            // Return node with constrained position and zero velocity
+            return node.with(position: constrainedPosition, velocity: .zero)
+        }
+
+        // NEW: For legacy fixed nodes, enforce position/velocity in post-processing
+        let updatedNodes = postProcessNodes(tempNodes: constrainedNodes, isActive: isActive, fixedIDs: fixedIDs, originalPositions: originalPositions)
         
         logVelocityIfNeeded(nodes: updatedNodes)
 
@@ -172,7 +262,7 @@ public class PhysicsEngine {
             return dampedNode
         }
         // Then use dampedNodes for the return
-        
+
         return (updatedNodes, isActive)
     }
     
@@ -198,11 +288,11 @@ public class PhysicsEngine {
         return result
     }
     
-    private func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode) -> [NodeID: CGPoint] {
+    private func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode, edges: [GraphEdge], segmentConfigs: [NodeID: SegmentConfig]) -> [NodeID: CGPoint] {
         #if DEBUG
         let centeringState = Self.signposter.beginInterval("CenteringCalculation")
         #endif
-        let result = centeringCalculator.applyCentering(forces: forces, nodes: nodes, layoutMode: layoutMode)
+        let result = centeringCalculator.applyCentering(forces: forces, nodes: nodes, layoutMode: layoutMode, edges: edges, segmentConfigs: segmentConfigs)
         #if DEBUG
         Self.signposter.endInterval("CenteringCalculation", centeringState)
         #endif
@@ -242,8 +332,21 @@ public class PhysicsEngine {
                 // CRITICAL: Restore ORIGINAL position from before physics step, zero velocity
                 // This prevents fixed nodes from moving due to residual velocity
                 if let originalPos = originalPositions[node.id] {
+                    #if DEBUG
+                    if node is TableNode {
+                        let moved = hypot(node.position.x - originalPos.x, node.position.y - originalPos.y)
+                        if moved > 0.01 {
+                            print("🔧 [PhysicsEngine] Restoring table \(node.id.uuidString.prefix(8)): from (\(String(format: "%.2f", node.position.x)),\(String(format: "%.2f", node.position.y))) to (\(String(format: "%.2f", originalPos.x)),\(String(format: "%.2f", originalPos.y))) - moved \(String(format: "%.2f", moved))pt")
+                        }
+                    }
+                    #endif
                     return node.with(position: originalPos, velocity: .zero)
                 } else {
+                    #if DEBUG
+                    if node is TableNode {
+                        print("⚠️ [PhysicsEngine] WARNING: Table \(node.id.uuidString.prefix(8)) in fixedIDs but no original position!")
+                    }
+                    #endif
                     // Fallback: keep current position if original not found
                     return node.with(position: node.position, velocity: .zero)
                 }
@@ -258,10 +361,10 @@ public class PhysicsEngine {
     }
     
     private func logVelocityIfNeeded(nodes: [any NodeProtocol]) {
-        if stepCount % 10 == 0 {  // Reduced logging frequency
+        if LogManager.verboseSimulationLogging && stepCount % 10 == 0 {  // Reduced logging frequency
             let totalVel = nodes.reduce(0.0) { $0 + $1.velocity.magnitude }
             Self.logger.debugLog("Step \(stepCount): Total velocity = \(String(format: "%.2f", totalVel)), alpha = \(String(format: "%.3f", alpha))")
-            
+
             // Extra logging for hierarchical mode to debug positioning
             if layoutMode == .hierarchy && stepCount % 50 == 0 {
                 Self.logger.debug("Node positions at step \(self.stepCount):")
@@ -270,7 +373,7 @@ public class PhysicsEngine {
                     Self.logger.debug("  Node \(node.id): pos=(\(String(format: "%.1f", node.position.x)), \(String(format: "%.1f", node.position.y))), vel=\(String(format: "%.2f", node.velocity.magnitude)), depth=\(depth)")
                 }
             }
-            
+
             #if DEBUG
             Self.signposter.emitEvent("VelocityCheck", "Step \(self.stepCount): Total velocity = \(totalVel)")
             #endif
@@ -309,6 +412,19 @@ public class PhysicsEngine {
         defer { Self.signposter.endInterval("CenterNodes", state) }
         #endif
         guard !nodes.isEmpty else { return [] }
+
+        // Don't center if there are nodes with constraints - they should stay at their constrained positions
+        let hasConstrainedNodes = nodes.contains { node in
+            !node.typeDescriptor.constraints.isEmpty
+        }
+
+        if hasConstrainedNodes {
+            #if DEBUG
+            print("📐 [PhysicsEngine.centerNodes] Skipping centering - found nodes with position constraints")
+            #endif
+            return nodes
+        }
+        
         let targetCenter = center ?? CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
         
         // Compute current centroid
@@ -319,6 +435,11 @@ public class PhysicsEngine {
         // Create updated nodes with translation
         let deltaX = targetCenter.x - centroid.x
         let deltaY = targetCenter.y - centroid.y
+        
+        #if DEBUG
+        print("📐 [PhysicsEngine.centerNodes] Centroid: (\(String(format: "%.2f", centroid.x)),\(String(format: "%.2f", centroid.y))), Target: (\(String(format: "%.2f", targetCenter.x)),\(String(format: "%.2f", targetCenter.y))), Delta: (\(String(format: "%.2f", deltaX)),\(String(format: "%.2f", deltaY)))")
+        #endif
+        
         return nodes.map { node in
             let newPosition = CGPoint(x: node.position.x + deltaX, y: node.position.y + deltaY)
             return node.with(position: newPosition, velocity: node.velocity)
@@ -335,3 +456,6 @@ public class PhysicsEngine {
         return quadtree.queryNearby(position: position, radius: radius)
     }
 }
+
+// swiftlint:enable type_body_length function_body_length cyclomatic_complexity
+

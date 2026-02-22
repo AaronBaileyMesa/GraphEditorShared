@@ -6,9 +6,9 @@
 //
 
 import Testing
+import Foundation
 @testable import GraphEditorShared
 
-@available(iOS 16.0, watchOS 9.0, *)
 struct MealPlanningTypesTests {
 
     @Test("MealType has all expected cases")
@@ -32,23 +32,37 @@ struct MealPlanningTypesTests {
     @Test("TaskType has all workflow stages")
     func testTaskTypeCases() {
         let allCases = TaskType.allCases
-        #expect(allCases.count == 6)
+        #expect(allCases.count == 15)
+        // Top-level workflow stages
         #expect(allCases.contains(.plan))
         #expect(allCases.contains(.shop))
         #expect(allCases.contains(.prep))
         #expect(allCases.contains(.cook))
+        #expect(allCases.contains(.assemble))
         #expect(allCases.contains(.serve))
         #expect(allCases.contains(.cleanup))
+        // Prep subtasks
+        #expect(allCases.contains(.prepMeat))
+        #expect(allCases.contains(.prepVegetables))
+        #expect(allCases.contains(.prepSauces))
+        #expect(allCases.contains(.prepShells))
+        #expect(allCases.contains(.prepToppings))
+        // Assembly subtasks
+        #expect(allCases.contains(.assemblySetup))
+        #expect(allCases.contains(.assemblyBuild))
+        #expect(allCases.contains(.assemblyPlate))
     }
 
     @Test("TaskStatus has all states")
     func testTaskStatusCases() {
         let allCases = TaskStatus.allCases
-        #expect(allCases.count == 4)
+        #expect(allCases.count == 6)
         #expect(allCases.contains(.pending))
         #expect(allCases.contains(.inProgress))
         #expect(allCases.contains(.completed))
         #expect(allCases.contains(.skipped))
+        #expect(allCases.contains(.blocked))
+        #expect(allCases.contains(.declined))
     }
 
     @Test("MeasurementUnit has volume units")

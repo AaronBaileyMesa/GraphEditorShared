@@ -8,6 +8,22 @@
 import SwiftUI
 import Foundation
 
+/// Status of a taco night plan
+@available(iOS 16.0, watchOS 9.0, *)
+public enum PlanStatus: String, Codable {
+    case draft      // Being configured
+    case active     // In progress / activated
+    case completed  // All tasks done
+    case archived   // User archived it
+}
+
+/// Table layout mode for a taco night
+@available(iOS 16.0, watchOS 9.0, *)
+public enum TableMode: String, Codable {
+    case tacoBar      // Toppings lineup
+    case seatingChart // Assigned seats
+}
+
 /// Represents a scheduled meal (e.g., "Monday Dinner: Pasta")
 @available(iOS 16.0, watchOS 9.0, *)
 public struct MealNode: NodeProtocol {
@@ -27,6 +43,16 @@ public struct MealNode: NodeProtocol {
     public let mealType: MealType
     public let servings: Int
     public let recipeID: NodeID?  // Optional linked recipe
+
+    // Taco dinner workflow properties
+    public let guests: Int
+    public let dinnerTime: Date
+    public let protein: ProteinType?
+
+    // Plan management properties
+    public var planStatus: PlanStatus
+    public var tacosPerPerson: Double  // Default: 2.5
+    public var tableMode: TableMode?   // nil = not yet configured
 
     public var displayRadius: CGFloat {
         radius * 1.3  // Slightly larger for meals
@@ -49,7 +75,7 @@ public struct MealNode: NodeProtocol {
             ]
         }
         set {
-            // Contents are read-only for MealNode
+            _ = newValue  // Contents are read-only for MealNode
         }
     }
 
@@ -65,7 +91,13 @@ public struct MealNode: NodeProtocol {
         date: Date,
         mealType: MealType,
         servings: Int,
-        recipeID: NodeID? = nil
+        recipeID: NodeID? = nil,
+        guests: Int? = nil,
+        dinnerTime: Date? = nil,
+        protein: ProteinType? = nil,
+        planStatus: PlanStatus = .draft,
+        tacosPerPerson: Double = 2.5,
+        tableMode: TableMode? = nil
     ) {
         self.id = id
         self.label = label
@@ -77,6 +109,12 @@ public struct MealNode: NodeProtocol {
         self.mealType = mealType
         self.servings = servings
         self.recipeID = recipeID
+        self.guests = guests ?? servings  // Default to servings if not specified
+        self.dinnerTime = dinnerTime ?? date  // Default to meal date if not specified
+        self.protein = protein
+        self.planStatus = planStatus
+        self.tacosPerPerson = tacosPerPerson
+        self.tableMode = tableMode
         self.isExpanded = true
         self.isCollapsible = true  // Can collapse to hide tasks
         self.children = []
@@ -118,6 +156,24 @@ public struct MealNode: NodeProtocol {
         return updated
     }
 
+    public func with(planStatus: PlanStatus) -> Self {
+        var updated = self
+        updated.planStatus = planStatus
+        return updated
+    }
+
+    public func with(tacosPerPerson: Double) -> Self {
+        var updated = self
+        updated.tacosPerPerson = tacosPerPerson
+        return updated
+    }
+
+    public func with(tableMode: TableMode?) -> Self {
+        var updated = self
+        updated.tableMode = tableMode
+        return updated
+    }
+
     public func shouldHideChildren() -> Bool {
         isCollapsible && !isExpanded
     }
@@ -138,12 +194,20 @@ public struct MealNode: NodeProtocol {
         isExpanded = false
     }
 
+    // MARK: - Type Descriptor
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        MealNodeDescriptor(node: self)
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
         case id, label, positionX, positionY, radius
         case name, date, mealType, servings, recipeID
+        case guests, dinnerTime, protein
         case isExpanded, isCollapsible, children, childOrder
+        case planStatus, tacosPerPerson, tableMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -162,10 +226,24 @@ public struct MealNode: NodeProtocol {
         servings = try container.decode(Int.self, forKey: .servings)
         recipeID = try container.decodeIfPresent(NodeID.self, forKey: .recipeID)
 
+        // Decode new properties with backward compatibility
+        let decodedGuests = try container.decodeIfPresent(Int.self, forKey: .guests)
+        guests = decodedGuests ?? servings
+
+        let decodedDinnerTime = try container.decodeIfPresent(Date.self, forKey: .dinnerTime)
+        dinnerTime = decodedDinnerTime ?? date
+
+        protein = try container.decodeIfPresent(ProteinType.self, forKey: .protein)
+
         isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
         isCollapsible = try container.decodeIfPresent(Bool.self, forKey: .isCollapsible) ?? true
         children = try container.decodeIfPresent([NodeID].self, forKey: .children) ?? []
         childOrder = try container.decodeIfPresent([NodeID].self, forKey: .childOrder) ?? []
+
+        // Plan management - backward compatible with .draft default
+        planStatus = try container.decodeIfPresent(PlanStatus.self, forKey: .planStatus) ?? .draft
+        tacosPerPerson = try container.decodeIfPresent(Double.self, forKey: .tacosPerPerson) ?? 2.5
+        tableMode = try container.decodeIfPresent(TableMode.self, forKey: .tableMode)
 
         self.velocity = .zero
     }
@@ -182,10 +260,16 @@ public struct MealNode: NodeProtocol {
         try container.encode(mealType, forKey: .mealType)
         try container.encode(servings, forKey: .servings)
         try container.encodeIfPresent(recipeID, forKey: .recipeID)
+        try container.encode(guests, forKey: .guests)
+        try container.encode(dinnerTime, forKey: .dinnerTime)
+        try container.encodeIfPresent(protein, forKey: .protein)
         try container.encode(isExpanded, forKey: .isExpanded)
         try container.encode(isCollapsible, forKey: .isCollapsible)
         try container.encode(children, forKey: .children)
         try container.encode(childOrder, forKey: .childOrder)
+        try container.encode(planStatus, forKey: .planStatus)
+        try container.encode(tacosPerPerson, forKey: .tacosPerPerson)
+        try container.encodeIfPresent(tableMode, forKey: .tableMode)
     }
 }
 

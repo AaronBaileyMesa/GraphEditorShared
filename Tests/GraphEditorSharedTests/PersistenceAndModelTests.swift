@@ -19,11 +19,11 @@ struct PersistenceAndModelTests {
     let manager = PersistenceManager(directoryName: dirName)
     do { try await manager.clear() } catch GraphStorageError.graphNotFound(_) { /* ignore if not present */ }
     let node = Node(id: UUID(), label: 1, position: .zero)
-    let toggleNode = ToggleNode(id: UUID(), label: 2, position: .zero, isExpanded: false)
-    let edge = GraphEdge(from: node.id, target: toggleNode.id, type: .hierarchy)  // Add type if required by init
+    let collapsibleNode = Node(id: UUID(), label: 2, position: .zero, isExpanded: false, isCollapsible: true)
+    let edge = GraphEdge(from: node.id, target: collapsibleNode.id, type: .hierarchy)  // Add type if required by init
     // Wrap in GraphState with defaults
     let state = GraphState(
-    nodes: [AnyNode(node), AnyNode(toggleNode)],
+    nodes: [AnyNode(node), AnyNode(collapsibleNode)],
     edges: [edge],
     hierarchyEdgeColor: CodableColor(.blue),
     associationEdgeColor: CodableColor(.white), isSimulating: false
@@ -37,7 +37,7 @@ struct PersistenceAndModelTests {
     #expect(loadedState.nodes.count == 2, "Nodes loaded")
     #expect(loadedState.edges.count == 1, "Edges loaded")
     #expect(loadedState.nodes.contains { ($0.unwrapped as? Node)?.id == node.id }, "Node type and ID preserved")
-    #expect(loadedState.nodes.contains { if let toggle = $0.unwrapped as? ToggleNode { return toggle.id == toggleNode.id && toggle.isExpanded == false } else { return false } }, "ToggleNode type, ID, and state preserved")
+    #expect(loadedState.nodes.contains { if let collapsible = $0.unwrapped as? Node { return collapsible.id == collapsibleNode.id && collapsible.isExpanded == false && collapsible.isCollapsible == true } else { return false } }, "Collapsible node type, ID, and state preserved")
     }
     @Test func testPersistenceManagerClear() async throws {
         let dirName = "Test-Clear"
@@ -114,7 +114,7 @@ struct PersistenceAndModelTests {
         let storage = MockGraphStorage()
         let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
         let model = GraphModel(storage: storage, physicsEngine: physics)
-        let parent = AnyNode(ToggleNode(label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false))
+        let parent = AnyNode(Node(label: 1, position: CGPoint(x: 100, y: 100), isExpanded: false, isCollapsible: true))
         let child1 = AnyNode(Node(label: 2, position: .zero))
         let child2 = AnyNode(Node(label: 3, position: .zero))
         model.nodes = [parent, child1, child2]
@@ -122,18 +122,18 @@ struct PersistenceAndModelTests {
             GraphEdge(from: parent.id, target: child1.id, type: .hierarchy),
             GraphEdge(from: parent.id, target: child2.id, type: .hierarchy)
         ]
-        
+
         model.syncCollapsedPositions()  // No await needed (function is sync)
-        
+
         // Debug print (remove after)
         print("After sync, nodes.count = \(model.nodes.count)")
-        
+
         guard let child1Index = model.nodes.firstIndex(where: { $0.id == child1.id }),
               let child2Index = model.nodes.firstIndex(where: { $0.id == child2.id }) else {
             #expect(Bool(false), "Children not found after sync")
             return
         }
-        
+
         #expect(approximatelyEqual(model.nodes[child1Index].position, parent.unwrapped.position, accuracy: 6), "Child1 close to parent")
         #expect(approximatelyEqual(model.nodes[child2Index].position, parent.unwrapped.position, accuracy: 6), "Child2 close to parent")
         #expect(model.nodes[child1Index].velocity == .zero, "Child1 velocity reset")
@@ -144,29 +144,29 @@ struct PersistenceAndModelTests {
         let storage = MockGraphStorage()
         let physics = PhysicsEngine(simulationBounds: CGSize(width: 300, height: 300))
         let model = GraphModel(storage: storage, physicsEngine: physics)
-        let parent = AnyNode(ToggleNode(label: 1, position: .zero))
+        let parent = AnyNode(Node(label: 1, position: .zero, isCollapsible: true))
         model.nodes = [parent]
-        
-        await model.addPlainChild(to: parent.id)  // Pushes undo
+
+        _ = await model.addPlainChild(to: parent.id)  // Pushes undo
         #expect(model.nodes.count == 2)
         #expect(model.edges.count == 1)
-        
-        guard let updatedParent = model.nodes[0].unwrapped as? ToggleNode else {
-            #expect(Bool(false), "Failed to cast updated parent to ToggleNode")
+
+        guard let updatedParent = model.nodes[0].unwrapped as? Node else {
+            #expect(Bool(false), "Failed to cast updated parent to Node")
             return
         }
         #expect(updatedParent.children.count == 1)
-        
+
         await model.undo()
         #expect(model.nodes.count == 1)
         #expect(model.edges.isEmpty)
-        
-        guard let revertedParent = model.nodes[0].unwrapped as? ToggleNode else {
-            #expect(Bool(false), "Failed to cast reverted parent to ToggleNode")
+
+        guard let revertedParent = model.nodes[0].unwrapped as? Node else {
+            #expect(Bool(false), "Failed to cast reverted parent to Node")
             return
         }
         #expect(revertedParent.children.isEmpty)
-        
+
         await model.redo()
         #expect(model.nodes.count == 2)
         #expect(model.edges.count == 1)

@@ -19,16 +19,22 @@ struct RepulsionCalculator {
 
     func computeRepulsions(nodes: [any NodeProtocol], layoutMode: LayoutMode = .network) -> ([NodeID: CGPoint], Quadtree?) {
         var forces: [NodeID: CGPoint] = [:]
-        let useQuadtree = nodes.count > maxNodesForQuadtree && simulationBounds.width >= Constants.Physics.minQuadSize && simulationBounds.height >= Constants.Physics.minQuadSize
-        let quadtree: Quadtree? = useQuadtree ? buildQuadtree(nodes: nodes) : nil
+        
+        // Filter out ControlNodes - they should not participate in repulsion
+        // This keeps segments aligned when control nodes appear around selected nodes
+        let repellingNodes = nodes.filter { !($0 is ControlNode) }
+        
+        let useQuadtree = repellingNodes.count > maxNodesForQuadtree && simulationBounds.width >= Constants.Physics.minQuadSize && simulationBounds.height >= Constants.Physics.minQuadSize
+        let quadtree: Quadtree? = useQuadtree ? buildQuadtree(nodes: repellingNodes) : nil
 
         for node in nodes {
             var repulsion: CGPoint = .zero
             if let quadtree = quadtree {
-                let dynamicTheta: CGFloat = nodes.count > 100 ? 1.5 : (nodes.count > 50 ? 1.2 : 0.8)
+                let dynamicTheta: CGFloat = repellingNodes.count > 100 ? 1.5 : (repellingNodes.count > 50 ? 1.2 : 0.8)
                 repulsion = quadtreeRepulsion(for: node, quadtree: quadtree, theta: dynamicTheta, layoutMode: layoutMode)
             } else {
-                for otherNode in nodes where otherNode.id != node.id {
+                // Only calculate repulsion from non-control nodes
+                for otherNode in repellingNodes where otherNode.id != node.id {
                     repulsion += repulsionForce(repellerPosition: otherNode.position, queryPosition: node.position, layoutMode: layoutMode)
                 }
             }

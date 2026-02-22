@@ -6,21 +6,34 @@
 //
 
 import Testing
+import Foundation
 @testable import GraphEditorShared
 
-@available(iOS 16.0, watchOS 9.0, *)
 struct HomeEconTypesTests {
 
     @Test("HomeEconNodeType has all expected cases")
     func testNodeTypeCases() {
         let allCases = HomeEconNodeType.allCases
-        #expect(allCases.count == 6)
+        #expect(allCases.count == 16)
+        // Financial tracking
         #expect(allCases.contains(.transaction))
         #expect(allCases.contains(.category))
         #expect(allCases.contains(.budget))
         #expect(allCases.contains(.user))
         #expect(allCases.contains(.account))
         #expect(allCases.contains(.goal))
+        // Meal planning
+        #expect(allCases.contains(.meal))
+        #expect(allCases.contains(.recipe))
+        #expect(allCases.contains(.ingredient))
+        #expect(allCases.contains(.shoppingItem))
+        #expect(allCases.contains(.task))
+        #expect(allCases.contains(.mealPlan))
+        // Decision tree & preferences
+        #expect(allCases.contains(.person))
+        #expect(allCases.contains(.preference))
+        #expect(allCases.contains(.decision))
+        #expect(allCases.contains(.choice))
     }
 
     @Test("HomeEconNodeType is Codable")

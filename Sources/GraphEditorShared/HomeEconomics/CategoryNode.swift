@@ -39,7 +39,7 @@ public struct CategoryNode: NodeProtocol {
             [.string(name)]
         }
         set {
-            // Contents are read-only for CategoryNode
+            _ = newValue  // Contents are read-only for CategoryNode
         }
     }
 
@@ -123,6 +123,10 @@ public struct CategoryNode: NodeProtocol {
 
     public mutating func bulkCollapse() {
         isExpanded = false
+    }
+
+    public var typeDescriptor: NodeTypeDescriptor {
+        CategoryNodeDescriptor(node: self)
     }
 
     // MARK: - Codable

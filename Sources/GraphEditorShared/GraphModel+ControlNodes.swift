@@ -26,10 +26,78 @@ extension GraphModel {
     // NEW: Flag to prevent recursive updates in the subscription sink
     
     public func getFreeSlots(for ownerID: NodeID) -> [CGFloat] {
-        // v1: Assume no occupations – return all slots
-        // Future: Check priorityEdges[ownerID] ?? [], calculate occupied angles from edge directions,
-        //         filter out slots within ±22.5° of occupied, return remaining sorted.
-        return Self.controlAngles  // Use static
+        // Find the owner node
+        guard let owner = nodes.first(where: { $0.id == ownerID })?.unwrapped else {
+            return Self.controlAngles
+        }
+        
+        // Check if owner is a PersonNode in an expanded PeopleListNode table
+        let isInTable: Bool = {
+            guard owner is PersonNode else { return false }
+            // Find if there's a PeopleListNode parent that's expanded
+            if let parentEdge = edges.first(where: { $0.target == ownerID && $0.type == .hierarchy }),
+               let peopleList = nodes.first(where: { $0.id == parentEdge.from })?.unwrapped as? PeopleListNode,
+               peopleList.isExpanded {
+                return true
+            }
+            return false
+        }()
+        
+        // Get all other persistent nodes (not control nodes, not the owner itself)
+        let nearbyNodes = nodes
+            .map { $0.unwrapped }
+            .filter { node in
+                node.id != ownerID && !(node is ControlNode)
+            }
+        
+        // Calculate which angles would collide with nearby nodes
+        let collisionThreshold: CGFloat = 50.0  // Consider nodes within 50pt as potential collisions
+        let angleBuffer: CGFloat = 30.0  // Avoid angles within ±30° of collision
+        
+        var blockedAngles = Set<CGFloat>()
+        
+        // If in table, block the right-side angles where the label is (0° and 45°)
+        if isInTable {
+            blockedAngles.insert(0)   // Right
+            blockedAngles.insert(45)  // Top-right
+        }
+        
+        for nearbyNode in nearbyNodes {
+            // swiftlint:disable:next identifier_name
+            let dx = nearbyNode.position.x - owner.position.x
+            // swiftlint:disable:next identifier_name
+            let dy = nearbyNode.position.y - owner.position.y
+            let distance = hypot(dx, dy)
+            
+            // Only consider nodes that are close enough to potentially collide
+            if distance < collisionThreshold {
+                // Calculate angle to this node (in degrees, 0° = right)
+                let angleToNode = atan2(dy, dx) * 180 / .pi
+                let normalizedAngle = angleToNode < 0 ? angleToNode + 360 : angleToNode
+                
+                // Mark this angle and nearby angles as blocked
+                for angle in Self.controlAngles {
+                    let angleDiff = abs(normalizedAngle - angle)
+                    let wrappedDiff = min(angleDiff, 360 - angleDiff)  // Handle wrap-around at 0°/360°
+                    
+                    if wrappedDiff < angleBuffer {
+                        blockedAngles.insert(angle)
+                    }
+                }
+            }
+        }
+        
+        // Filter out blocked angles
+        let availableAngles = Self.controlAngles.filter { !blockedAngles.contains($0) }
+        
+        #if DEBUG
+        if !blockedAngles.isEmpty {
+            Self.controlLogger.debug("getFreeSlots: isInTable=\(isInTable), blocked angles \(Array(blockedAngles).sorted().map { String(format: "%.0f", $0) }.joined(separator: ", "))°, available: \(availableAngles.map { String(format: "%.0f", $0) }.joined(separator: ", "))°")
+        }
+        #endif
+        
+        // If all angles are blocked, return all angles (better to have some overlap than no controls)
+        return availableAngles.isEmpty ? Self.controlAngles : availableAngles
     }
     
     // MARK: - Ephemeral Management
@@ -44,6 +112,14 @@ extension GraphModel {
             #if DEBUG
             Self.controlLogger.debug("Clearing previous ephemerals for owner: \(previousOwnerID.uuidString.prefix(8))")
             #endif
+            
+            // Only clear taco category state when switching to a different node
+            if previousOwnerID != selectedNodeID,
+               let _ = nodes.first(where: { $0.id == previousOwnerID })?.unwrapped as? TacoNode {
+                activeTacoCategory.removeValue(forKey: previousOwnerID)
+                activeToppingSubCategory.removeValue(forKey: previousOwnerID)
+            }
+            
             await removeEphemerals(for: previousOwnerID)
         } else {
             ephemeralControlNodes.removeAll()
@@ -133,6 +209,45 @@ extension GraphModel {
     }
     
     private func filterControlKindsForNode(owner: any NodeProtocol, ownerID: NodeID) -> [ControlKind] {
+        // Check for workflow-specific node types first
+        if owner is RootNode {
+            // RootNode: Primary creation controls (Person, Meal, TacoNight) and Dashboard view
+            return [.addPersonNode, .addTacoNight, .addMealNode, .viewDashboard]
+        } else if let mealNode = owner as? MealNode {
+            return filterControlKindsForMealNode(mealNode, ownerID: ownerID)
+        } else if let taskNode = owner as? TaskNode {
+            return filterControlKindsForTaskNode(taskNode, ownerID: ownerID)
+        } else if owner is RecipeNode {
+            return filterControlKindsForRecipeNode(owner, ownerID: ownerID)
+        } else if let peopleList = owner as? PeopleListNode {
+            // PeopleListNode: Add person + collapse/expand controls
+            // Auto-deletes when empty, so no manual delete control needed
+            var kinds: [ControlKind] = [.addPersonNode]
+            if peopleList.isCollapsible && !peopleList.children.isEmpty {
+                kinds.append(.toggleExpand)
+            }
+            kinds.append(.openMenu)
+            return kinds
+        } else if let person = owner as? PersonNode {
+            // PersonNode: Link contact (if not linked), edit preferences, menu, delete
+            var kinds: [ControlKind] = []
+
+            // Only show linkContact if no contact is linked
+            if person.contactIdentifier == nil {
+                kinds.append(.linkContact)
+            }
+
+            kinds.append(contentsOf: [.editPreferences, .openMenu, .delete])
+            return kinds
+        } else if let tacoNode = owner as? TacoNode {
+            // TacoNode uses hierarchical controls for configuration
+            return filterControlKindsForTacoNode(tacoNode, ownerID: ownerID)
+        } else if owner is PreferenceNode || owner is DecisionNode || owner is TableNode {
+            // These node types have specialized menu UIs
+            return [.openMenu, .addEdge, .delete, .duplicate]
+        }
+        
+        // Generic node - use original logic
         let kinds: [ControlKind] = [.edit, .addChild, .addEdge, .delete, .duplicate, .addToggleChild, .toggleExpand]
         
         // Contextual filtering - show only relevant controls based on node state
@@ -163,6 +278,8 @@ extension GraphModel {
                 return !owner.contents.isEmpty || true
             case .toggleExpand:
                 return isCollapsible && hasChildren  // Only show for collapsible nodes with children
+            default:
+                return false  // Workflow controls shouldn't appear for generic nodes
             }
         }
         
@@ -176,6 +293,151 @@ extension GraphModel {
             let priority1 = uiConfig[ownerID]?.first(where: { $0.kind == kind1 })?.priority ?? 0
             let priority2 = uiConfig[ownerID]?.first(where: { $0.kind == kind2 })?.priority ?? 0
             return priority1 < priority2
+        }
+    }
+    
+    // MARK: - Workflow-Specific Control Filtering
+    
+    private func filterControlKindsForMealNode(_ mealNode: MealNode, ownerID: NodeID) -> [ControlKind] {
+        var kinds: [ControlKind] = []
+        
+        let workflowActive = isWorkflowActive(for: ownerID)
+        let workflowComplete = isWorkflowComplete(for: ownerID)
+        let hasCurrentTask = currentTask(for: ownerID) != nil
+        
+        #if DEBUG
+        Self.controlLogger.debug("MealNode controls: workflowActive=\(workflowActive), workflowComplete=\(workflowComplete), hasCurrentTask=\(hasCurrentTask)")
+        #endif
+        
+        if workflowActive {
+            // Execution mode - show workflow controls only
+            kinds.append(.stopWorkflow)
+
+            if hasCurrentTask && !workflowComplete {
+                kinds.append(.completeTask)
+            }
+
+            // CRUD controls disabled during workflow execution
+        } else {
+            // Construction mode - show task creation controls
+            kinds.append(.startWorkflow)
+            kinds.append(.addShopTask)
+            kinds.append(.addPrepTask)
+            kinds.append(.addCookTask)
+            kinds.append(.addRecipe)
+
+            // CRUD controls disabled during construction
+        }
+        
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
+        }
+    }
+    
+    private func filterControlKindsForTaskNode(_ taskNode: TaskNode, ownerID: NodeID) -> [ControlKind] {
+        var kinds: [ControlKind] = []
+        
+        #if DEBUG
+        Self.controlLogger.debug("TaskNode controls: status=\(taskNode.status.rawValue)")
+        #endif
+        
+        // Context-aware controls based on task status
+        // CRUD controls disabled for workflow tasks
+        switch taskNode.status {
+        case .pending:
+            kinds = [.startTask, .blockTask, .declineTask]
+
+        case .inProgress:
+            kinds = [.completeTask, .blockTask]
+
+        case .blocked:
+            kinds = [.unblockTask, .declineTask]
+
+        case .completed, .declined:
+            kinds = [.resetTask]
+
+        case .skipped:
+            kinds = [.resetTask]
+        }
+        
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
+        }
+    }
+    
+    private func filterControlKindsForRecipeNode(_ owner: any NodeProtocol, ownerID: NodeID) -> [ControlKind] {
+        // RecipeNode - CRUD controls disabled for workflow
+        let kinds: [ControlKind] = [.scaleRecipe]
+
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
+        }
+    }
+    
+    private func filterControlKindsForTacoNode(_ tacoNode: TacoNode, ownerID: NodeID) -> [ControlKind] {
+        var kinds: [ControlKind] = []
+
+        let activeCategory = activeTacoCategory[ownerID]
+        let activeSubCategory = activeToppingSubCategory[ownerID]
+
+        if let subCategory = activeSubCategory {
+            // Level 3: individual topping toggles within a sub-category
+            kinds.append(.backToCategories)
+            switch subCategory {
+            case .selectVeggies:
+                kinds.append(.toggleTomatoes)
+                kinds.append(.toggleLettuce)
+                kinds.append(.toggleOnions)
+                kinds.append(.toggleJalapeños)
+                kinds.append(.toggleRadishes)
+            case .selectCreamy:
+                kinds.append(.toggleCheese)
+                kinds.append(.toggleSourCream)
+                kinds.append(.toggleGuacamole)
+            case .selectHerbsZest:
+                kinds.append(.toggleCilantro)
+                kinds.append(.toggleLime)
+            case .selectFireKick:
+                kinds.append(.toggleHotSauce)
+                kinds.append(.togglePickledJalapeños)
+            default:
+                break
+            }
+        } else if let category = activeCategory {
+            // Level 2: sub-categories or protein/shell options
+            kinds.append(.backToCategories)
+            switch category {
+            case .selectProtein:
+                kinds.append(.toggleBeef)
+                kinds.append(.toggleChicken)
+            case .selectShell:
+                kinds.append(.toggleCrunchyShell)
+                kinds.append(.toggleSoftFlourShell)
+                kinds.append(.toggleSoftCornShell)
+            case .selectToppings:
+                // Show 4 topping sub-category nodes
+                kinds.append(.selectVeggies)
+                kinds.append(.selectCreamy)
+                kinds.append(.selectHerbsZest)
+                kinds.append(.selectFireKick)
+            default:
+                break
+            }
+        } else {
+            // Level 1: top-level categories
+            kinds.append(.selectProtein)
+            kinds.append(.selectShell)
+            kinds.append(.selectToppings)
+            kinds.append(.delete)
+            kinds.append(.duplicate)
+        }
+
+        // Apply UI config filtering
+        return kinds.filter { kind in
+            uiConfig[ownerID]?.first(where: { $0.kind == kind })?.isVisible ?? true
         }
     }
     
@@ -196,8 +458,15 @@ extension GraphModel {
                 position: position,
                 ownerID: ownerID,
                 kind: kind,
-                relativeAngle: angle
+                relativeAngle: angle,
+                ownerIsExpanded: owner.isExpanded
             )
+            
+            #if DEBUG
+            if kind == .toggleExpand {
+                Self.controlLogger.debug("  ToggleExpand control created with ownerIsExpanded=\(owner.isExpanded) for owner \(ownerID.uuidString.prefix(8))")
+            }
+            #endif
             
             #if DEBUG
             let distance = hypot(position.x - owner.position.x, position.y - owner.position.y)

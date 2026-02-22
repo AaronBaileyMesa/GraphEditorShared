@@ -42,38 +42,59 @@ extension GraphModel {
         edges.filter { ($0.from == id1 && $0.target == id2) || ($0.from == id2 && $0.target == id1) }
     }
 
+    // swiftlint:disable:next function_body_length
     public func handleTap(on nodeID: NodeID) async {
         guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
-            print("handleTap: Index not found for ID \(nodeID)")
+#if DEBUG
+            if LogManager.verboseSimulationLogging {
+                print("handleTap: Index not found for ID \(nodeID)")
+            }
+#endif
             return
         }
         let oldNode = nodes[index]
-        let oldIsExpanded = (oldNode.unwrapped as? Node)?.isExpanded
-        print("handleTap: Pre-handlingTap - old isExpanded: \(oldIsExpanded?.description ?? "not Node")")
+#if DEBUG
+        if LogManager.verboseSimulationLogging {
+            let oldIsExpanded = (oldNode.unwrapped as? Node)?.isExpanded
+            print("handleTap: Pre-handlingTap - old isExpanded: \(oldIsExpanded?.description ?? "not Node")")
+        }
+#endif
 
         let updatedNode = oldNode.handlingTap()
-        let newIsExpanded = (updatedNode.unwrapped as? Node)?.isExpanded
-        print("handleTap: Post-handlingTap - updated isExpanded: \(newIsExpanded?.description ?? "not Node")")
+#if DEBUG
+        if LogManager.verboseSimulationLogging {
+            let newIsExpanded = (updatedNode.unwrapped as? Node)?.isExpanded
+            print("handleTap: Post-handlingTap - updated isExpanded: \(newIsExpanded?.description ?? "not Node")")
+        }
+#endif
 
         nodes[index] = updatedNode
-        let assignedIsExpanded = (nodes[index].unwrapped as? Node)?.isExpanded
-        print("handleTap: Post-assignment - model.nodes[\(index)] isExpanded: \(assignedIsExpanded?.description ?? "not Node")")
+#if DEBUG
+        if LogManager.verboseSimulationLogging {
+            let assignedIsExpanded = (nodes[index].unwrapped as? Node)?.isExpanded
+            print("handleTap: Post-assignment - model.nodes[\(index)] isExpanded: \(assignedIsExpanded?.description ?? "not Node")")
+        }
+#endif
 
         let children = edges.filter { $0.from == nodeID && $0.type == EdgeType.hierarchy }.map { $0.target }
 
         if let node = updatedNode.unwrapped as? Node, node.isCollapsible {
-            print("handleTap: Entered if-let - collapsible node isExpanded: \(node.isExpanded)")
+#if DEBUG
+            if LogManager.verboseSimulationLogging {
+                print("handleTap: Entered if-let - collapsible node isExpanded: \(node.isExpanded)")
+            }
+#endif
 
             if node.isExpanded {
                 // Expand → gently push children outward in a circle (prevents overlap)
                 for childID in children {
                     guard let childIndex = nodes.firstIndex(where: { $0.id == childID }) else { continue }
                     var child = nodes[childIndex].unwrapped
-                    
+
                     let angle = CGFloat.random(in: 0..<CGFloat.pi * 2)
                     let distance = Constants.App.nodeModelRadius * 4
                     let offset = CGPoint(x: cos(angle) * distance, y: sin(angle) * distance)
-                    
+
                     child.position = node.position + offset
                     nodes[childIndex] = AnyNode(child)
                 }
@@ -81,17 +102,25 @@ extension GraphModel {
                 // Collapse → do nothing at all to positions
                 // Hidden nodes remain fully active in physics → perfect hierarchical layout
             }
-        
+
         } else {
-            print("handleTap: Node is not collapsible or cast failed")
+#if DEBUG
+            if LogManager.verboseSimulationLogging {
+                print("handleTap: Node is not collapsible or cast failed")
+            }
+#endif
         }
 
         objectWillChange.send()
         let unwrappedNodes = nodes.map { $0.unwrapped }
         let updatedUnwrapped = physicsEngine.runSimulation(steps: 20, nodes: unwrappedNodes, edges: edges)
         nodes = updatedUnwrapped.map { AnyNode($0) }
-        let finalIsExpanded = (nodes[index].unwrapped as? Node)?.isExpanded
-        print("handleTap: Post-simulation - model.nodes[\(index)] isExpanded: \(finalIsExpanded?.description ?? "not Node")")
+#if DEBUG
+        if LogManager.verboseSimulationLogging {
+            let finalIsExpanded = (nodes[index].unwrapped as? Node)?.isExpanded
+            print("handleTap: Post-simulation - model.nodes[\(index)] isExpanded: \(finalIsExpanded?.description ?? "not Node")")
+        }
+#endif
     }
     
     public func graphDescription(selectedID: NodeID?, selectedEdgeID: UUID?) -> String {
@@ -160,6 +189,9 @@ extension GraphModel {
     
     // Add this to GraphModel+Helpers.swift to include color resets (and optionally call save() if needed)
     public func resetGraph() async {
+        // Preserve RootNode before clearing
+        let rootNode = nodes.first(where: { $0.unwrapped is RootNode })
+        
         nodes.removeAll()
         edges.removeAll()
         nextNodeLabel = 1  // Reset label counter
@@ -167,6 +199,14 @@ extension GraphModel {
         associationEdgeColor = .white  // Reset to default
         undoStack.removeAll()
         redoStack.removeAll()
+        
+        // Restore or create RootNode
+        if let root = rootNode {
+            nodes.append(root)
+        } else {
+            await ensureRootNode()
+        }
+        
         objectWillChange.send()
         do {
             try await saveGraph()  // Add this to persist the reset

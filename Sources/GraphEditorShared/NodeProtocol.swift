@@ -19,7 +19,7 @@ public enum NodeContent: Codable, Equatable {
     
     public var displayText: String {
         switch self {
-        case .string(let value): return value.prefix(10) + (value.count > 10 ? "…" : "")
+        case .string(let value): return value  // Return full string without truncation
         case .date(let value):
             let formatter = DateFormatter()
             formatter.dateStyle = .short
@@ -139,6 +139,10 @@ public protocol NodeProtocol: Identifiable, Equatable, Codable where ID == NodeI
     /// Determines if child nodes (via outgoing edges) should be hidden.
     /// - Returns: True if children should be hidden (e.g., collapsed toggle).
     func shouldHideChildren() -> Bool
+
+    /// Type descriptor that configures physics, rendering, interaction, and behavior.
+    /// This property enables declarative node type configuration without type-casting.
+    var typeDescriptor: NodeTypeDescriptor { get }
 }
 
 extension NodeProtocol {
@@ -187,6 +191,11 @@ extension NodeProtocol {
         AnyView(Circle().fill(fillColor).frame(width: radius * 2 * zoomScale, height: radius * 2 * zoomScale))
     }
 
+    // Default type descriptor implementation (backwards compatibility)
+    public var typeDescriptor: NodeTypeDescriptor {
+        DefaultNodeDescriptor(node: self)
+    }
+
 }
 
 @available(iOS 16.0, *)
@@ -222,6 +231,7 @@ public struct AnyNode: NodeProtocol {
     }
     public var fillColor: Color { base.fillColor }
     public var unwrapped: any NodeProtocol { base }
+    public var typeDescriptor: NodeTypeDescriptor { base.typeDescriptor }
 
     public init(_ base: any NodeProtocol) {
         self.base = base
@@ -261,8 +271,9 @@ public struct AnyNode: NodeProtocol {
     public func renderView(zoomScale: CGFloat, isSelected: Bool) -> AnyView {
         base.renderView(zoomScale: zoomScale, isSelected: isSelected)
     }
-    
+
     // MARK: Codable
+    // swiftlint:disable:next cyclomatic_complexity
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
@@ -287,6 +298,48 @@ public struct AnyNode: NodeProtocol {
                 childOrder: toggleNode.childOrder
             )
             self.init(convertedNode)
+        case "mealNode":
+            let node = try container.decode(MealNode.self, forKey: .data)
+            self.init(node)
+        case "taskNode":
+            let node = try container.decode(TaskNode.self, forKey: .data)
+            self.init(node)
+        case "recipeNode":
+            let node = try container.decode(RecipeNode.self, forKey: .data)
+            self.init(node)
+        case "ingredientNode":
+            let node = try container.decode(IngredientNode.self, forKey: .data)
+            self.init(node)
+        case "transactionNode":
+            let node = try container.decode(TransactionNode.self, forKey: .data)
+            self.init(node)
+        case "categoryNode":
+            let node = try container.decode(CategoryNode.self, forKey: .data)
+            self.init(node)
+        case "personNode":
+            let node = try container.decode(PersonNode.self, forKey: .data)
+            self.init(node)
+        case "preferenceNode":
+            let node = try container.decode(PreferenceNode.self, forKey: .data)
+            self.init(node)
+        case "decisionNode":
+            let node = try container.decode(DecisionNode.self, forKey: .data)
+            self.init(node)
+        case "choiceNode":
+            let node = try container.decode(ChoiceNode.self, forKey: .data)
+            self.init(node)
+        case "tableNode":
+            let node = try container.decode(TableNode.self, forKey: .data)
+            self.init(node)
+        case "tacoNode":
+            let node = try container.decode(TacoNode.self, forKey: .data)
+            self.init(node)
+        case "peopleListNode":
+            let node = try container.decode(PeopleListNode.self, forKey: .data)
+            self.init(node)
+        case "rootNode":
+            let node = try container.decode(RootNode.self, forKey: .data)
+            self.init(node)
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: container,
                 debugDescription: "Unknown node type: \(type)")
@@ -302,6 +355,48 @@ public struct AnyNode: NodeProtocol {
         if let node = base as? Node {
             // Always encode as "node" type (even collapsible nodes)
             try container.encode("node", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? MealNode {
+            try container.encode("mealNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? TaskNode {
+            try container.encode("taskNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? RecipeNode {
+            try container.encode("recipeNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? IngredientNode {
+            try container.encode("ingredientNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? TransactionNode {
+            try container.encode("transactionNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? CategoryNode {
+            try container.encode("categoryNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? PersonNode {
+            try container.encode("personNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? PreferenceNode {
+            try container.encode("preferenceNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? DecisionNode {
+            try container.encode("decisionNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? ChoiceNode {
+            try container.encode("choiceNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? TableNode {
+            try container.encode("tableNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? TacoNode {
+            try container.encode("tacoNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? PeopleListNode {
+            try container.encode("peopleListNode", forKey: .type)
+            try container.encode(node, forKey: .data)
+        } else if let node = base as? RootNode {
+            try container.encode("rootNode", forKey: .type)
             try container.encode(node, forKey: .data)
         } else {
             throw EncodingError.invalidValue(base, .init(codingPath: [], debugDescription: "Unknown node type"))

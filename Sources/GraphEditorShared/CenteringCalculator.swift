@@ -12,8 +12,39 @@ struct CenteringCalculator {
     let simulationBounds: CGSize
 
     @available(iOS 16.0, *)
-    func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode) -> [NodeID: CGPoint] {
+    // swiftlint:disable:next function_body_length
+    func applyCentering(forces: [NodeID: CGPoint], nodes: [any NodeProtocol], layoutMode: LayoutMode, edges: [GraphEdge] = [], segmentConfigs: [NodeID: SegmentConfig] = [:]) -> [NodeID: CGPoint] {
         var updatedForces = forces
+        
+        // Build segment membership if we have segment configs
+        var segmentMembership: Set<NodeID> = []
+        if !segmentConfigs.isEmpty {
+            let membershipMap = DirectionalLayoutCalculator.buildSegmentMembership(
+                nodes: nodes,
+                edges: edges,
+                segmentConfigs: segmentConfigs
+            )
+            segmentMembership = Set(membershipMap.keys)
+            
+            // Debug: Log segment membership details
+            print("🧲 [CenteringCalculator] Segment configs: \(segmentConfigs.count)")
+            print("🧲 [CenteringCalculator] Segment membership: \(segmentMembership.count) nodes")
+            print("🧲 [CenteringCalculator] Total nodes: \(nodes.count)")
+            print("🧲 [CenteringCalculator] Nodes NOT in segments: \(nodes.count - segmentMembership.count)")
+            
+            // Show which nodes are and aren't in segments
+            for node in nodes {
+                let hasConstraints = !node.typeDescriptor.constraints.isEmpty
+                let constraintLabel = hasConstraints ? " [CONSTRAINED]" : ""
+                if segmentMembership.contains(node.id) {
+                    print("  ✅ Node \(node.id.uuidString.prefix(8)) IN segment\(constraintLabel)")
+                } else if hasConstraints {
+                    print("  🚫 Node \(node.id.uuidString.prefix(8)) NOT in segment but HAS CONSTRAINTS - will be excluded from centering")
+                } else {
+                    print("  ❌ Node \(node.id.uuidString.prefix(8)) NOT in segment - will receive centering force")
+                }
+            }
+        }
         
         // For hierarchy mode, apply gentle upward-left gravity instead of strong centering
         if layoutMode == .hierarchy {
@@ -22,6 +53,18 @@ struct CenteringCalculator {
             let reducedForce = Constants.Physics.centeringForce * 0.3  // Much weaker than network mode
             
             for node in nodes {
+                // Skip nodes that belong to a directionally-laid-out segment or have constraints
+                let hasConstraints = !node.typeDescriptor.constraints.isEmpty
+                let inSegment = segmentMembership.contains(node.id)
+
+                if hasConstraints {
+                    #if DEBUG
+                    print("🧲 [CenteringCalculator] Skipping constrained node \(node.id.uuidString.prefix(8)) - no centering force")
+                    #endif
+                }
+
+                guard !inSegment && !hasConstraints else { continue }
+
                 let deltaX = targetPoint.x - node.position.x
                 let deltaY = targetPoint.y - node.position.y
                 let distToTarget = hypot(deltaX, deltaY)
@@ -34,6 +77,18 @@ struct CenteringCalculator {
             // Network mode: standard centering to middle
             let center = CGPoint(x: simulationBounds.width / 2, y: simulationBounds.height / 2)
             for node in nodes {
+                // Skip nodes that belong to a directionally-laid-out segment or have constraints
+                let hasConstraints = !node.typeDescriptor.constraints.isEmpty
+                let inSegment = segmentMembership.contains(node.id)
+
+                if hasConstraints {
+                    #if DEBUG
+                    print("🧲 [CenteringCalculator] Skipping constrained node \(node.id.uuidString.prefix(8)) - no centering force")
+                    #endif
+                }
+
+                guard !inSegment && !hasConstraints else { continue }
+
                 let deltaX = center.x - node.position.x
                 let deltaY = center.y - node.position.y
                 let distToCenter = hypot(deltaX, deltaY)

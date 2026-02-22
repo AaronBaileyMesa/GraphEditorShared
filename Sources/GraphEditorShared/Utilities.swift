@@ -12,6 +12,16 @@ public struct LogManager {
         return false
 #endif
     }
+
+    // Control verbose simulation/physics logging
+    // Set to false to reduce console noise from physics simulation
+    public static var verboseSimulationLogging: Bool {
+#if DEBUG
+        return false  // Disabled to reduce console noise
+#else
+        return false
+#endif
+    }
 }
 
 public extension Double {

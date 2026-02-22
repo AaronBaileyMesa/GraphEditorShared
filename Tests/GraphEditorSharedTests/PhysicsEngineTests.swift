@@ -21,7 +21,8 @@ struct PhysicsEngineTests {
         let edge = GraphEdge(from: node1.id, target: node2.id, type: .hierarchy)
         let forces = calc.applyAttractions(forces: [:], edges: [edge], nodes: [node1, node2])
         
-        let forceMagnitude = Constants.Physics.stiffness * (dist - Constants.Physics.idealLength)
+        // Use hierarchy-specific constants for hierarchy edges
+        let forceMagnitude = Constants.Physics.hierarchyStiffness * (dist - Constants.Physics.hierarchyIdealLength)
         let expectedChildPull = forceMagnitude * 2.0  // Matches asymmetricFactor
         let expectedParentBackPull = forceMagnitude * 0.1  // Matches back-pull factor
         
